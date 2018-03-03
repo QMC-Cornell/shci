@@ -1,3 +1,6 @@
 [submodule "googletest"]
 	path = googletest
 	url = https://github.com/google/googletest.git
+[submodule "property_tree"]
+	path = property_tree
+	url = https://github.com/boostorg/property_tree.git
