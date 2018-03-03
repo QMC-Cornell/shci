@@ -24,20 +24,20 @@ ifneq ($(wildcard $(LOCAL_MAKEFILE)),)
 endif
 
 # Sources and intermediate objects.
-MAIN := $(SRC_DIR)/main.cc
+MAIN_SRC := $(SRC_DIR)/main.cc
 SRCS := $(shell find $(SRC_DIR) ! -name "main.cc" ! -name "*_test.cc" -name "*.cc")
 HEADERS := $(shell find $(SRC_DIR) -name "*.h")
 OBJS := $(SRCS:$(SRC_DIR)/%.cc=$(BUILD_DIR)/%.o)
 TESTS := $(shell find $(SRC_DIR) -name "*_test.cc")
-TEST_OBJS := $(TESTS:$(SRC_DIR)/%.cc=$(BUILD_DIR)/%.o)
 GTEST_DIR := googletest/googletest
 GMOCK_DIR := googletest/googlemock
+TEST_MAIN_SRC := gtest_main_mpi.cc
+TEST_OBJS := $(TESTS:$(SRC_DIR)/%.cc=$(BUILD_DIR)/%.o)
 GTEST_ALL_SRC := ${GTEST_DIR}/src/gtest-all.cc
 GMOCK_ALL_SRC := ${GMOCK_DIR}/src/gmock-all.cc
-TEST_MAIN_SRC := gtest_main_mpi.cc
 TEST_MAIN_OBJ := $(BUILD_DIR)/gtest_main.o
-TEST_CXXFLAGS := $(CXXFLAGS) -isystem $(GTEST_DIR)/include -isystem $(GMOCK_DIR)/include -pthread
 TEST_LIB := $(BUILD_DIR)/libgtest.a
+TEST_CXXFLAGS := $(CXXFLAGS) -isystem $(GTEST_DIR)/include -isystem $(GMOCK_DIR)/include -pthread
 
 .PHONY: all test test_mpi clean
 
@@ -56,8 +56,8 @@ clean:
 	rm -f ./$(EXE)
 	rm -f ./$(TEST_EXE)
 
-$(EXE): $(OBJS) $(MAIN) $(HEADERS)
-	$(CXX) $(CXXFLAGS) $(MAIN) $(OBJS) -o $(EXE) $(LDLIBS)
+$(EXE): $(OBJS) $(MAIN_SRC) $(HEADERS)
+	$(CXX) $(CXXFLAGS) $(MAIN_SRC) $(OBJS) -o $(EXE) $(LDLIBS)
 
 $(OBJS): $(BUILD_DIR)/%.o: $(SRC_DIR)/%.cc $(HEADERS)
 	mkdir -p $(@D) && $(CXX) $(CXXFLAGS) -c $< -o $@
