@@ -1,0 +1,17 @@
+language: cpp
+sudo: false
+dist: trusty
+compiler:
+  - gcc
+os:
+  - linux
+env:
+  - TOOLS_DIR=$TRAVIS_BUILD_DIR/tools
+before_install:
+  - git submodule update --init --remote --recursive
+script: bash ./ci.sh
+cache:
+  directories:
+    - tools/openmpi
+notification:
+  email: false
