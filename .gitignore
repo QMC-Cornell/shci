@@ -1,0 +1,15 @@
+# Compilation files.
+build/
+local.mk
+*.out
+shci
+shci_test
+
+# OS and editor files.
+.vscode/
+.DS_Store
+*.dSYM/
+
+# Other temporary files.
+*.log
+*.bak
