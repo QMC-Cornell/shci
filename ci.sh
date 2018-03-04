@@ -17,7 +17,7 @@ else
   tar xjf openmpi-3.0.0.tar.bz2
   cd openmpi-3.0.0
   mkdir -p $TOOLS_DIR/openmpi
-  ./configure --prefix=$TOOLS_DIR/openmpi
+  ./configure --prefix=$TOOLS_DIR/openmpi CC=$C_COMPILER CXX=$CXX_COMPILER
   make -j 8
   make install
   cd ../../
