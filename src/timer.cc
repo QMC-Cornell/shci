@@ -16,7 +16,7 @@ Timer::Timer() {
   init_time = prev_time = now;
   is_master = Parallel::get_proc_id() == 0;
   if (is_master) {
-    printf("Time format: [DIFF/SECTION/TOTAL]\n");
+    printf("Timing format: [DIFF/SECTION/TOTAL]\n");
   }
 }
 
