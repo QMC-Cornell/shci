@@ -1,0 +1,13 @@
+{
+  "system": "chem",
+  "n_up": 6,
+  "n_dn": 6,
+  "eps_var": [2e-3, 1e-3],
+  "eps_pt": 1e-5,
+  "target_error": 1e-4,
+  "chem": {
+    "point_group": "d2h",
+    "n_orbs": 60,
+    "time_sym": false
+  }
+}

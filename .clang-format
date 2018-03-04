@@ -3,4 +3,4 @@ AlignAfterOpenBracket: AlwaysBreak
 BinPackArguments: false
 BinPackParameters: false
 AlignTrailingComments: false
-ColumnLimit: 80
+ColumnLimit: 100

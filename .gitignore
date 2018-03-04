@@ -5,6 +5,10 @@ local.mk
 shci
 shci_test
 
+# Runtime files.
+config.json
+local.mk
+
 # OS and editor files.
 .vscode/
 .DS_Store

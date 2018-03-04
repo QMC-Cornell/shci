@@ -8,10 +8,14 @@ BUILD_DIR := build
 EXE := shci
 TEST_EXE := shci_test
 
-# Link Google Perf if available.
-GPERFTOOLS_DIR := $(TOOLS_DIR)/gperftools
+# Libraries.
 UNAME := $(shell uname)
 ifeq ($(UNAME), Linux)
+	TOOLS_DIR := $(HOME)/tools
+	EIGEN_DIR := $(TOOLS_DIR)/eigen
+	BOOST_DIR := $(TOOLS_DIR)/boost
+	GPERFTOOLS_DIR := $(TOOLS_DIR)/gperftools
+	CXXFLAGS := $(CXXFLAGS) -I $(EIGEN_DIR)/include -I $(BOOST_DIR)/include
 	ifneq ($(wildcard $(GPERFTOOLS_DIR)),)
 		LDLIBS := -L $(GPERFTOOLS_DIR)/lib $(LDLIBS) -ltcmalloc
 	endif
