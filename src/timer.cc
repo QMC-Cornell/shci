@@ -18,7 +18,7 @@ Timer::Timer() {
   if (is_master) {
     const time_t start_time = std::chrono::system_clock::to_time_t(now);
     printf("\nStart time: %s", asctime(localtime(&start_time)));
-    printf("Format: " ANSI_COLOR_YELLOW "[DIFF/SECTION/TOTAL]" ANSI_COLOR_RESET "\n");
+    printf("Format: [DIFF/SECTION/TOTAL]\n");
   }
 }
 
@@ -28,8 +28,8 @@ void Timer::start(const std::string& event) {
   auto& instance = get_instance();
   instance.start_times.push_back(std::make_pair(event, now));
   if (instance.is_master) {
-    printf("\n" ANSI_COLOR_GREEN "[START] " ANSI_COLOR_RESET);
-    instance.print_event_path();
+    printf("\n" ANSI_COLOR_YELLOW "[START] " ANSI_COLOR_RESET);
+    instance.print_status();
   }
   instance.prev_time = now;
 }
@@ -39,14 +39,14 @@ void Timer::end() {
   const auto& now = std::chrono::high_resolution_clock::now();
   auto& instance = get_instance();
   if (instance.is_master) {
-    printf(ANSI_COLOR_GREEN "[=END=] " ANSI_COLOR_RESET);
-    instance.print_event_path();
+    printf(ANSI_COLOR_BLUE "[=END=] " ANSI_COLOR_RESET);
+    instance.print_status();
   }
   instance.start_times.pop_back();
   instance.prev_time = now;
 }
 
-void Timer::print_event_path() const {
+void Timer::print_status() const {
   for (size_t i = 0; i < start_times.size() - 1; i++) {
     printf("%s >> ", start_times[i].first.c_str());
   }
@@ -54,7 +54,7 @@ void Timer::print_event_path() const {
   const auto& now = std::chrono::high_resolution_clock::now();
   const auto& event_start_time = start_times.back().second;
   printf(
-      ANSI_COLOR_YELLOW "[%.3f/%.3f/%.3f]\n" ANSI_COLOR_RESET,
+      "[%.3f/%.3f/%.3f]\n",
       get_duration(prev_time, now),
       get_duration(event_start_time, now),
       get_duration(init_time, now));

@@ -10,6 +10,9 @@ class Solver {
   void solve() {
     Timer::start("variation");
     Timer::end();
+
+    Timer::start("perturbation");
+    Timer::end();
   }
 
  private:

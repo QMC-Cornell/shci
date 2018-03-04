@@ -18,7 +18,7 @@ class Timer {
  private:
   Timer();
 
-  void print_event_path() const;
+  void print_status() const;
 
   double get_duration(
       const std::chrono::high_resolution_clock::time_point start,
