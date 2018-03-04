@@ -1,8 +1,12 @@
 #pragma once
 
-#include <boost/property_tree/json_parser.hpp>
-#include <boost/property_tree/ptree.hpp>
+#include <fstream>
+#include <functional>
 #include <iostream>
+#include <nlohmann/json.hpp>
+#include <sstream>
+
+class Result;
 
 class Config {
  public:
@@ -11,29 +15,38 @@ class Config {
     return instance;
   }
 
-  static void print() {
-    boost::property_tree::json_parser::write_json(std::cout, get_instance().config_tree);
-  }
+  static void print() { std::cout << std::setw(2) << get_instance().data << std::endl; }
 
   template <class T>
   static T get(const std::string& key) {
-    return get_instance().config_tree.get<T>(key);
+    auto node_ref = std::cref(get_instance().data);
+    std::istringstream key_stream(key);
+    std::string key_elem;
+    while (std::getline(key_stream, key_elem, '.')) {
+      if (!key_elem.empty()) {
+        node_ref = std::cref(node_ref.get().at(key_elem));
+      }
+    }
+    return node_ref.get().get<T>();
   }
 
   template <class T>
   static T get(const std::string& key, const T& default_value) {
-    return get_instance().config_tree.get<T>(key, default_value);
-  }
-
-  template <class T>
-  static std::vector<T> get_vector(const std::string& key) {
-    std::vector<T> res;
-    for (auto& item : get_instance().config_tree.get_child(key)) res.push_back(item);
-    return res;
+    try {
+      return get<T>(key);
+    } catch (...) {
+      return default_value;
+    }
   }
 
  private:
-  Config() { boost::property_tree::read_json("config.json", config_tree); }
+  Config() {
+    std::ifstream config_file("config.json");
+    if (!config_file.good()) throw std::runtime_error("cannot load config.json");
+    config_file >> data;
+  }
 
-  boost::property_tree::ptree config_tree;
+  nlohmann::json data;
+
+  friend class Result;
 };

@@ -1,20 +1,31 @@
 #pragma once
 
-#include "../system.h"
+#include "../config.h"
+#include "../result.h"
 #include "../timer.h"
 
+template <class S>
 class Solver {
  public:
-  void set_system(System* sys) { this->sys = sys; }
-
-  void solve() {
-    Timer::start("variation");
-    Timer::end();
-
-    Timer::start("perturbation");
-    Timer::end();
-  }
+  void solve();
 
  private:
-  System* sys;
+  S system;
+
+  void setup();
 };
+
+template <class S>
+void Solver<S>::solve() {
+  system.setup();
+
+  Timer::start("variation");
+  system.setup_variation();
+  Timer::end();
+
+  Timer::start("perturbation");
+  system.setup_perturbation();
+  Timer::end();
+
+  Result::dump();
+}
