@@ -17,6 +17,9 @@ ifeq ($(UNAME), Linux)
 	endif
 endif
 
+# Libraries.
+CXXFLAGS := $(CXXFLAGS) -isystem property_tree/include -isystem config/include
+
 # Load Makefile.config if exists.
 LOCAL_MAKEFILE := local.mk
 ifneq ($(wildcard $(LOCAL_MAKEFILE)),)

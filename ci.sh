@@ -28,5 +28,35 @@ fi
 export PATH=$TOOLS_DIR/openmpi/bin:$PATH
 export LD_LIBRARY_PATH=$TOOLS_DIR/openmpi/lib:$LD_LIBRARY_PATH
 
+# Download Boost.
+echo "Downloading Boost"
+wget -O boost_1_66_0.tar.gz https://dl.bintray.com/boostorg/release/1.66.0/source/boost_1_66_0.tar.gz
+tar xzf boost_1_66_0.tar.gz
+mkdir -p $TOOLS_DIR/boost/include
+mv boost_1_66_0/boost $TOOLS_DIR/boost/include/
+
+if [ -f "$TOOLS_DIR/boost/lib/libboost_mpi.so" ] || [ -f "$TOOLS_DIR/boost/lib/libboost_mpi.dylib" ]; then
+	echo "Found cached Boost"
+else
+	echo "Downloading Boost"
+  mkdir -p downloads
+  cd downloads
+	wget -O boost_1_65_1.tar.bz2 https://dl.bintray.com/boostorg/release/1.65.1/source/boost_1_65_1.tar.bz2
+	tar xjf boost_1_65_1.tar.bz2
+	echo "Configuring and building Boost"
+	cd boost_1_65_1
+  mkdir -p $TOOLS_DIR/boost
+  ./bootstrap.sh
+  echo 'libraries =  --with-mpi --with-serialization ;' >> project-config.jam
+  echo 'using mpi : mpic++ ;' >> project-config.jam
+	echo 'using gcc : 6 ;' >> project-config.jam
+	./b2 -j8 --prefix=$TOOLS_DIR/boost install
+	echo "Completed"
+	echo
+	cd ../../
+fi
+export PATH=$TOOLS_DIR/boost/bin:$PATH
+export LD_LIBRARY_PATH=$TOOLS_DIR/boost/lib:$LD_LIBRARY_PATH
+
 make -j
 make test_mpi
