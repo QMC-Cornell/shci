@@ -2,6 +2,7 @@
 
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
+#include <iostream>
 
 class Config {
  public:
@@ -10,22 +11,24 @@ class Config {
     return instance;
   }
 
-  static void print() { boost::property_tree::json_parser::write_json(std::cout, config_tree); }
+  static void print() {
+    boost::property_tree::json_parser::write_json(std::cout, get_instance().config_tree);
+  }
 
   template <class T>
   static void get(const std::string& key) {
-    return config_tree.get<T>(key);
+    return get_instance().config_tree.get<T>(key);
   }
 
   template <class T>
   static void get(const std::string& key, const T& default_value) {
-    return config_tree.get<T>(key, default_value);
+    return get_instance().config_tree.get<T>(key, default_value);
   }
 
   template <class T>
   static void get_vector(const std::string& key) {
     std::vector<T> res;
-    for (auto& item : config_tree.get_child(key)) res.push_back(item);
+    for (auto& item : get_instance().config_tree.get_child(key)) res.push_back(item);
     return res;
   }
 
