@@ -16,9 +16,7 @@ Timer::Timer() {
   init_time = prev_time = now;
   is_master = Parallel::get_proc_id() == 0;
   if (is_master) {
-    const time_t start_time = std::chrono::system_clock::to_time_t(now);
-    printf("\nStart time: %s", asctime(localtime(&start_time)));
-    printf("Format: [DIFF/SECTION/TOTAL]\n");
+    printf("Timing format: [DIFF/SECTION/TOTAL]\n");
   }
 }
 
