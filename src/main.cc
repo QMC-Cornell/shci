@@ -23,7 +23,7 @@ int main() {
   if (type == "heg") {
     // TODO.
   } else if (type == "chem") {
-    Solver<ChemSystem>().solve();
+    Solver<ChemSystem>().run();
   } else {
     throw std::invalid_argument(str(boost::format("system '%s' not supported.") % type.c_str()));
   }

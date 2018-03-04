@@ -5,15 +5,15 @@ CXXFLAGS := -std=c++11 -O3 -fopenmp $(CXX_WARNING_OPTIONS)
 LDLIBS := -pthread -lpthread
 SRC_DIR := src
 BUILD_DIR := build
+LIB_DIR := lib
 EXE := shci
 TEST_EXE := shci_test
 
 # Libraries.
-CXXFLAGS := $(CXXFLAGS) -I eigen -I json/include
+CXXFLAGS := $(CXXFLAGS) -I $(LIB_DIR)/eigen -I $(LIB_DIR)/json/include
 UNAME := $(shell uname)
 ifeq ($(UNAME), Linux)
 	TOOLS_DIR := $(HOME)/tools
-	# EIGEN_DIR := $(TOOLS_DIR)/eigen
 	BOOST_DIR := $(TOOLS_DIR)/boost
 	GPERFTOOLS_DIR := $(TOOLS_DIR)/gperftools
 	CXXFLAGS := $(CXXFLAGS) -I $(BOOST_DIR)/include
@@ -34,8 +34,8 @@ SRCS := $(shell find $(SRC_DIR) ! -name "main.cc" ! -name "*_test.cc" -name "*.c
 HEADERS := $(shell find $(SRC_DIR) -name "*.h")
 OBJS := $(SRCS:$(SRC_DIR)/%.cc=$(BUILD_DIR)/%.o)
 TESTS := $(shell find $(SRC_DIR) -name "*_test.cc")
-GTEST_DIR := googletest/googletest
-GMOCK_DIR := googletest/googlemock
+GTEST_DIR := $(LIB_DIR)/googletest/googletest
+GMOCK_DIR := $(LIB_DIR)/googletest/googlemock
 TEST_MAIN_SRC := gtest_main_mpi.cc
 TEST_OBJS := $(TESTS:$(SRC_DIR)/%.cc=$(BUILD_DIR)/%.o)
 GTEST_ALL_SRC := ${GTEST_DIR}/src/gtest-all.cc

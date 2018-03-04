@@ -1,7 +1,9 @@
 #pragma once
 
+#include <functional>
 #include <string>
 #include <vector>
+#include "det/det.h"
 
 class BaseSystem {
  public:
@@ -15,9 +17,16 @@ class BaseSystem {
 
   std::vector<double> coefs;
 
+  double energy_hf;
+
+  double energy_var;
+
   void setup();
 
   void setup_variation(){};
 
   void setup_perturbation(){};
+
+  virtual void find_connected_dets(
+      const Det& det, const double eps, const std::function<void(const Det&)>& new_det_handler) = 0;
 };
