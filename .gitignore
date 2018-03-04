@@ -4,10 +4,11 @@ local.mk
 *.out
 shci
 shci_test
+local.mk
 
 # Runtime files.
-config.json
-local.mk
+*.json
+*.dat
 
 # OS and editor files.
 .vscode/
@@ -15,5 +16,6 @@ local.mk
 *.dSYM/
 
 # Other temporary files.
+*.txt
 *.log
 *.bak

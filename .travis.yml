@@ -5,8 +5,14 @@ compiler:
   - gcc
 os:
   - linux
+addons:
+  apt:
+    sources:
+      - ubuntu-toolchain-r-test
+    packages:
+      - g++-5
 env:
-  - TOOLS_DIR=$TRAVIS_BUILD_DIR/tools
+  - CXX_COMPILER=g++-5 C_COMPILER=gcc-5 TOOLS_DIR=$TRAVIS_BUILD_DIR/tools
 before_install:
   - git submodule update --init --remote --recursive
 script: bash ./ci.sh

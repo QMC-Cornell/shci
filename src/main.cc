@@ -19,16 +19,14 @@ int main() {
     Config::print();
   }
 
-  Solver solver;
   const auto& type = Config::get<std::string>("system");
   if (type == "heg") {
     // TODO.
   } else if (type == "chem") {
-    solver.set_system(new ChemSystem());
+    Solver<ChemSystem>().solve();
   } else {
-    throw std::invalid_argument(str(boost::format("system '%s' is not supported.") % type.c_str()));
+    throw std::invalid_argument(str(boost::format("system '%s' not supported.") % type.c_str()));
   }
-  solver.solve();
 
   return 0;
 }
