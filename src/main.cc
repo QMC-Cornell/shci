@@ -1,3 +1,4 @@
+#include <boost/format.hpp>
 #include <cstdio>
 #include <ctime>
 #include "config.h"
@@ -15,6 +16,13 @@ int main() {
     printf("Infrastructure: %d nodes * %d threads\n", n_procs, n_threads);
     printf("Configuration:\n");
     Config::print();
+  }
+
+  const auto& type = Config::get<std::string>("type");
+  if (type == "heg") {
+  } else if (type == "chem") {
+  } else {
+    throw std::invalid_argument(str(boost::format("Type %s is not supported.") % type.c_str()));
   }
 
   return 0;

@@ -1,6 +1,3 @@
 [submodule "googletest"]
 	path = googletest
 	url = https://github.com/google/googletest.git
-[submodule "eigen-git-mirror"]
-	path = eigen
-	url = https://github.com/eigenteam/eigen-git-mirror.git

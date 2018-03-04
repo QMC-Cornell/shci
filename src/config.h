@@ -16,17 +16,17 @@ class Config {
   }
 
   template <class T>
-  static void get(const std::string& key) {
+  static T get(const std::string& key) {
     return get_instance().config_tree.get<T>(key);
   }
 
   template <class T>
-  static void get(const std::string& key, const T& default_value) {
+  static T get(const std::string& key, const T& default_value) {
     return get_instance().config_tree.get<T>(key, default_value);
   }
 
   template <class T>
-  static void get_vector(const std::string& key) {
+  static std::vector<T> get_vector(const std::string& key) {
     std::vector<T> res;
     for (auto& item : get_instance().config_tree.get_child(key)) res.push_back(item);
     return res;
