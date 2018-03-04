@@ -32,13 +32,6 @@ tar xzf boost_1_66_0.tar.gz
 mkdir -p $TOOLS_DIR/boost/include
 mv boost_1_66_0/boost $TOOLS_DIR/boost/include/
 
-# Download Eigen.
-echo "Downloading Eigen"
-wget -O eigen-eigen-5a0156e40feb.tar.gz http://bitbucket.org/eigen/eigen/get/3.3.4.tar.gz
-tar xzf eigen-eigen-5a0156e40feb.tar.gz
-mkdir -p $TOOLS_DIR/eigen/include
-mv eigen-eigen-5a0156e40feb/Eigen $TOOLS_DIR/eigen/include/
-
 cp ci.mk local.mk
 make -j
 make test_mpi
