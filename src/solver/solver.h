@@ -3,6 +3,7 @@
 #include "../config.h"
 #include "../result.h"
 #include "../timer.h"
+#include "sparse_hamiltonian.h"
 
 template <class S>
 class Solver {
@@ -11,6 +12,8 @@ class Solver {
 
  private:
   S system;
+
+  SparseHamiltonian<S> ham;
 
   void setup();
 };
