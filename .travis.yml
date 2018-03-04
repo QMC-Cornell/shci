@@ -13,8 +13,6 @@ addons:
       - g++-5
 env:
   - CXX_COMPILER=g++-5 C_COMPILER=gcc-5 TOOLS_DIR=$TRAVIS_BUILD_DIR/tools
-before_install:
-  - git submodule update --init --remote --recursive
 script: bash ./ci.sh
 cache:
   directories:
