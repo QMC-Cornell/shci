@@ -8,7 +8,6 @@
 
 int main() {
   const int proc_id = Parallel::get_proc_id();
-
   if (proc_id == 0) {
     printf("Semistochastic Heat-bath Configuration Interation (SHCI)\n\n");
     const time_t start_time = time(0);
@@ -20,9 +19,10 @@ int main() {
     Config::print();
   }
 
-  const auto& type = Config::get<std::string>("system");
   Solver solver;
+  const auto& type = Config::get<std::string>("system");
   if (type == "heg") {
+    // TODO.
   } else if (type == "chem") {
     solver.set_system(new ChemSystem());
   } else {
