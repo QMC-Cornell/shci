@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 class HalfDet {
  public:
   int n_hf_elecs;
