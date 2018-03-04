@@ -16,6 +16,8 @@ class Parallel {
 
   static int get_n_threads() { return get_instance().n_threads; }
 
+  static void barrier() { MPI_Barrier(MPI_COMM_WORLD); }
+
  private:
   Parallel() {
     MPI_Init(nullptr, nullptr);

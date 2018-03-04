@@ -1,8 +1,10 @@
 #include <boost/format.hpp>
 #include <cstdio>
 #include <ctime>
+#include "chem/chem_system.h"
 #include "config.h"
 #include "parallel.h"
+#include "solver/solver.h"
 
 int main() {
   const int proc_id = Parallel::get_proc_id();
@@ -18,12 +20,15 @@ int main() {
     Config::print();
   }
 
-  const auto& type = Config::get<std::string>("type");
+  const auto& type = Config::get<std::string>("system");
+  Solver solver;
   if (type == "heg") {
   } else if (type == "chem") {
+    solver.set_system(new ChemSystem());
   } else {
-    throw std::invalid_argument(str(boost::format("Type %s is not supported.") % type.c_str()));
+    throw std::invalid_argument(str(boost::format("system '%s' is not supported.") % type.c_str()));
   }
+  solver.solve();
 
   return 0;
 }
