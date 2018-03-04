@@ -39,5 +39,6 @@ tar xzf eigen-eigen-5a0156e40feb.tar.gz
 mkdir -p $TOOLS_DIR/eigen/include
 mv eigen-eigen-5a0156e40feb/Eigen $TOOLS_DIR/eigen/include/
 
+cp ci.mk local.mk
 make -j
 make test_mpi
