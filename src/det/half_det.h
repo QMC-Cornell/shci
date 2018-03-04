@@ -1,10 +1,10 @@
 #pragma once
 
-#include <vector>
+#include <unordered_set>
 
 class HalfDet {
  public:
   int n_hf_elecs;
-  std::vector<int> v_holes;
-  std::vector<int> c_elecs;
+  std::unordered_set<int> v_holes;
+  std::unordered_set<int> c_elecs;
 };
