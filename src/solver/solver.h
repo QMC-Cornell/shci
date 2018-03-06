@@ -5,6 +5,7 @@
 #include "../det/det.h"
 #include "../result.h"
 #include "../timer.h"
+#include "../util/str_printf.h"
 #include "davidson.h"
 #include "hamiltonian.h"
 
@@ -54,8 +55,9 @@ template <class S>
 void Solver<S>::run_all_variations() {
   const auto& eps_vars = Config::get<std::vector<double>>("eps_vars");
   for (const double eps_var : eps_vars) {
-    Timer::start(str(boost::format("eps_var %#.4g") % eps_var));
-    const auto& filename = str(boost::format("var_%#.4g.dat") % eps_var);
+    // Timer::start(str(boost::format("eps_var %#.4g") % eps_var));
+    Timer::start(util::str_printf("eps_var %#.4g", eps_var));
+    const auto& filename = util::str_printf("var_%#.4g.dat", eps_var);
     if (!load_variation_result(filename)) {
       run_variation(eps_var);
       save_variation_result(filename);

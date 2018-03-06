@@ -34,6 +34,20 @@ class HalfDet {
       const std::set<unsigned>& a, const std::set<unsigned>& b) const;
 };
 
+template <class B>
+void HalfDet::serialize(hps::OutputBuffer<B>& buf) const {
+  hps::Serializer<unsigned, B>::serialize(n_elecs_hf, buf);
+  hps::Serializer<std::set<unsigned>, B>::serialize(orbs_from, buf);
+  hps::Serializer<std::set<unsigned>, B>::serialize(orbs_to, buf);
+}
+
+template <class B>
+void HalfDet::parse(hps::InputBuffer<B>& buf) {
+  hps::Serializer<unsigned, B>::parse(n_elecs_hf, buf);
+  hps::Serializer<std::set<unsigned>, B>::parse(orbs_from, buf);
+  hps::Serializer<std::set<unsigned>, B>::parse(orbs_to, buf);
+}
+
 namespace hps {
 template <class B>
 class Serializer<HalfDet, B> {

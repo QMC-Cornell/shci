@@ -38,20 +38,6 @@ std::vector<unsigned> HalfDet::get_diff_orbs(const HalfDet& det) const {
   return diff_orbs;
 }
 
-template <class B>
-void HalfDet::serialize(hps::OutputBuffer<B>& buf) const {
-  hps::Serializer<unsigned, B>::serialize(n_elecs_hf, buf);
-  hps::Serializer<std::set<unsigned>, B>::serialize(orbs_from, buf);
-  hps::Serializer<std::set<unsigned>, B>::serialize(orbs_to, buf);
-}
-
-template <class B>
-void HalfDet::parse(hps::InputBuffer<B>& buf) {
-  hps::Serializer<unsigned, B>::parse(n_elecs_hf, buf);
-  hps::Serializer<std::set<unsigned>, B>::parse(orbs_from, buf);
-  hps::Serializer<std::set<unsigned>, B>::parse(orbs_to, buf);
-}
-
 std::vector<unsigned> HalfDet::get_set_diff(
     const std::set<unsigned>& a, const std::set<unsigned>& b) const {
   std::vector<unsigned> set_diff;

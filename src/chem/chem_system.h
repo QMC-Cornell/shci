@@ -19,5 +19,5 @@ class ChemSystem : public BaseSystem {
  private:
   std::string point_group;
 
-  Integrals intgrals;
+  Integrals integrals;
 };
