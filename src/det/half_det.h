@@ -1,34 +1,44 @@
 #pragma once
 
 #include <hps/src/hps.h>
-#include <unordered_set>
+#include <set>
 
 class HalfDet {
  public:
-  size_t n_elecs_hf;
-
-  std::unordered_set<size_t> orbs_from;
-
-  std::unordered_set<size_t> orbs_to;
-
   HalfDet() {}
 
-  HalfDet(const size_t n_elecs_hf) : n_elecs_hf(n_elecs_hf) {}
+  HalfDet(const unsigned n_elecs_hf) : n_elecs_hf(n_elecs_hf) {}
+
+  std::vector<unsigned> get_occupied_orbs() const;
+
+  void set(const unsigned orb);
+
+  void unset(const unsigned orb);
+
+  std::vector<unsigned> get_diff_orbs(const HalfDet& det) const;
+
+  template <class B>
+  void serialize(hps::OutputBuffer<B>& buf) const;
+
+  template <class B>
+  void parse(hps::InputBuffer<B>& buf);
+
+ private:
+  unsigned n_elecs_hf;
+
+  std::set<unsigned> orbs_from;
+
+  std::set<unsigned> orbs_to;
+
+  std::vector<unsigned> get_set_diff(
+      const std::set<unsigned>& a, const std::set<unsigned>& b) const;
 };
 
 namespace hps {
 template <class B>
 class Serializer<HalfDet, B> {
  public:
-  static void serialize(const HalfDet& det, OutputBuffer<B>& buf) {
-    Serializer<size_t, B>::serialize(det.n_elecs_hf, buf);
-    Serializer<std::unordered_set<size_t>, B>::serialize(det.orbs_from, buf);
-    Serializer<std::unordered_set<size_t>, B>::serialize(det.orbs_to, buf);
-  }
-  static void parse(HalfDet& det, InputBuffer<B>& buf) {
-    Serializer<size_t, B>::parse(det.n_elecs_hf, buf);
-    Serializer<std::unordered_set<size_t>, B>::parse(det.orbs_from, buf);
-    Serializer<std::unordered_set<size_t>, B>::parse(det.orbs_to, buf);
-  }
+  static void serialize(const HalfDet& det, OutputBuffer<B>& buf) { det.serialize(buf); }
+  static void parse(HalfDet& det, InputBuffer<B>& buf) { det.parse(buf); }
 };
 }  // namespace hps

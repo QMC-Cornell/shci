@@ -46,7 +46,9 @@ void Solver<S>::run() {
 }
 
 template <class S>
-void Solver<S>::setup() {}
+void Solver<S>::setup() {
+  std::setlocale(LC_ALL, "en_US.UTF-8");
+}
 
 template <class S>
 void Solver<S>::run_all_variations() {

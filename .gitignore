@@ -1,21 +1,25 @@
 # Compilation files.
-build/
-local.mk
-*.out
-shci
-shci_test
-local.mk
+/build
+/local.mk
+/shci
+/shci_test
+/local.mk
 
 # Runtime files.
+/run
+FCIDUMP
 *.json
 *.dat
+i_*
+o_*
 
 # OS and editor files.
-.vscode/
+.vscode
 .DS_Store
-*.dSYM/
+*.dSYM
 
 # Other temporary files.
 *.txt
 *.log
 *.bak
+*.out

@@ -3,6 +3,7 @@
 #include <string>
 #include "../base_system.h"
 #include "../config.h"
+#include "integrals.h"
 
 class ChemSystem : public BaseSystem {
  public:
@@ -17,4 +18,6 @@ class ChemSystem : public BaseSystem {
 
  private:
   std::string point_group;
+
+  Integrals intgrals;
 };

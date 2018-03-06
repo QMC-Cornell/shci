@@ -2,7 +2,10 @@
 
 void ChemSystem::setup() {
   BaseSystem::setup();
+  dets.clear();
+  coefs.clear();
   point_group = Config::get<std::string>("chem.point_group");
+  integrals.load_fcidump();
 }
 
 void ChemSystem::find_connected_dets(
