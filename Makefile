@@ -1,6 +1,6 @@
 # Default options.
 CXX := mpic++
-CXX_WARNING_OPTIONS := -Wall -Wextra
+CXX_WARNING_OPTIONS := -Wall -Wextra -Wno-unused-result
 CXXFLAGS := -std=c++11 -O3 -fopenmp $(CXX_WARNING_OPTIONS)
 LDLIBS := -pthread -lpthread
 SRC_DIR := src

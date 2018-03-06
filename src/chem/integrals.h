@@ -2,20 +2,21 @@
 
 #include <unordered_map>
 #include <vector>
+#include "../det/det.h"
 
 class Integrals {
  public:
-  void load_fcidump();
-
   double energy_core;
 
   unsigned n_orbs;
 
   unsigned n_elecs;
 
-  std::vector<int> orb_syms;
+  std::vector<unsigned> orb_syms;
 
-  int isym;
+  Det det_hf;
+
+  void load();
 
   double get_integral_1b(const unsigned p, const unsigned q) const;
 
@@ -26,4 +27,20 @@ class Integrals {
   std::unordered_map<size_t, double> integrals_1b;
 
   std::unordered_map<size_t, double> integrals_2b;
+
+  std::vector<std::tuple<unsigned, unsigned, unsigned, unsigned, double>> raw_integrals;
+
+  void read_fcidump();
+
+  std::vector<unsigned> get_adams_syms(const std::vector<int>& orb_syms_raw) const;
+
+  void generate_det_hf();
+
+  std::vector<double> get_orb_energies() const;
+
+  void reorder_orbs(const std::vector<double>& orb_energies);
+
+  size_t combine2(const size_t a, const size_t b) const;
+
+  size_t combine4(const size_t a, const size_t b, const size_t c, const size_t d) const;
 };

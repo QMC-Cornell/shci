@@ -59,6 +59,7 @@ void Solver<S>::run_all_variations() {
     Timer::start(util::str_printf("eps_var %#.4g", eps_var));
     const auto& filename = util::str_printf("var_%#.4g.dat", eps_var);
     if (!load_variation_result(filename)) {
+      system.setup_variation();
       run_variation(eps_var);
       save_variation_result(filename);
     }
