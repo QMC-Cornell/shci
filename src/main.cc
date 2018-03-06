@@ -20,6 +20,7 @@ int main() {
   }
 
   const auto& type = Config::get<std::string>("system");
+  Parallel::barrier();
   if (type == "heg") {
     // TODO.
   } else if (type == "chem") {

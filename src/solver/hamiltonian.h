@@ -3,7 +3,7 @@
 template <class S>
 class Hamiltonian {
  public:
-  SparseMatrix matrix;
+  SparseMatrix<double> matrix;
 
   void update(const S& system);
 };

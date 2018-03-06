@@ -1,5 +1,6 @@
 #pragma once
 
+#include <unordered_set>
 #include "../config.h"
 #include "../det/det.h"
 #include "../result.h"
@@ -32,7 +33,6 @@ template <class S>
 void Solver<S>::run() {
   system.setup();
   setup();
-
   Timer::start("variation");
   system.setup_variation();
   run_all_variations();
@@ -64,26 +64,33 @@ void Solver<S>::run_all_variations() {
 
 template <class S>
 void Solver<S>::run_variation(const double eps_var) {
-  Det det;
-  std::string det_str;
+  Det tmp_det;
+  std::string tmp_det_str;
   Davidson davidson;
-  const auto& new_det_handler = [&](const Det&) {
-    // Serialize to det_str
-    system.dets.push_back(det_str);
+  std::unordered_set<std::string> var_dets_set;
+  for (const auto& var_det : system.dets) var_dets_set.insert(var_det);
+  const auto& connected_det_handler = [&](const Det& connected_det) {
+    hps::serialize_to_string(connected_det, tmp_det_str);
+    if (var_dets_set.count(tmp_det_str) == 1) return;
+    system.dets.push_back(tmp_det_str);
+    var_dets_set.insert(tmp_det_str);
   };
   size_t n_dets = system.dets.size();
   double energy_var = 0;
   bool converged = false;
+  std::vector<double> coefs_prev(n_dets, 0);
   while (!converged) {
     for (size_t i = 0; i < n_dets; i++) {
-      // Parse from det_str to det.
       const double coef = system.coefs[i];
-      system.find_connected_dets(det, eps_var / std::abs(coef), new_det_handler);
+      if (std::abs(coef) <= std::abs(coefs_prev[i])) continue;
+      hps::parse_from_string(tmp_det, system.dets[i]);
+      system.find_connected_dets(tmp_det, eps_var / std::abs(coef), connected_det_handler);
     }
     const size_t n_dets_new = system.dets.size();
     hamiltonian.update(system);
     davidson.diagonalize(hamiltonian.matrix, system.coefs);
     const double energy_var_new = davidson.get_eigenvalue();
+    coefs_prev = system.coefs;
     system.coefs = davidson.get_eigenvector();
     if (n_dets_new == n_dets && std::abs(energy_var_new - energy_var) < 1.0e-6) {
       converged = true;

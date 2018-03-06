@@ -10,7 +10,7 @@ EXE := shci
 TEST_EXE := shci_test
 
 # Libraries.
-CXXFLAGS := $(CXXFLAGS) -I $(LIB_DIR)/eigen -I $(LIB_DIR)/json/include
+CXXFLAGS := $(CXXFLAGS) -I $(LIB_DIR)/json/include -I $(LIB_DIR)
 UNAME := $(shell uname)
 ifeq ($(UNAME), Linux)
 	TOOLS_DIR := $(HOME)/tools

@@ -28,5 +28,9 @@ class BaseSystem {
   void setup_perturbation(){};
 
   virtual void find_connected_dets(
-      const Det& det, const double eps, const std::function<void(const Det&)>& new_det_handler) = 0;
+      const Det& det,
+      const double eps,
+      const std::function<void(const Det&)>& connected_det_handler) = 0;
+
+  virtual double get_hamiltonian_elem(const Det& det_i, const Det& det_j) = 0;
 };
