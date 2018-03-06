@@ -20,10 +20,11 @@ int main() {
   }
 
   const auto& type = Config::get<std::string>("system");
+  Parallel::barrier();
   if (type == "heg") {
     // TODO.
   } else if (type == "chem") {
-    Solver<ChemSystem>().solve();
+    Solver<ChemSystem>().run();
   } else {
     throw std::invalid_argument(str(boost::format("system '%s' not supported.") % type.c_str()));
   }
