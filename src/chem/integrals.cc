@@ -181,7 +181,7 @@ void Integrals::reorder_orbs(const std::vector<double>& orb_energies) {
     orb_order_inv[orb_order[i]] = i;
     const unsigned ori_id = orb_order[i];
     const double orb_energy = orb_energies[ori_id];
-    printf("#%u: E = %.12f, sym = %u, origin #%u\n", i, orb_energy, orb_syms[i], ori_id);
+    printf("#%3u: E = %16.12f, sym = %2u, origin #%3u\n", i, orb_energy, orb_syms[i], ori_id);
   }
 
   // Update HF det.
@@ -240,7 +240,7 @@ double Integrals::get_integral_2b(
   return 0.0;
 }
 
-size_t Integrals::combine2(const size_t a, const size_t b) const {
+size_t Integrals::combine2(const size_t a, const size_t b) {
   if (a > b) {
     return (a * (a + 1)) / 2 + b;
   } else {
@@ -248,7 +248,7 @@ size_t Integrals::combine2(const size_t a, const size_t b) const {
   }
 }
 
-size_t Integrals::combine4(const size_t a, const size_t b, const size_t c, const size_t d) const {
+size_t Integrals::combine4(const size_t a, const size_t b, const size_t c, const size_t d) {
   const size_t ab = combine2(a, b);
   const size_t cd = combine2(c, d);
   return combine2(ab, cd);

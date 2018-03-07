@@ -4,7 +4,7 @@
 #include "config.h"
 #include "parallel.h"
 #include "solver/solver.h"
-#include "util/str_printf.h"
+#include "util.h"
 
 int main() {
   const int proc_id = Parallel::get_proc_id();
@@ -26,7 +26,7 @@ int main() {
   } else if (type == "chem") {
     Solver<ChemSystem>().run();
   } else {
-    throw std::invalid_argument(util::str_printf("system '%s' not supported.", type.c_str()));
+    throw std::invalid_argument(Util::str_printf("system '%s' not supported.", type.c_str()));
   }
 
   return 0;

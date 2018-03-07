@@ -27,9 +27,9 @@ class Integrals {
   double get_integral_2b(
       const unsigned p, const unsigned q, const unsigned r, const unsigned s) const;
 
-  size_t combine2(const size_t a, const size_t b) const;
+  static size_t combine2(const size_t a, const size_t b);
 
-  size_t combine4(const size_t a, const size_t b, const size_t c, const size_t d) const;
+  static size_t combine4(const size_t a, const size_t b, const size_t c, const size_t d);
 
  private:
   std::unordered_map<size_t, double> integrals_1b;

@@ -3,6 +3,7 @@
 #include "../parallel.h"
 #include "../result.h"
 #include "../timer.h"
+#include "../util.h"
 
 void ChemSystem::setup() {
   n_up = Config::get<int>("n_up");
@@ -15,16 +16,14 @@ void ChemSystem::setup() {
   const int proc_id = Parallel::get_proc_id();
 
   Timer::start("load integrals");
-  if (proc_id == 0) {
-    integrals.load();
-  }
+  if (proc_id == 0) integrals.load();
   // Parallel::broadcast_object(integrals);
   n_orbs = integrals.n_orbs;
   orb_syms = integrals.orb_syms;
   Timer::end();
 
   Timer::start("setup hci queue");
-  setup_hci_queue();
+  if (proc_id == 0) setup_hci_queue();
   Timer::end();
 
   dets.push_back(hps::serialize_to_string(integrals.det_hf));
@@ -32,23 +31,26 @@ void ChemSystem::setup() {
 }
 
 PointGroup ChemSystem::get_point_group(const std::string& str) const {
-  if (util::str_iequals("D2h", str) {
+  if (Util::str_iequals("D2h", str)) {
     return PointGroup::D2h;
-  } else if (util::str_iequals("Dooh", str) || util::str_iequals("Dih", str)) {
+  } else if (Util::str_iequals("Dooh", str) || Util::str_iequals("Dih", str)) {
     return PointGroup::Dooh;
-  } 
+  }
   return PointGroup::None;
 }
 
 void ChemSystem::setup_hci_queue() {
   // Same spin.
+  hci_queue.reserve(Integrals::combine2(n_orbs, 2 * n_orbs));
   for (unsigned p = 0; p < n_orbs; p++) {
     const unsigned sym_p = orb_syms[p];
     for (unsigned q = p + 1; q < n_orbs; q++) {
-      const unsigned sym_q = get_product(sym_p, orb_syms[q]);
-      const size_t pq = integrals.combine2(p, q);
+      const unsigned sym_q = product_table.get_product(sym_p, orb_syms[q]);
+      const size_t pq = Integrals::combine2(p, q);
       for (unsigned r = 0; r < n_orbs; r++) {
-        // TODO.
+        sym_r = orb_syms[r];
+        if (point_group == PointGroup::Dooh) exit(0); // TODO.
+         sym_r = product_table.get_product(sym_q, sym_r);
       }
     }
   }
