@@ -4,6 +4,9 @@
 #include "../base_system.h"
 #include "../config.h"
 #include "integrals.h"
+#include "point_group.h"
+#include "product_table.h"
+#include "rsh.h"
 
 class ChemSystem : public BaseSystem {
  public:
@@ -21,11 +24,15 @@ class ChemSystem : public BaseSystem {
 
   std::vector<unsigned> orb_syms;
 
-  std::string point_group;
+  PointGroup point_group;
 
   Integrals integrals;
+
+  ProductTable product_table;
 
   std::vector<std::vector<RSH>> hci_queue;
 
   void setup_hci_queue();
+
+  PointGroup get_point_group(const std::string& str) const;
 };

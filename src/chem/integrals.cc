@@ -25,8 +25,8 @@ void Integrals::read_fcidump() {
   // Read head.
   std::regex words("([^\\s,=]+)");
   std::string line;
-  enum State { NONE, ORBSYM, END };
-  State state = NONE;
+  enum class State { NONE, ORBSYM, END };
+  State state = State::NONE;
   std::vector<int> orb_syms_raw;
   while (!fcidump.eof()) {
     std::getline(fcidump, line);
@@ -44,21 +44,21 @@ void Integrals::read_fcidump() {
         n_elecs = std::stoul(it->str());
         printf("n_elecs: %u\n", n_elecs);
       } else if (match == "ORBSYM") {
-        state = ORBSYM;
+        state = State::ORBSYM;
         printf("orb_syms: ");
-      } else if (state == ORBSYM) {
+      } else if (state == State::ORBSYM) {
         const unsigned orb_sym = std::stoul(match);
         orb_syms_raw.push_back(orb_sym);
         printf("%u ", orb_sym);
         if (orb_syms_raw.size() == n_orbs) {
-          state = NONE;
+          state = State::NONE;
           printf("\n");
         }
       } else if (match == "&END") {
-        state = END;
+        state = State::END;
       }
     }
-    if (state == END) break;
+    if (state == State::END) break;
   }
   orb_syms = get_adams_syms(orb_syms_raw);
 

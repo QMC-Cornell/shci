@@ -7,4 +7,4 @@ class RSH {
   unsigned s;
 
   double H;
-}
+};

@@ -1,6 +1,7 @@
 #include "chem_system.h"
 
 #include "../parallel.h"
+#include "../result.h"
 #include "../timer.h"
 
 void ChemSystem::setup() {
@@ -9,14 +10,15 @@ void ChemSystem::setup() {
   n_elecs = n_up + n_dn;
   Result::put("n_elecs", n_elecs);
 
-  point_group = Config::get<std::string>("chem.point_group");
+  point_group = get_point_group(Config::get<std::string>("chem.point_group"));
+  product_table.set_point_group(point_group);
   const int proc_id = Parallel::get_proc_id();
 
   Timer::start("load integrals");
   if (proc_id == 0) {
     integrals.load();
   }
-  Parallel::broadcast_object(integrals);
+  // Parallel::broadcast_object(integrals);
   n_orbs = integrals.n_orbs;
   orb_syms = integrals.orb_syms;
   Timer::end();
@@ -27,6 +29,15 @@ void ChemSystem::setup() {
 
   dets.push_back(hps::serialize_to_string(integrals.det_hf));
   coefs.push_back(1.0);
+}
+
+PointGroup ChemSystem::get_point_group(const std::string& str) const {
+  if (util::str_iequals("D2h", str) {
+    return PointGroup::D2h;
+  } else if (util::str_iequals("Dooh", str) || util::str_iequals("Dih", str)) {
+    return PointGroup::Dooh;
+  } 
+  return PointGroup::None;
 }
 
 void ChemSystem::setup_hci_queue() {
