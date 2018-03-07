@@ -15,6 +15,8 @@ class HalfDet {
 
   void unset(const unsigned orb);
 
+  bool has(const unsigned orb) const;
+
   std::vector<unsigned> get_diff_orbs(const HalfDet& det) const;
 
   template <class B>

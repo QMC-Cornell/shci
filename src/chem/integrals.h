@@ -12,6 +12,10 @@ class Integrals {
 
   unsigned n_elecs;
 
+  unsigned n_up;
+
+  unsigned n_dn;
+
   std::vector<unsigned> orb_syms;
 
   Det det_hf;
@@ -22,6 +26,10 @@ class Integrals {
 
   double get_integral_2b(
       const unsigned p, const unsigned q, const unsigned r, const unsigned s) const;
+
+  size_t combine2(const size_t a, const size_t b) const;
+
+  size_t combine4(const size_t a, const size_t b, const size_t c, const size_t d) const;
 
  private:
   std::unordered_map<size_t, double> integrals_1b;
@@ -39,8 +47,4 @@ class Integrals {
   std::vector<double> get_orb_energies() const;
 
   void reorder_orbs(const std::vector<double>& orb_energies);
-
-  size_t combine2(const size_t a, const size_t b) const;
-
-  size_t combine4(const size_t a, const size_t b, const size_t c, const size_t d) const;
 };

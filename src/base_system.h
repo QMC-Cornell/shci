@@ -21,11 +21,7 @@ class BaseSystem {
 
   double energy_var;
 
-  void setup();
-
-  void setup_variation(){};
-
-  void setup_perturbation(){};
+  virtual void setup() = 0;
 
   virtual void find_connected_dets(
       const Det& det,

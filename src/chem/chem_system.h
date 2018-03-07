@@ -17,7 +17,15 @@ class ChemSystem : public BaseSystem {
   double get_hamiltonian_elem(const Det& det_i, const Det& det_j);
 
  private:
+  unsigned n_orbs;
+
+  std::vector<unsigned> orb_syms;
+
   std::string point_group;
 
   Integrals integrals;
+
+  std::vector<std::vector<RSH>> hci_queue;
+
+  void setup_hci_queue();
 };

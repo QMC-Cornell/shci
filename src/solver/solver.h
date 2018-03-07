@@ -35,12 +35,10 @@ void Solver<S>::run() {
   system.setup();
   setup();
   Timer::start("variation");
-  system.setup_variation();
   run_all_variations();
   Timer::end();
 
   Timer::start("perturbation");
-  system.setup_perturbation();
   Timer::end();
 
   Result::dump();

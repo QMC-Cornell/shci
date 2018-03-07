@@ -29,6 +29,14 @@ void HalfDet::unset(const unsigned orb) {
   }
 }
 
+bool HalfDet::has(const unsigned orb) const {
+  if (orb < n_elecs_hf) {
+    return orbs_from.count(orb) == 0;
+  } else {
+    return orbs_to.count(orb) == 1;
+  }
+}
+
 std::vector<unsigned> HalfDet::get_diff_orbs(const HalfDet& det) const {
   assert(n_elecs_hf == det.n_elecs_hf);
   auto diff_orbs = get_set_diff(orbs_from, det.orbs_from);
