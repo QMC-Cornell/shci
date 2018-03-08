@@ -15,8 +15,6 @@ class HalfDet {
 
   bool has(const unsigned orb) const;
 
-  // std::vector<unsigned> get_diff_orbs(const HalfDet& det) const;
-
   std::pair<std::vector<unsigned>, std::vector<unsigned>> diff(const HalfDet& det) const;
 
   template <class B>
@@ -32,11 +30,10 @@ class HalfDet {
 
   std::set<unsigned> orbs_to;
 
-  // std::vector<unsigned> get_set_diff(
-  //     const std::set<unsigned>& a, const std::set<unsigned>& b) const;
-
   std::pair<std::vector<unsigned>, std::vector<unsigned>> diff_set(
       const std::set<unsigned>& a, const std::set<unsigned>& b) const;
+
+  friend bool operator==(const HalfDet& a, const HalfDet& b);
 };
 
 template <class B>

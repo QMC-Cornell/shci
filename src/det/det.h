@@ -9,8 +9,6 @@ class Det {
 
   HalfDet dn;
 
-  Det(){};
-
   Det(const unsigned n_up_hf = 0, const unsigned n_dn_hf = 0)
       : up(HalfDet(n_up_hf)), dn(HalfDet(n_dn_hf)) {}
 };

@@ -22,9 +22,9 @@ class Integrals {
 
   void load();
 
-  double get_integral_1b(const unsigned p, const unsigned q) const;
+  double get_1b(const unsigned p, const unsigned q) const;
 
-  double get_integral_2b(
+  double get_2b(
       const unsigned p, const unsigned q, const unsigned r, const unsigned s) const;
 
   static size_t combine2(const size_t a, const size_t b);

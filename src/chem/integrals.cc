@@ -137,23 +137,23 @@ std::vector<double> Integrals::get_orb_energies() const {
   const auto& orbs_up = det_hf.up.get_occupied_orbs();
   const auto& orbs_dn = det_hf.dn.get_occupied_orbs();
   for (unsigned i = 0; i < n_orbs; i++) {
-    orb_energies[i] = get_integral_1b(i, i);
+    orb_energies[i] = get_1b(i, i);
     double energy_direct = 0;
     double energy_exchange = 0;
     for (const unsigned orb : orbs_up) {
       if (orb == i) {
-        energy_direct += get_integral_2b(i, i, orb, orb);
+        energy_direct += get_2b(i, i, orb, orb);
       } else {
-        energy_direct += 2 * get_integral_2b(i, i, orb, orb);
-        energy_exchange -= get_integral_2b(i, orb, orb, i);
+        energy_direct += 2 * get_2b(i, i, orb, orb);
+        energy_exchange -= get_2b(i, orb, orb, i);
       }
     }
     for (const unsigned orb : orbs_dn) {
       if (orb == i) {
-        energy_direct += get_integral_2b(i, i, orb, orb);
+        energy_direct += get_2b(i, i, orb, orb);
       } else {
-        energy_direct += 2 * get_integral_2b(i, i, orb, orb);
-        energy_exchange -= get_integral_2b(i, orb, orb, i);
+        energy_direct += 2 * get_2b(i, i, orb, orb);
+        energy_exchange -= get_2b(i, orb, orb, i);
       }
     }
     orb_energies[i] += 0.5 * (energy_direct + energy_exchange);
@@ -227,13 +227,13 @@ void Integrals::reorder_orbs(const std::vector<double>& orb_energies) {
   raw_integrals.shrink_to_fit();
 }
 
-double Integrals::get_integral_1b(const unsigned p, const unsigned q) const {
+double Integrals::get_1b(const unsigned p, const unsigned q) const {
   const size_t combined = combine2(p, q);
   if (integrals_1b.count(combined) == 1) return integrals_1b.at(combined);
   return 0.0;
 }
 
-double Integrals::get_integral_2b(
+double Integrals::get_2b(
     const unsigned p, const unsigned q, const unsigned r, const unsigned s) const {
   const size_t combined = combine4(p, q, r, s);
   if (integrals_2b.count(combined) == 1) return integrals_2b.at(combined);

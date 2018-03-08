@@ -3,10 +3,10 @@
 #include <string>
 #include "../base_system.h"
 #include "../config.h"
+#include "hrs.h"
 #include "integrals.h"
 #include "point_group.h"
 #include "product_table.h"
-#include "rsh.h"
 
 class ChemSystem : public BaseSystem {
  public:
@@ -34,7 +34,7 @@ class ChemSystem : public BaseSystem {
 
   ProductTable product_table;
 
-  std::vector<std::vector<RSH>> hci_queue;
+  std::vector<std::vector<HRS>> hci_queue;
 
   void setup_hci_queue();
 

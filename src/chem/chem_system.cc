@@ -40,33 +40,38 @@ PointGroup ChemSystem::get_point_group(const std::string& str) const {
 }
 
 void ChemSystem::setup_hci_queue() {
-  // Orbs by sym.
-  // sym_n_orbs.assign(product_table.get_n_syms() + 1, 0);
   sym_orbs.resize(product_table.get_n_syms());
-  for (const auto sym : orb_sym) {
-    // sym_n_orbs[sym]++;
-    sym_orbs.push_back(sym);
-  }
+  for (unsigned orb = 0; orb < n_orbs; orb++) sym_orbs[orb_sym[orb]].push_back(orb);
 
   // Same spin.
   hci_queue.reserve(Integrals::combine2(n_orbs, 2 * n_orbs));
   for (unsigned p = 0; p < n_orbs; p++) {
     const unsigned sym_p = orb_sym[p];
+    printf("sym p: %u\n", sym_p);
     for (unsigned q = p + 1; q < n_orbs; q++) {
+      const size_t pq = Integrals::combine2(p, q);
       const unsigned sym_q = product_table.get_product(sym_p, orb_sym[q]);
+      printf("q, pq, sym q: %u, %zu, %u\n", q, pq, sym_q);
       for (unsigned r = 0; r < n_orbs; r++) {
-        sym_r = orb_sym[r];
+        printf("r = %u\n", r);
+        unsigned sym_r = orb_sym[r];
+        printf("sym r: %u\n", sym_r);
         if (point_group == PointGroup::Dooh) exit(0);  // TODO: dih inv.
         sym_r = product_table.get_product(sym_q, sym_r);
+        printf("sym r: %u\n", sym_r);
         for (const unsigned s : sym_orbs[sym_r]) {
           if (s < r) continue;
+          printf("s = %u\n", s);
           const double H = get_hci_queue_elem(p, q, r, s);
           if (H == 0.0) continue;
-          hci_queue[pq].push_back(RSH(r, s, H));
+          assert(pq < Integrals::combine2(n_orbs, 2 * n_orbs));
+          printf("push %ld %u %u to [%zu]\n", H, r, s, pq);
+          hci_queue[pq].push_back(HRS(H, r, s));
         }
+        // exit(0);
       }
-      const size_t pq = Integrals::combine2(p, q);
-      std::sort(hci_queue[pq].begin(), hci_queue[pq].end(), [](const RSH a, const RSH b) {
+      exit(0);
+      std::sort(hci_queue[pq].begin(), hci_queue[pq].end(), [](const HRS& a, const HRS& b) {
         return a.H > b.H;
       });
     }
@@ -76,19 +81,19 @@ void ChemSystem::setup_hci_queue() {
   for (unsigned p = 0; p < n_orbs; p++) {
     const unsigned sym_p = orb_sym[p];
     for (unsigned q = n_orbs + p; q < n_orbs * 2; q++) {
+      const size_t pq = Integrals::combine2(p, q);
       const unsigned sym_q = product_table.get_product(sym_p, orb_sym[q - n_orbs]);
       for (unsigned r = 0; r < n_orbs; r++) {
-        sym_r = orb_sym[r];
+        unsigned sym_r = orb_sym[r];
         if (point_group == PointGroup::Dooh) exit(0);  // TODO: dih inv.
         sym_r = product_table.get_product(sym_q, sym_r);
         for (const unsigned s : sym_orbs[sym_r]) {
           const double H = get_hci_queue_elem(p, q, r, s + n_orbs);
           if (H == 0.0) continue;
-          hci_queue[pq].push_back(RSH(r, s + n_orbs, H));
+          hci_queue[pq].push_back(HRS(H, r, s + n_orbs));
         }
       }
-      const size_t pq = Integrals::combine2(p, q);
-      std::sort(hci_queue[pq].begin(), hci_queue[pq].end(), [](const RSH a, const RSH b) {
+      std::sort(hci_queue[pq].begin(), hci_queue[pq].end(), [](const HRS& a, const HRS& b) {
         return a.H > b.H;
       });
     }
@@ -101,11 +106,15 @@ double ChemSystem::get_hci_queue_elem(
   Det det_pq;
   Det det_rs;
   if (p < n_orbs && q < n_orbs) {
+    assert(r < n_orbs);
+    assert(s < n_orbs);
     det_pq.up.set(p);
     det_pq.up.set(q);
     det_rs.up.set(r);
     det_rs.up.set(s);
   } else if (p < n_orbs && q >= n_orbs) {
+    assert(r < n_orbs);
+    assert(s >= n_orbs);
     det_pq.up.set(p);
     det_pq.dn.set(q - n_orbs);
     det_rs.up.set(r);
@@ -122,5 +131,33 @@ void ChemSystem::find_connected_dets(
 double ChemSystem::get_hamiltonian_elem(const Det&, const Det&) { return 0.0; }
 
 double ChemSystem::get_two_body_double(const Det& det_i, const Det& det_j, const bool no_sign) {
-  return 0.0;
+  double two_body_energy = 0.0;
+  if (det_i.up == det_j.up) {
+    const auto& diff_ij = det_i.dn.diff(det_j.dn);
+    two_body_energy =
+        integrals.get_2b(diff_ij.first[0], diff_ij.second[0], diff_ij.first[1], diff_ij.second[1]) -
+        integrals.get_2b(diff_ij.first[0], diff_ij.second[1], diff_ij.first[1], diff_ij.second[0]);
+  } else if (det_i.dn == det_j.dn) {
+    const auto& diff_ij = det_i.up.diff(det_j.up);
+    assert(diff_ij.first.size() == 2);
+    assert(diff_ij.second.size() == 2);
+    two_body_energy =
+        integrals.get_2b(diff_ij.first[0], diff_ij.second[0], diff_ij.first[1], diff_ij.second[1]) -
+        integrals.get_2b(diff_ij.first[0], diff_ij.second[1], diff_ij.first[1], diff_ij.second[0]);
+  } else {
+    const auto& diff_ij_up = det_i.up.diff(det_j.up);
+    const auto& diff_ij_dn = det_i.dn.diff(det_j.dn);
+    assert(diff_ij_up.first.size() == 1);
+    assert(diff_ij_up.second.size() == 1);
+    assert(diff_ij_dn.first.size() == 1);
+    assert(diff_ij_dn.second.size() == 1);
+    two_body_energy = integrals.get_2b(
+        diff_ij_up.first[0], diff_ij_up.second[0], diff_ij_dn.first[0], diff_ij_dn.second[0]);
+  }
+
+  if (!no_sign) {
+    // Get permutation factor.
+  }
+
+  return two_body_energy;
 }
