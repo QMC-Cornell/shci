@@ -22,7 +22,11 @@ class ChemSystem : public BaseSystem {
  private:
   unsigned n_orbs;
 
-  std::vector<unsigned> orb_syms;
+  std::vector<unsigned> orb_sym;
+
+  //   std::vector<unsigned> sym_n_orbs;
+
+  std::vector<std::vector<unsigned>> sym_orbs;
 
   PointGroup point_group;
 
@@ -35,4 +39,8 @@ class ChemSystem : public BaseSystem {
   void setup_hci_queue();
 
   PointGroup get_point_group(const std::string& str) const;
+
+  double get_hci_queue_elem(const unsigned p, const unsigned q, const unsigned r, const unsigned s);
+
+  double get_two_body_double(const Det& det_i, const Det& det_j, const bool no_sign = false);
 };

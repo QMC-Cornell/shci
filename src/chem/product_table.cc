@@ -22,3 +22,5 @@ unsigned ProductTable::get_product(const unsigned a, const unsigned b) const {
   }
   return product_table_elems[a - 1][b - 1];
 }
+
+unsigned ProductTable::get_n_syms() const { return product_table_elems.size(); }

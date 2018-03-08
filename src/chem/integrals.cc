@@ -45,7 +45,7 @@ void Integrals::read_fcidump() {
         printf("n_elecs: %u\n", n_elecs);
       } else if (match == "ORBSYM") {
         state = State::ORBSYM;
-        printf("orb_syms: ");
+        printf("orb_sym: ");
       } else if (state == State::ORBSYM) {
         const unsigned orb_sym = std::stoul(match);
         orb_syms_raw.push_back(orb_sym);
@@ -60,7 +60,7 @@ void Integrals::read_fcidump() {
     }
     if (state == State::END) break;
   }
-  orb_syms = get_adams_syms(orb_syms_raw);
+  orb_sym = get_adams_syms(orb_syms_raw);
 
   // Read integrals.
   double integral;
@@ -109,7 +109,7 @@ void Integrals::generate_det_hf() {
     unsigned irrep_occ_up = irrep_occs_up[i];
     unsigned irrep_occ_dn = irrep_occs_dn[i];
     for (unsigned j = 0; j < n_orbs; j++) {
-      if (orb_syms[j] != irrep) continue;
+      if (orb_sym[j] != irrep) continue;
       if (irrep_occ_up > 0) {
         det_hf.up.set(j);
         irrep_occ_up--;
@@ -169,19 +169,19 @@ void Integrals::reorder_orbs(const std::vector<double>& orb_energies) {
   });
   std::vector<unsigned> orb_order_inv(n_orbs);
 
-  // Reorder orb_syms.
+  // Reorder orb_sym.
   std::vector<unsigned> orb_syms_new(n_orbs);
   for (unsigned i = 0; i < n_orbs; i++) {
-    orb_syms_new[i] = orb_syms[orb_order[i]];
+    orb_syms_new[i] = orb_sym[orb_order[i]];
   }
-  orb_syms = std::move(orb_syms_new);
+  orb_sym = std::move(orb_syms_new);
 
   printf("\nOrbitals reordered by energy:\n");
   for (unsigned i = 0; i < n_orbs; i++) {
     orb_order_inv[orb_order[i]] = i;
     const unsigned ori_id = orb_order[i];
     const double orb_energy = orb_energies[ori_id];
-    printf("#%3u: E = %16.12f, sym = %2u, origin #%3u\n", i, orb_energy, orb_syms[i], ori_id);
+    printf("#%3u: E = %16.12f, sym = %2u, origin #%3u\n", i, orb_energy, orb_sym[i], ori_id);
   }
 
   // Update HF det.

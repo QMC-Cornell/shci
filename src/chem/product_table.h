@@ -9,6 +9,8 @@ class ProductTable {
 
   unsigned get_product(const unsigned a, const unsigned b) const;
 
+  unsigned get_n_syms() const;
+
   void set_point_group(const PointGroup point_group);
 
  private:

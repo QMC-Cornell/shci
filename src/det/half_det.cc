@@ -69,3 +69,36 @@ std::vector<unsigned> HalfDet::get_set_diff(
   while (b_it != b.end()) set_diff.push_back(*b_it);
   return set_diff;
 }
+
+std::pair<std::vector<unsigned>, std::vector<unsigned>> HalfDet::diff(const HalfDet& det) const {
+  assert(n_elecs_hf == det.n_elecs_hf);
+  auto diff_from = get_set_diff(det.orbs_from, orbs_from);
+  const auto& orbs_to_diff = get_set_diff(orbs_to, det.orbs_to);
+  diff_orbs.reserve(diff_orbs.size() + orbs_to_diff.size());
+  diff_orbs.insert(diff_orbs.end(), orbs_to_diff.begin(), orbs_to_diff.end());
+  return diff_orbs;
+}
+
+std::pair<std::vector<unsigned>, std::vector<unsigned>> HalfDet::diff_set(
+    const std::set<unsigned>& a, const std::set<unsigned>& b) const {
+  std::pair<std::vector<unsigned>, std::vector<unsigned>> res;
+  auto a_it = a.begin();
+  auto b_it = b.begin();
+  while (a_it != a.end() && b_it != b.end()) {
+    while (*a_it < *b_it) {
+      res.first.push_back(*a_it);
+      a_it++;
+    }
+    while (*a_it > *b_it) {
+      res.second.push_back(*b_it);
+      b_it++;
+    }
+    while (*a_it == *b_it) {
+      a_it++;
+      b_it++;
+    }
+  }
+  while (a_it != a.end()) res.first.push_back(*a_it);
+  while (b_it != b.end()) res.second.push_back(*b_it);
+  return res;
+}

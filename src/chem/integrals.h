@@ -16,7 +16,7 @@ class Integrals {
 
   unsigned n_dn;
 
-  std::vector<unsigned> orb_syms;
+  std::vector<unsigned> orb_sym;
 
   Det det_hf;
 
