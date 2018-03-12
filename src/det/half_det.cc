@@ -54,21 +54,25 @@ std::pair<std::vector<unsigned>, std::vector<unsigned>> HalfDet::diff_set(
   auto a_it = a.begin();
   auto b_it = b.begin();
   while (a_it != a.end() && b_it != b.end()) {
-    while (*a_it < *b_it) {
+    if (*a_it < *b_it) {
       res.first.push_back(*a_it);
       a_it++;
-    }
-    while (*a_it > *b_it) {
+    } else if (*a_it > *b_it) {
       res.second.push_back(*b_it);
       b_it++;
-    }
-    while (*a_it == *b_it) {
+    } else {
       a_it++;
       b_it++;
     }
   }
-  while (a_it != a.end()) res.first.push_back(*a_it);
-  while (b_it != b.end()) res.second.push_back(*b_it);
+  while (a_it != a.end()) {
+    res.first.push_back(*a_it);
+    a_it++;
+  }
+  while (b_it != b.end()) {
+    res.second.push_back(*b_it);
+    b_it++;
+  }
   return res;
 }
 

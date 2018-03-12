@@ -40,38 +40,32 @@ PointGroup ChemSystem::get_point_group(const std::string& str) const {
 }
 
 void ChemSystem::setup_hci_queue() {
-  sym_orbs.resize(product_table.get_n_syms());
+  sym_orbs.resize(product_table.get_n_syms() + 1);  // Symmetry starts from 1.
   for (unsigned orb = 0; orb < n_orbs; orb++) sym_orbs[orb_sym[orb]].push_back(orb);
 
   // Same spin.
-  hci_queue.reserve(Integrals::combine2(n_orbs, 2 * n_orbs));
+  hci_queue.resize(Integrals::combine2(n_orbs, 2 * n_orbs));
   for (unsigned p = 0; p < n_orbs; p++) {
     const unsigned sym_p = orb_sym[p];
-    printf("sym p: %u\n", sym_p);
     for (unsigned q = p + 1; q < n_orbs; q++) {
       const size_t pq = Integrals::combine2(p, q);
       const unsigned sym_q = product_table.get_product(sym_p, orb_sym[q]);
-      printf("q, pq, sym q: %u, %zu, %u\n", q, pq, sym_q);
       for (unsigned r = 0; r < n_orbs; r++) {
-        printf("r = %u\n", r);
         unsigned sym_r = orb_sym[r];
-        printf("sym r: %u\n", sym_r);
         if (point_group == PointGroup::Dooh) exit(0);  // TODO: dih inv.
         sym_r = product_table.get_product(sym_q, sym_r);
-        printf("sym r: %u\n", sym_r);
         for (const unsigned s : sym_orbs[sym_r]) {
           if (s < r) continue;
-          printf("s = %u\n", s);
           const double H = get_hci_queue_elem(p, q, r, s);
           if (H == 0.0) continue;
           assert(pq < Integrals::combine2(n_orbs, 2 * n_orbs));
-          printf("push %ld %u %u to [%zu]\n", H, r, s, pq);
+          printf("push %lf %u %u to [%zu %u %u], sym: %u %u %u\n", H, r, s, pq, p, q, sym_p, sym_q, sym_r);
           hci_queue[pq].push_back(HRS(H, r, s));
         }
         // exit(0);
       }
       exit(0);
-      std::sort(hci_queue[pq].begin(), hci_queue[pq].end(), [](const HRS& a, const HRS& b) {
+      std::stable_sort(hci_queue[pq].begin(), hci_queue[pq].end(), [](const HRS& a, const HRS& b) {
         return a.H > b.H;
       });
     }

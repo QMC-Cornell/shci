@@ -11,6 +11,8 @@ class Util {
   static std::string str_printf(const std::string& format, Args... args);
 
   static bool str_iequals(const std::string& a, const std::string& b);
+
+  constexpr static double EPS = 1.0e-15;
 };
 
 template <typename... Args>
