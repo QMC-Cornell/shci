@@ -32,8 +32,8 @@ class Solver {
 
 template <class S>
 void Solver<S>::run() {
-  system.setup();
   setup();
+  system.setup();
   Timer::start("variation");
   run_all_variations();
   Timer::end();

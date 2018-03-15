@@ -5,6 +5,8 @@
 #include <memory>
 #include <string>
 
+#define ENERGY_FORMAT "%.10f"
+
 class Util {
  public:
   template <typename... Args>

@@ -8,5 +8,5 @@ class HRS {
 
   unsigned s;
 
-  HRS(const unsigned r, const unsigned s, const double H) : H(H), r(r), s(s) {}
+  HRS(const double H, const unsigned r, const unsigned s) : H(H), r(r), s(s) {}
 };

@@ -42,6 +42,8 @@ PointGroup ChemSystem::get_point_group(const std::string& str) const {
 void ChemSystem::setup_hci_queue() {
   sym_orbs.resize(product_table.get_n_syms() + 1);  // Symmetry starts from 1.
   for (unsigned orb = 0; orb < n_orbs; orb++) sym_orbs[orb_sym[orb]].push_back(orb);
+  size_t n_entries = 0;
+  max_hci_queue_elem = 0.0;
 
   // Same spin.
   hci_queue.resize(Integrals::combine2(n_orbs, 2 * n_orbs));
@@ -58,16 +60,18 @@ void ChemSystem::setup_hci_queue() {
           if (s < r) continue;
           const double H = get_hci_queue_elem(p, q, r, s);
           if (H == 0.0) continue;
-          assert(pq < Integrals::combine2(n_orbs, 2 * n_orbs));
-          printf("push %lf %u %u to [%zu %u %u], sym: %u %u %u\n", H, r, s, pq, p, q, sym_p, sym_q, sym_r);
-          hci_queue[pq].push_back(HRS(H, r, s));
+          hci_queue.at(pq).push_back(HRS(H, r, s));
         }
         // exit(0);
       }
-      exit(0);
-      std::stable_sort(hci_queue[pq].begin(), hci_queue[pq].end(), [](const HRS& a, const HRS& b) {
-        return a.H > b.H;
-      });
+      // exit(0);
+      if (hci_queue.at(pq).size() > 0) {
+        std::sort(hci_queue.at(pq).begin(), hci_queue.at(pq).end(), [](const HRS& a, const HRS& b) {
+          return a.H > b.H;
+        });
+        n_entries += hci_queue.at(pq).size();
+        max_hci_queue_elem = std::max(max_hci_queue_elem, hci_queue.at(pq).front().H);
+      }
     }
   }
 
@@ -84,13 +88,25 @@ void ChemSystem::setup_hci_queue() {
         for (const unsigned s : sym_orbs[sym_r]) {
           const double H = get_hci_queue_elem(p, q, r, s + n_orbs);
           if (H == 0.0) continue;
-          hci_queue[pq].push_back(HRS(H, r, s + n_orbs));
+          hci_queue.at(pq).push_back(HRS(H, r, s + n_orbs));
+          n_entries++;
+          max_hci_queue_elem = std::max(max_hci_queue_elem, H);
         }
       }
-      std::sort(hci_queue[pq].begin(), hci_queue[pq].end(), [](const HRS& a, const HRS& b) {
-        return a.H > b.H;
-      });
+      if (hci_queue.at(pq).size() > 0) {
+        std::sort(hci_queue.at(pq).begin(), hci_queue.at(pq).end(), [](const HRS& a, const HRS& b) {
+          return a.H > b.H;
+        });
+        n_entries += hci_queue.at(pq).size();
+        max_hci_queue_elem = std::max(max_hci_queue_elem, hci_queue.at(pq).front().H);
+      }
     }
+  }
+
+  const int proc_id = Parallel::get_proc_id();
+  if (proc_id == 0) {
+    printf("max hci queue elem: " ENERGY_FORMAT "\n", max_hci_queue_elem);
+    printf("Number of entries in hci queue: %'zu\n", n_entries);
   }
 }
 
@@ -128,23 +144,21 @@ double ChemSystem::get_two_body_double(const Det& det_i, const Det& det_j, const
   double two_body_energy = 0.0;
   if (det_i.up == det_j.up) {
     const auto& diff_ij = det_i.dn.diff(det_j.dn);
+    if (diff_ij.first.size() != 2 || diff_ij.second.size() != 2) return 0.0;
     two_body_energy =
         integrals.get_2b(diff_ij.first[0], diff_ij.second[0], diff_ij.first[1], diff_ij.second[1]) -
         integrals.get_2b(diff_ij.first[0], diff_ij.second[1], diff_ij.first[1], diff_ij.second[0]);
   } else if (det_i.dn == det_j.dn) {
     const auto& diff_ij = det_i.up.diff(det_j.up);
-    assert(diff_ij.first.size() == 2);
-    assert(diff_ij.second.size() == 2);
+    if (diff_ij.first.size() != 2 || diff_ij.second.size() != 2) return 0.0;
     two_body_energy =
         integrals.get_2b(diff_ij.first[0], diff_ij.second[0], diff_ij.first[1], diff_ij.second[1]) -
         integrals.get_2b(diff_ij.first[0], diff_ij.second[1], diff_ij.first[1], diff_ij.second[0]);
   } else {
     const auto& diff_ij_up = det_i.up.diff(det_j.up);
     const auto& diff_ij_dn = det_i.dn.diff(det_j.dn);
-    assert(diff_ij_up.first.size() == 1);
-    assert(diff_ij_up.second.size() == 1);
-    assert(diff_ij_dn.first.size() == 1);
-    assert(diff_ij_dn.second.size() == 1);
+    if (diff_ij_up.first.size() != 1 || diff_ij_up.second.size() != 1) return 0.0;
+    if (diff_ij_dn.first.size() != 1 || diff_ij_dn.second.size() != 1) return 0.0;
     two_body_energy = integrals.get_2b(
         diff_ij_up.first[0], diff_ij_up.second[0], diff_ij_dn.first[0], diff_ij_dn.second[0]);
   }

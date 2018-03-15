@@ -24,6 +24,8 @@ class ChemSystem : public BaseSystem {
 
   std::vector<unsigned> orb_sym;
 
+  double max_hci_queue_elem;
+
   //   std::vector<unsigned> sym_n_orbs;
 
   std::vector<std::vector<unsigned>> sym_orbs;
