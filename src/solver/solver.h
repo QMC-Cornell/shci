@@ -5,6 +5,7 @@
 #include "../det/det.h"
 #include "../result.h"
 #include "../timer.h"
+#include "../util.h"
 #include "davidson.h"
 #include "hamiltonian.h"
 
@@ -31,29 +32,30 @@ class Solver {
 
 template <class S>
 void Solver<S>::run() {
-  system.setup();
   setup();
+  system.setup();
   Timer::start("variation");
-  system.setup_variation();
   run_all_variations();
   Timer::end();
 
   Timer::start("perturbation");
-  system.setup_perturbation();
   Timer::end();
 
   Result::dump();
 }
 
 template <class S>
-void Solver<S>::setup() {}
+void Solver<S>::setup() {
+  std::setlocale(LC_ALL, "en_US.UTF-8");
+}
 
 template <class S>
 void Solver<S>::run_all_variations() {
   const auto& eps_vars = Config::get<std::vector<double>>("eps_vars");
   for (const double eps_var : eps_vars) {
-    Timer::start(str(boost::format("eps_var %#.4g") % eps_var));
-    const auto& filename = str(boost::format("var_%#.4g.dat") % eps_var);
+    // Timer::start(str(boost::format("eps_var %#.4g") % eps_var));
+    Timer::start(Util::str_printf("eps_var %#.4g", eps_var));
+    const auto& filename = Util::str_printf("var_%#.4g.dat", eps_var);
     if (!load_variation_result(filename)) {
       run_variation(eps_var);
       save_variation_result(filename);

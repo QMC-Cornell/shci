@@ -14,7 +14,7 @@ class Result {
 
   static void dump() {
     std::ofstream result_file("result.json");
-    result_file << std::setw(2) << get_instance().data << std::endl;
+    result_file << get_instance().data.dump(2) << std::endl;
   }
 
   template <class T>

@@ -15,7 +15,7 @@ class Config {
     return instance;
   }
 
-  static void print() { std::cout << std::setw(2) << get_instance().data << std::endl; }
+  static void print() { std::cout << get_instance().data.dump(2) << std::endl; }
 
   template <class T>
   static T get(const std::string& key) {

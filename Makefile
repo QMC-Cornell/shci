@@ -1,6 +1,6 @@
 # Default options.
 CXX := mpic++
-CXX_WARNING_OPTIONS := -Wall -Wextra
+CXX_WARNING_OPTIONS := -Wall -Wextra -Wno-unused-result
 CXXFLAGS := -std=c++11 -O3 -fopenmp $(CXX_WARNING_OPTIONS)
 LDLIBS := -pthread -lpthread
 SRC_DIR := src
@@ -14,9 +14,7 @@ CXXFLAGS := $(CXXFLAGS) -I $(LIB_DIR)/json/include -I $(LIB_DIR)
 UNAME := $(shell uname)
 ifeq ($(UNAME), Linux)
 	TOOLS_DIR := $(HOME)/tools
-	BOOST_DIR := $(TOOLS_DIR)/boost
 	GPERFTOOLS_DIR := $(TOOLS_DIR)/gperftools
-	CXXFLAGS := $(CXXFLAGS) -I $(BOOST_DIR)/include
 	ifneq ($(wildcard $(GPERFTOOLS_DIR)),)
 		LDLIBS := -L $(GPERFTOOLS_DIR)/lib $(LDLIBS) -ltcmalloc
 	endif
@@ -32,6 +30,7 @@ endif
 MAIN_SRC := $(SRC_DIR)/main.cc
 SRCS := $(shell find $(SRC_DIR) ! -name "main.cc" ! -name "*_test.cc" -name "*.cc")
 HEADERS := $(shell find $(SRC_DIR) -name "*.h")
+SUBMODULES := $(LIB_DIR)/eigen $(LIB_DIR)/googletest $(LIB_DIR)/hpmr $(LIB_DIR)/hps $(LIB_DIR)/json
 OBJS := $(SRCS:$(SRC_DIR)/%.cc=$(BUILD_DIR)/%.o)
 TESTS := $(shell find $(SRC_DIR) -name "*_test.cc")
 GTEST_DIR := $(LIB_DIR)/googletest/googletest

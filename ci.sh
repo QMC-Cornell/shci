@@ -25,13 +25,6 @@ fi
 export PATH=$TOOLS_DIR/openmpi/bin:$PATH
 export LD_LIBRARY_PATH=$TOOLS_DIR/openmpi/lib:$LD_LIBRARY_PATH
 
-# Download Boost.
-echo "Downloading Boost"
-wget -O boost_1_66_0.tar.gz https://dl.bintray.com/boostorg/release/1.66.0/source/boost_1_66_0.tar.gz
-tar xzf boost_1_66_0.tar.gz
-mkdir -p $TOOLS_DIR/boost/include
-mv boost_1_66_0/boost $TOOLS_DIR/boost/include/
-
 cp ci.mk local.mk
 make -j
 make test_mpi

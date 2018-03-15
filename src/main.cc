@@ -1,10 +1,10 @@
-#include <boost/format.hpp>
 #include <cstdio>
 #include <ctime>
 #include "chem/chem_system.h"
 #include "config.h"
 #include "parallel.h"
 #include "solver/solver.h"
+#include "util.h"
 
 int main() {
   const int proc_id = Parallel::get_proc_id();
@@ -26,7 +26,7 @@ int main() {
   } else if (type == "chem") {
     Solver<ChemSystem>().run();
   } else {
-    throw std::invalid_argument(str(boost::format("system '%s' not supported.") % type.c_str()));
+    throw std::invalid_argument(Util::str_printf("system '%s' not supported.", type.c_str()));
   }
 
   return 0;
