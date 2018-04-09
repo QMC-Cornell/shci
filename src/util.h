@@ -1,11 +1,12 @@
 #pragma once
 
+#include <cmath>
 #include <cstdio>
 #include <iostream>
 #include <memory>
 #include <string>
 
-#define ENERGY_FORMAT "%.10f"
+#define ENERGY_FORMAT "%.12f"
 
 class Util {
  public:
@@ -15,6 +16,10 @@ class Util {
   static bool str_iequals(const std::string& a, const std::string& b);
 
   constexpr static double EPS = 1.0e-15;
+
+  constexpr static double SQRT2 = sqrt(2);
+
+  constexpr static double SQRT2_INV = 1.0 / sqrt(2);
 };
 
 template <typename... Args>

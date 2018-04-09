@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cfloat>
 #include <unordered_set>
 #include "../config.h"
 #include "../det/det.h"
@@ -53,7 +54,6 @@ template <class S>
 void Solver<S>::run_all_variations() {
   const auto& eps_vars = Config::get<std::vector<double>>("eps_vars");
   for (const double eps_var : eps_vars) {
-    // Timer::start(str(boost::format("eps_var %#.4g") % eps_var));
     Timer::start(Util::str_printf("eps_var %#.4g", eps_var));
     const auto& filename = Util::str_printf("var_%#.4g.dat", eps_var);
     if (!load_variation_result(filename)) {
@@ -71,22 +71,26 @@ void Solver<S>::run_variation(const double eps_var) {
   Davidson davidson;
   std::unordered_set<std::string> var_dets_set;
   for (const auto& var_det : system.dets) var_dets_set.insert(var_det);
-  const auto& connected_det_handler = [&](const Det& connected_det) {
+  const auto& connected_det_handler = [&](const Det& connected_det, const double) {
     hps::serialize_to_string(connected_det, tmp_det_str);
     if (var_dets_set.count(tmp_det_str) == 1) return;
     system.dets.push_back(tmp_det_str);
     var_dets_set.insert(tmp_det_str);
   };
   size_t n_dets = system.dets.size();
-  double energy_var = 0;
+  double energy_var = 0.0;
   bool converged = false;
-  std::vector<double> coefs_prev(n_dets, 0);
+  std::vector<double> coefs_prev(n_dets, 0.0);
+  const double LARGE_DOUBLE = std::numeric_limits<double>::max();
   while (!converged) {
     for (size_t i = 0; i < n_dets; i++) {
       const double coef = system.coefs[i];
-      if (std::abs(coef) <= std::abs(coefs_prev[i])) continue;
+      const double coef_prev = coefs_prev[i];
+      if (abs(coef) <= abs(coef_prev)) continue;
       hps::parse_from_string(tmp_det, system.dets[i]);
-      system.find_connected_dets(tmp_det, eps_var / std::abs(coef), connected_det_handler);
+      const double eps_max = coef_prev == 0.0 ? LARGE_DOUBLE : eps_var / abs(coef_prev);
+      const double eps_min = eps_var / abs(coef);
+      system.find_connected_dets(tmp_det, eps_max, eps_min, connected_det_handler);
     }
     const size_t n_dets_new = system.dets.size();
     hamiltonian.update(system);
@@ -94,7 +98,7 @@ void Solver<S>::run_variation(const double eps_var) {
     const double energy_var_new = davidson.get_eigenvalue();
     coefs_prev = system.coefs;
     system.coefs = davidson.get_eigenvector();
-    if (n_dets_new == n_dets && std::abs(energy_var_new - energy_var) < 1.0e-6) {
+    if (n_dets_new == n_dets && abs(energy_var_new - energy_var) < 1.0e-6) {
       converged = true;
     }
     n_dets = n_dets_new;

@@ -13,20 +13,22 @@ std::vector<unsigned> HalfDet::get_occupied_orbs() const {
   return occupied_orbs;
 }
 
-void HalfDet::set(const unsigned orb) {
+HalfDet& HalfDet::set(const unsigned orb) {
   if (orb < n_elecs_hf) {
     orbs_from.erase(orb);
   } else {
     orbs_to.insert(orb);
   }
+  return *this;
 }
 
-void HalfDet::unset(const unsigned orb) {
+HalfDet& HalfDet::unset(const unsigned orb) {
   if (orb < n_elecs_hf) {
     orbs_from.insert(orb);
   } else {
     orbs_to.erase(orb);
   }
+  return *this;
 }
 
 bool HalfDet::has(const unsigned orb) const {
@@ -79,6 +81,14 @@ std::pair<std::vector<unsigned>, std::vector<unsigned>> HalfDet::diff_set(
 bool operator==(const HalfDet& a, const HalfDet& b) {
   if (a.n_elecs_hf != b.n_elecs_hf) return false;
   return (a.orbs_from == b.orbs_from && a.orbs_to == b.orbs_to);
+}
+
+bool operator!=(const HalfDet& a, const HalfDet& b) { return !(a == b); }
+
+bool operator<(const HalfDet& a, const HalfDet& b) {
+  if (a.n_elecs_hf != b.n_elecs_hf) {
+    throw std::runtime_error("cannot compare half det of different HF elecs.")
+  }
 }
 
 // std::vector<unsigned> HalfDet::get_diff_orbs(const HalfDet& det) const {

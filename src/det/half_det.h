@@ -9,9 +9,9 @@ class HalfDet {
 
   std::vector<unsigned> get_occupied_orbs() const;
 
-  void set(const unsigned orb);
+  HalfDet& set(const unsigned orb);
 
-  void unset(const unsigned orb);
+  HalfDet& unset(const unsigned orb);
 
   bool has(const unsigned orb) const;
 
@@ -34,6 +34,10 @@ class HalfDet {
       const std::set<unsigned>& a, const std::set<unsigned>& b) const;
 
   friend bool operator==(const HalfDet& a, const HalfDet& b);
+
+  friend bool operator!=(const HalfDet& a, const HalfDet& b);
+
+  friend bool operator<(const HalfDet& a, const HalfDet& b);
 };
 
 template <class B>

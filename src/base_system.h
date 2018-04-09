@@ -7,11 +7,11 @@
 
 class BaseSystem {
  public:
-  int n_up;
+  unsigned n_up;
 
-  int n_dn;
+  unsigned n_dn;
 
-  int n_elecs;
+  unsigned n_elecs;
 
   std::vector<std::string> dets;
 
@@ -25,8 +25,9 @@ class BaseSystem {
 
   virtual void find_connected_dets(
       const Det& det,
-      const double eps,
-      const std::function<void(const Det&)>& connected_det_handler) = 0;
+      const double eps_max,
+      const double eps_min,
+      const std::function<void(const Det&, const double)>& connected_det_handler) const = 0;
 
-  virtual double get_hamiltonian_elem(const Det& det_i, const Det& det_j) = 0;
+  virtual double get_hamiltonian_elem(const Det& det_i, const Det& det_j) const = 0;
 };

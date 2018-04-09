@@ -1,15 +1,18 @@
 #include "chem_system.h"
 
+#include <cfloat>
 #include "../parallel.h"
 #include "../result.h"
 #include "../timer.h"
 #include "../util.h"
 
 void ChemSystem::setup() {
-  n_up = Config::get<int>("n_up");
-  n_dn = Config::get<int>("n_dn");
+  n_up = Config::get<unsigned>("n_up");
+  n_dn = Config::get<unsigned>("n_dn");
   n_elecs = n_up + n_dn;
   Result::put("n_elecs", n_elecs);
+  time_sym = Config::get<bool>("time_sym", false);
+  z = Config::get<int>("z", "1");
 
   point_group = get_point_group(Config::get<std::string>("chem.point_group"));
   product_table.set_point_group(point_group);
@@ -60,13 +63,13 @@ void ChemSystem::setup_hci_queue() {
           if (s < r) continue;
           const double H = get_hci_queue_elem(p, q, r, s);
           if (H == 0.0) continue;
-          hci_queue.at(pq).push_back(HRS(H, r, s));
+          hci_queue.at(pq).push_back(Hrs(H, r, s));
         }
         // exit(0);
       }
       // exit(0);
       if (hci_queue.at(pq).size() > 0) {
-        std::sort(hci_queue.at(pq).begin(), hci_queue.at(pq).end(), [](const HRS& a, const HRS& b) {
+        std::sort(hci_queue.at(pq).begin(), hci_queue.at(pq).end(), [](const Hrs& a, const Hrs& b) {
           return a.H > b.H;
         });
         n_entries += hci_queue.at(pq).size();
@@ -88,13 +91,13 @@ void ChemSystem::setup_hci_queue() {
         for (const unsigned s : sym_orbs[sym_r]) {
           const double H = get_hci_queue_elem(p, q, r, s + n_orbs);
           if (H == 0.0) continue;
-          hci_queue.at(pq).push_back(HRS(H, r, s + n_orbs));
+          hci_queue.at(pq).push_back(Hrs(H, r, s + n_orbs));
           n_entries++;
           max_hci_queue_elem = std::max(max_hci_queue_elem, H);
         }
       }
       if (hci_queue.at(pq).size() > 0) {
-        std::sort(hci_queue.at(pq).begin(), hci_queue.at(pq).end(), [](const HRS& a, const HRS& b) {
+        std::sort(hci_queue.at(pq).begin(), hci_queue.at(pq).end(), [](const Hrs& a, const Hrs& b) {
           return a.H > b.H;
         });
         n_entries += hci_queue.at(pq).size();
@@ -105,7 +108,7 @@ void ChemSystem::setup_hci_queue() {
 
   const int proc_id = Parallel::get_proc_id();
   if (proc_id == 0) {
-    printf("max hci queue elem: " ENERGY_FORMAT "\n", max_hci_queue_elem);
+    printf("Max hci queue elem: " ENERGY_FORMAT "\n", max_hci_queue_elem);
     printf("Number of entries in hci queue: %'zu\n", n_entries);
   }
 }
@@ -132,13 +135,69 @@ double ChemSystem::get_hci_queue_elem(
   } else {
     throw std::runtime_error("impossible pqrs for getting hci queue elem");
   }
-  return std::abs(get_two_body_double(det_pq, det_rs, true));
+  return abs(get_two_body_double(det_pq, det_rs, true));
 }
 
 void ChemSystem::find_connected_dets(
-    const Det&, const double, const std::function<void(const Det&)>&) {}
+    const Det& det,
+    const double eps_max_in,
+    const double eps_min_in,
+    const std::function<void(const Det&, const double)>& connected_det_handler) const {
+  const double eps_max = time_sym ? eps_max_in * Util::SQRT2 : eps_max_in;
+  const double eps_min = time_sym ? eps_min_in * Util::SQRT2 : eps_min_in;
 
-double ChemSystem::get_hamiltonian_elem(const Det&, const Det&) { return 0.0; }
+  const auto& occ_orbs_up = det.up.get_occupied_orbs();
+  const auto& occ_orbs_dn = det.dn.get_occupied_orbs();
+
+  // First add single excitations.
+  Det connected_det(det);
+  for (unsigned p_id = 0; p_id < n_elecs; p_id++) {
+    const unsigned p = p_id < n_up ? occ_orbs_up[p_id] : occ_orbs_dn[p_id - n_up];
+    const unsigned sym_p = orb_sym[p];
+    for (unsigned r = 0; r < n_orbs; r++) {
+      if (p_id < n_up) {
+        if (det.up.has(r)) continue;
+      } else {
+        if (det.dn.has(r)) continue;
+      }
+      if (orb_sym[r] != sym_p) continue;
+      if (p_id < n_up) {
+        connected_det.up.unset(p).set(r);
+      } else {
+        connected_det.dn.unset(p).set(r);
+      }
+      if (time_sym) {
+        if (connected_det.up == connected_det.dn && z < 0) continue;
+        if (connected_det.up == det.dn && connected_det.dn == det.up) continue;
+      }
+      double matrix_elem = get_hamiltonian_elem(det, connected_det);
+      if (abs(matrix_elem) > eps_max || abs(matrix_elem) < eps_min) continue;
+      if (time_sym) {
+        if (det.up == det.dn && connected_det.up != connected_det.dn) {
+          matrix_elem *= Util::SQRT2_INV;
+        } else if (det.up != det.dn && connected_det.up == connected_det.dn) {
+          matrix_elem *= Util::SQRT2;
+        }
+        if (connected_det.up > connected_det.dn) {
+          HalfDet tmp_half_det = connected_det.up;
+          connected_det.up = connected_det.dn;
+          connected_det.dn = tmp_half_det;
+          matrix_elem *= z;
+        }
+      }
+      connected_det_handler(connected_det, matrix_elem);
+      if (p_id < n_up) {
+        connected_det.up.unset(r).set(p);
+      } else {
+        connected_det.dn.unset(r).set(p);
+      }
+    }
+  }
+
+  // Then, add double excitations.
+}
+
+double ChemSystem::get_hamiltonian_elem(const Det&, const Det&) const { return 0.0; }
 
 double ChemSystem::get_two_body_double(const Det& det_i, const Det& det_j, const bool no_sign) {
   double two_body_energy = 0.0;
