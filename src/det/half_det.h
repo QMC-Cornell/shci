@@ -38,6 +38,8 @@ class HalfDet {
   friend bool operator!=(const HalfDet& a, const HalfDet& b);
 
   friend bool operator<(const HalfDet& a, const HalfDet& b);
+
+  friend bool operator>(const HalfDet& a, const HalfDet& b);
 };
 
 template <class B>

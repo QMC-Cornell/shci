@@ -18,7 +18,8 @@ class ChemSystem : public BaseSystem {
       const double eps_min,
       const std::function<void(const Det&, const double)>& connected_det_handler) const;
 
-  double get_hamiltonian_elem(const Det& det_i, const Det& det_j) const;
+  double get_hamiltonian_elem(
+      const Det& det_i, const Det& det_j, const unsigned excitation_level) const;
 
  private:
   unsigned n_orbs;

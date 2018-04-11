@@ -29,5 +29,6 @@ class BaseSystem {
       const double eps_min,
       const std::function<void(const Det&, const double)>& connected_det_handler) const = 0;
 
-  virtual double get_hamiltonian_elem(const Det& det_i, const Det& det_j) const = 0;
+  virtual double get_hamiltonian_elem(
+      const Det& det_i, const Det& det_j, const unsigned excitation_level) const = 0;
 };

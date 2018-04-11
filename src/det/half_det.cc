@@ -87,39 +87,10 @@ bool operator!=(const HalfDet& a, const HalfDet& b) { return !(a == b); }
 
 bool operator<(const HalfDet& a, const HalfDet& b) {
   if (a.n_elecs_hf != b.n_elecs_hf) {
-    throw std::runtime_error("cannot compare half det of different HF elecs.")
+    throw std::runtime_error("cannot compare half det of different HF elecs.");
   }
+  return a.orbs_from > b.orbs_from || (a.orbs_from == b.orbs_from && a.orbs_to < b.orbs_to);
 }
 
-// std::vector<unsigned> HalfDet::get_diff_orbs(const HalfDet& det) const {
-//   assert(n_elecs_hf == det.n_elecs_hf);
-//   auto diff_orbs = get_set_diff(orbs_from, det.orbs_from);
-//   const auto& orbs_to_diff = get_set_diff(orbs_to, det.orbs_to);
-//   diff_orbs.reserve(diff_orbs.size() + orbs_to_diff.size());
-//   diff_orbs.insert(diff_orbs.end(), orbs_to_diff.begin(), orbs_to_diff.end());
-//   return diff_orbs;
-// }
+bool operator>(const HalfDet& a, const HalfDet& b) { return !(a < b); }
 
-// std::vector<unsigned> HalfDet::get_set_diff(
-//     const std::set<unsigned>& a, const std::set<unsigned>& b) const {
-//   std::vector<unsigned> set_diff;
-//   auto a_it = a.begin();
-//   auto b_it = b.begin();
-//   while (a_it != a.end() && b_it != b.end()) {
-//     while (*a_it < *b_it) {
-//       set_diff.push_back(*a_it);
-//       a_it++;
-//     }
-//     while (*a_it > *b_it) {
-//       set_diff.push_back(*b_it);
-//       b_it++;
-//     }
-//     while (*a_it == *b_it) {
-//       a_it++;
-//       b_it++;
-//     }
-//   }
-//   while (a_it != a.end()) set_diff.push_back(*a_it);
-//   while (b_it != b.end()) set_diff.push_back(*b_it);
-//   return set_diff;
-// }

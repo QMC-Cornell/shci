@@ -12,7 +12,7 @@ void ChemSystem::setup() {
   n_elecs = n_up + n_dn;
   Result::put("n_elecs", n_elecs);
   time_sym = Config::get<bool>("time_sym", false);
-  z = Config::get<int>("z", "1");
+  z = Config::get<int>("z", 1);
 
   point_group = get_point_group(Config::get<std::string>("chem.point_group"));
   product_table.set_point_group(point_group);
@@ -65,9 +65,7 @@ void ChemSystem::setup_hci_queue() {
           if (H == 0.0) continue;
           hci_queue.at(pq).push_back(Hrs(H, r, s));
         }
-        // exit(0);
       }
-      // exit(0);
       if (hci_queue.at(pq).size() > 0) {
         std::sort(hci_queue.at(pq).begin(), hci_queue.at(pq).end(), [](const Hrs& a, const Hrs& b) {
           return a.H > b.H;
@@ -145,12 +143,35 @@ void ChemSystem::find_connected_dets(
     const std::function<void(const Det&, const double)>& connected_det_handler) const {
   const double eps_max = time_sym ? eps_max_in * Util::SQRT2 : eps_max_in;
   const double eps_min = time_sym ? eps_min_in * Util::SQRT2 : eps_min_in;
+  if (eps_max < eps_min) return;
 
   const auto& occ_orbs_up = det.up.get_occupied_orbs();
   const auto& occ_orbs_dn = det.dn.get_occupied_orbs();
 
-  // First add single excitations.
-  Det connected_det(det);
+  const auto& prospective_det_handler = [&](Det& connected_det, const unsigned n_excite) {
+    if (time_sym) {
+      if (connected_det.up == connected_det.dn && z < 0) return;
+      if (connected_det.up == det.dn && connected_det.dn == det.up) return;
+    }
+    double matrix_elem = get_hamiltonian_elem(det, connected_det, n_excite);
+    if (abs(matrix_elem) > eps_max || abs(matrix_elem) < eps_min) return;
+    if (time_sym) {
+      if (det.up == det.dn && connected_det.up != connected_det.dn) {
+        matrix_elem *= Util::SQRT2_INV;
+      } else if (det.up != det.dn && connected_det.up == connected_det.dn) {
+        matrix_elem *= Util::SQRT2;
+      }
+      if (connected_det.up > connected_det.dn) {
+        HalfDet tmp_half_det = connected_det.up;
+        connected_det.up = connected_det.dn;
+        connected_det.dn = tmp_half_det;
+        matrix_elem *= z;
+      }
+    }
+    connected_det_handler(connected_det, matrix_elem);
+  };
+
+  // Add single excitations.
   for (unsigned p_id = 0; p_id < n_elecs; p_id++) {
     const unsigned p = p_id < n_up ? occ_orbs_up[p_id] : occ_orbs_dn[p_id - n_up];
     const unsigned sym_p = orb_sym[p];
@@ -161,43 +182,69 @@ void ChemSystem::find_connected_dets(
         if (det.dn.has(r)) continue;
       }
       if (orb_sym[r] != sym_p) continue;
+      Det connected_det(det);
       if (p_id < n_up) {
         connected_det.up.unset(p).set(r);
       } else {
         connected_det.dn.unset(p).set(r);
       }
-      if (time_sym) {
-        if (connected_det.up == connected_det.dn && z < 0) continue;
-        if (connected_det.up == det.dn && connected_det.dn == det.up) continue;
-      }
-      double matrix_elem = get_hamiltonian_elem(det, connected_det);
-      if (abs(matrix_elem) > eps_max || abs(matrix_elem) < eps_min) continue;
-      if (time_sym) {
-        if (det.up == det.dn && connected_det.up != connected_det.dn) {
-          matrix_elem *= Util::SQRT2_INV;
-        } else if (det.up != det.dn && connected_det.up == connected_det.dn) {
-          matrix_elem *= Util::SQRT2;
-        }
-        if (connected_det.up > connected_det.dn) {
-          HalfDet tmp_half_det = connected_det.up;
-          connected_det.up = connected_det.dn;
-          connected_det.dn = tmp_half_det;
-          matrix_elem *= z;
-        }
-      }
-      connected_det_handler(connected_det, matrix_elem);
-      if (p_id < n_up) {
-        connected_det.up.unset(r).set(p);
-      } else {
-        connected_det.dn.unset(r).set(p);
-      }
+      prospective_det_handler(connected_det, 1);
     }
   }
 
-  // Then, add double excitations.
+  // Add double excitations.
+  if (eps_min > max_hci_queue_elem) return;
+  for (unsigned p_id = 0; p_id < n_elecs; p_id++) {
+    for (unsigned q_id = p_id; q_id < n_elecs; q_id++) {
+      const unsigned p = p_id < n_up ? occ_orbs_up[p_id] : occ_orbs_dn[p_id - n_up] + n_orbs;
+      const unsigned q = q_id < n_up ? occ_orbs_up[q_id] : occ_orbs_dn[q_id - n_up] + n_orbs;
+      double p2 = p;
+      double q2 = q;
+      if (p > n_orbs && q > n_orbs) {
+        p2 -= n_orbs;
+        q2 -= n_orbs;
+      } else if (p < n_orbs && q >= n_orbs && p > q - n_orbs) {
+        p2 = q - n_orbs;
+        q2 = p + n_orbs;
+      }
+      const unsigned pq = Integrals::combine2(p, q);
+      for (const auto& hrs : hci_queue.at(pq)) {
+        const double H = hrs.H;
+        if (H < eps_min) break;
+        if (H > eps_max) continue;
+        unsigned r = hrs.r;
+        unsigned s = hrs.s;
+        if (p >= n_orbs && q >= n_orbs) {
+          r += n_orbs;
+          s += n_orbs;
+        } else if (p < n_orbs && q >= n_orbs && p > q - n_orbs) {
+          const unsigned tmp_r = s - n_orbs;
+          s = r - n_orbs;
+          r = tmp_r;
+        }
+        const bool occ_r = r < n_orbs ? det.up.has(r) : det.dn.has(r - n_orbs);
+        if (occ_r) continue;
+        const bool occ_s = s < n_orbs ? det.up.has(s) : det.dn.has(s - n_orbs);
+        if (occ_s) continue;
+        Det connected_det(det);
+        p < n_orbs ? connected_det.up.unset(p) : connected_det.dn.unset(p - n_orbs);
+        q < n_orbs ? connected_det.up.unset(q) : connected_det.dn.unset(q - n_orbs);
+        r < n_orbs ? connected_det.up.set(r) : connected_det.dn.set(r - n_orbs);
+        s < n_orbs ? connected_det.up.set(s) : connected_det.dn.set(s - n_orbs);
+        prospective_det_handler(connected_det, 2);
+      }
+    }
+  }
+  
+  
 }
 
-double ChemSystem::get_hamiltonian_elem(const Det&, const Det&) const { return 0.0; }
+double ChemSystem::get_hamiltonian_elem(
+    const Det&, const Det&, const unsigned n_excite) const { 
+
+  
+  return 0.0; 
+}
 
 double ChemSystem::get_two_body_double(const Det& det_i, const Det& det_j, const bool no_sign) {
   double two_body_energy = 0.0;
