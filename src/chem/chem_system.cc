@@ -241,7 +241,7 @@ void ChemSystem::find_connected_dets(
 
 double ChemSystem::get_hamiltonian_elem(
     const Det&, const Det&, const unsigned n_excite) const { 
-
+      
   
   return 0.0; 
 }
