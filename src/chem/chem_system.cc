@@ -42,8 +42,7 @@ PointGroup ChemSystem::get_point_group(const std::string& str) const {
   return PointGroup::None;
 }
 
-void ChemSystem::setup_hci_queue() {
-  sym_orbs.resize(product_table.get_n_syms() + 1);  // Symmetry starts from 1.
+void ChemSystem::setup_hci_queue() { sym_orbs.resize(product_table.get_n_syms() + 1);  // Symmetry starts from 1.
   for (unsigned orb = 0; orb < n_orbs; orb++) sym_orbs[orb_sym[orb]].push_back(orb);
   size_t n_entries = 0;
   max_hci_queue_elem = 0.0;
@@ -240,13 +239,62 @@ void ChemSystem::find_connected_dets(
 }
 
 double ChemSystem::get_hamiltonian_elem(
-    const Det&, const Det&, const unsigned n_excite) const { 
-      
-  
-  return 0.0; 
+    const Det& det_i, const Det& det_j, const unsigned n_excite) const { 
+  if (!time_sym) return get_hamiltonian_elem_kernel(det_i, det_j, n_excite);
+  double norm_ket_inv = 1.0;
+  double norm_bra = 1.0;
+  bool check = true;
+  if (det_j.up == det_j.dn) norm_ket_inv = Util::SQRT2_INV;
+  if (det_i.up == det_i.dn) {
+    norm_bra = Util::SQRT2;
+    check = false;
+  }
+  const double matrix_elem_1 = get_hamiltonian_elem_kernel(det_i, det_j, n_excite);
+  double matrix_elem_2 = 1.0;
+  if (check) {
+    if (det_i.up != det_j.dn) {
+      matrix_elem_2 = get_hamiltonian_elem_kernel(det_i, det_j, n_excite);
+    } else {
+      matrix_elem_2 = matrix_elem_1;
+    }
+  }
+  return norm_bra * norm_ket_inv * (matrix_elem_1 + z * matrix_elem_2);
 }
 
-double ChemSystem::get_two_body_double(const Det& det_i, const Det& det_j, const bool no_sign) {
+double ChemSystem::get_hamiltonian_elem_kernel(
+    const Det& det_i, const Det& det_j, const unsigned n_excite) const {
+  if (n_excite == 0) {
+    const double one_body_energy = get_one_body_diag(det_i);
+    const double two_body_energy = get_two_body_diag(det_i);
+    return one_body_energy + two_body_energy + integrals.energy_core;
+  } else if (n_excite == 1) {
+    const double one_body_energy = get_one_body_single(det_i, det_j);
+    const double two_body_energy = get_two_body_single(det_i, det_j);
+    return one_body_energy + two_body_energy;
+  } else if (n_excite == 2) {
+    return get_two_body_double(det_i, det_j);
+  }
+  throw new std::runtime_error("Calling hamiltonian kernel with >2 exicitation");
+}
+
+double ChemSystem::get_one_body_diag(const Det& det) const {
+  return 0.0;
+}
+
+double ChemSystem::get_two_body_diag(const Det& det) const {
+  return 0.0;
+}
+
+double ChemSystem::get_one_body_single(const Det& det_i, const Det& det_j) const {
+  return 0.0;
+}
+
+double ChemSystem::get_two_body_single(const Det& det_i, const Det& det_j) const {
+  return 0.0;
+}
+
+double ChemSystem::get_two_body_double(
+    const Det& det_i, const Det& det_j, const bool no_sign) const {
   double two_body_energy = 0.0;
   if (det_i.up == det_j.up) {
     const auto& diff_ij = det_i.dn.diff(det_j.dn);

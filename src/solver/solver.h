@@ -23,8 +23,9 @@ class Solver {
   void setup();
 
   void run_all_variations();
-
-  void run_variation(const double eps_var);
+  
+  // Loose mode exits before fully converged.
+  void run_variation(const double eps_var, const bool loose = false);
 
   bool load_variation_result(const std::string& filename);
 
@@ -53,10 +54,23 @@ void Solver<S>::setup() {
 template <class S>
 void Solver<S>::run_all_variations() {
   const auto& eps_vars = Config::get<std::vector<double>>("eps_vars");
+  const auto& n_schedule = Config::get<unsigned int>("n_schedule_extra", 3) + 1;
+  const auto eps_var_first = eps_vars.front();
+  auto eps_var_prev = eps_var_first;
   for (const double eps_var : eps_vars) {
     Timer::start(Util::str_printf("eps_var %#.4g", eps_var));
     const auto& filename = Util::str_printf("var_%#.4g.dat", eps_var);
     if (!load_variation_result(filename)) {
+      if (eps_var != eps_var_first) {
+        // Perform extra schedule first.
+        const double ratio = pow(eps_var / eps_var_prev, 1.0 / n_schedule);
+        for (unsigned i = 1; i < n_schedule; i++) {
+          const double eps_var_extra = eps_var_prev * pow(ratio, i * ratio);
+          Timer::start(Util::str_printf("eps_var_extra %#.4g", eps_var_extra));
+          run_variation(eps_var_extra, true);
+          Timer::end();
+        }
+      }
       run_variation(eps_var);
       save_variation_result(filename);
     }
@@ -65,7 +79,7 @@ void Solver<S>::run_all_variations() {
 }
 
 template <class S>
-void Solver<S>::run_variation(const double eps_var) {
+void Solver<S>::run_variation(const double eps_var, const bool loose) {
   Det tmp_det;
   std::string tmp_det_str;
   Davidson davidson;
@@ -98,7 +112,7 @@ void Solver<S>::run_variation(const double eps_var) {
     const double energy_var_new = davidson.get_eigenvalue();
     coefs_prev = system.coefs;
     system.coefs = davidson.get_eigenvector();
-    if (n_dets_new == n_dets && abs(energy_var_new - energy_var) < 1.0e-6) {
+    if (loose || (n_dets_new == n_dets && abs(energy_var_new - energy_var) < 1.0e-6)) {
       converged = true;
     }
     n_dets = n_dets_new;
