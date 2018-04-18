@@ -23,9 +23,8 @@ class Solver {
   void setup();
 
   void run_all_variations();
-  
-  // Loose mode exits before fully converged.
-  void run_variation(const double eps_var, const bool loose = false);
+
+  void run_variation(const double eps_var, const bool until_converged = true);
 
   bool load_variation_result(const std::string& filename);
 
@@ -54,32 +53,36 @@ void Solver<S>::setup() {
 template <class S>
 void Solver<S>::run_all_variations() {
   const auto& eps_vars = Config::get<std::vector<double>>("eps_vars");
-  const auto& n_schedule = Config::get<unsigned int>("n_schedule_extra", 3) + 1;
-  const auto eps_var_first = eps_vars.front();
-  auto eps_var_prev = eps_var_first;
+  const auto& eps_vars_schedule = Config::get<std::vector<double>>("eps_vars_schedule");
+  double eps_var_prev = Util::INF;
+  auto it_schedule = eps_vars_schedule.begin();
   for (const double eps_var : eps_vars) {
     Timer::start(Util::str_printf("eps_var %#.4g", eps_var));
     const auto& filename = Util::str_printf("var_%#.4g.dat", eps_var);
     if (!load_variation_result(filename)) {
-      if (eps_var != eps_var_first) {
-        // Perform extra schedule first.
-        const double ratio = pow(eps_var / eps_var_prev, 1.0 / n_schedule);
-        for (unsigned i = 1; i < n_schedule; i++) {
-          const double eps_var_extra = eps_var_prev * pow(ratio, i * ratio);
-          Timer::start(Util::str_printf("eps_var_extra %#.4g", eps_var_extra));
-          run_variation(eps_var_extra, true);
-          Timer::end();
-        }
+      // Perform extra scheduled eps.
+      while (it_schedule != eps_vars_schedule.end() && *it_schedule >= eps_var_prev) it_schedule++;
+      while (it_schedule != eps_vars_schedule.end() && *it_schedule > eps_var) {
+        const double eps_var_extra = *it_schedule;
+        Timer::start(Util::str_printf("extra %#.4g", eps_var_extra));
+        run_variation(eps_var_extra, false);
+        Timer::end();
+        it_schedule++;
       }
+
+      Timer::start("main");
       run_variation(eps_var);
+      Timer::end();
+
       save_variation_result(filename);
     }
+    eps_var_prev = eps_var;
     Timer::end();
   }
 }
 
 template <class S>
-void Solver<S>::run_variation(const double eps_var, const bool loose) {
+void Solver<S>::run_variation(const double eps_var, const bool until_converged) {
   Det tmp_det;
   std::string tmp_det_str;
   Davidson davidson;
@@ -95,16 +98,15 @@ void Solver<S>::run_variation(const double eps_var, const bool loose) {
   double energy_var = 0.0;
   bool converged = false;
   std::vector<double> coefs_prev(n_dets, 0.0);
-  const double LARGE_DOUBLE = std::numeric_limits<double>::max();
-  while (!converged) {
+  while (!converged && until_converged) {
     for (size_t i = 0; i < n_dets; i++) {
       const double coef = system.coefs[i];
       const double coef_prev = coefs_prev[i];
       if (abs(coef) <= abs(coef_prev)) continue;
       hps::parse_from_string(tmp_det, system.dets[i]);
-      const double eps_max = coef_prev == 0.0 ? LARGE_DOUBLE : eps_var / abs(coef_prev);
+      const double eps_max = coef_prev == 0.0 ? Util::INF : eps_var / abs(coef_prev);
       const double eps_min = eps_var / abs(coef);
-      system.find_connected_dets(tmp_det, eps_max, eps_min, connected_det_handler);
+      // system.find_connected_dets(tmp_det, eps_max, eps_min, connected_det_handler);
     }
     const size_t n_dets_new = system.dets.size();
     hamiltonian.update(system);
@@ -112,18 +114,33 @@ void Solver<S>::run_variation(const double eps_var, const bool loose) {
     const double energy_var_new = davidson.get_eigenvalue();
     coefs_prev = system.coefs;
     system.coefs = davidson.get_eigenvector();
-    if (loose || (n_dets_new == n_dets && abs(energy_var_new - energy_var) < 1.0e-6)) {
+    if (n_dets_new == n_dets && abs(energy_var_new - energy_var) < 1.0e-6) {
       converged = true;
     }
     n_dets = n_dets_new;
     energy_var = energy_var_new;
   }
+  system.energy_var = energy_var;
 }
 
 template <class S>
-bool Solver<S>::load_variation_result(const std::string&) {
-  return false;
+bool Solver<S>::load_variation_result(const std::string& filename) {
+  std::ifstream file(filename, std::ifstream::binary);
+  if (!file) return false;
+  hps::parse_from_stream<S>(system, file);
+  if (Parallel::get_proc_id() == 0) {
+    printf("Loaded %'zu dets from: %s\n", system.dets.size(), filename.c_str());
+    printf("HF energy: " ENERGY_FORMAT "\n", system.energy_hf);
+    printf("Variation energy: " ENERGY_FORMAT "\n", system.energy_var);
+  }
+  return true;
 }
 
 template <class S>
-void Solver<S>::save_variation_result(const std::string&) {}
+void Solver<S>::save_variation_result(const std::string& filename) {
+  if (Parallel::get_proc_id() == 0) {
+    std::ofstream file(filename, std::ofstream::binary);
+    hps::serialize_to_stream(system, file);
+    printf("Variation results saved to: %s\n", filename.c_str());
+  }
+}

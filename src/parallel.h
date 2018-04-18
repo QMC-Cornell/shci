@@ -18,6 +18,9 @@ class Parallel {
 
   static void barrier() { MPI_Barrier(MPI_COMM_WORLD); }
 
+  template <class T>
+  static void broadcast(T& t);
+
  private:
   Parallel() {
     MPI_Init(nullptr, nullptr);

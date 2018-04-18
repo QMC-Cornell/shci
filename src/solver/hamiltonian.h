@@ -9,4 +9,6 @@ class Hamiltonian {
 };
 
 template <class S>
-void Hamiltonian<S>::update(const S&) {}
+void Hamiltonian<S>::update(const S&) {
+  
+}

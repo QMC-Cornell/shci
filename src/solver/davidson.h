@@ -5,7 +5,10 @@
 
 class Davidson {
  public:
-  void diagonalize(const SparseMatrix<double>& matrix, const std::vector<double>& initial);
+  void diagonalize(
+      const SparseMatrix<double>& matrix,
+      const std::vector<double>& initial_vector,
+      const bool verbose = false);
 
   double get_eigenvalue() { return eigenvalue; }
 
