@@ -26,7 +26,7 @@ void Timer::start(const std::string& event) {
   auto& instance = get_instance();
   instance.start_times.push_back(std::make_pair(event, now));
   if (instance.is_master) {
-    printf("\n" ANSI_COLOR_YELLOW "[START] " ANSI_COLOR_RESET);
+    printf("\n" ANSI_COLOR_GREEN "[START] " ANSI_COLOR_RESET);
     instance.print_status();
   }
   instance.prev_time = now;
@@ -37,7 +37,7 @@ void Timer::end() {
   const auto& now = std::chrono::high_resolution_clock::now();
   auto& instance = get_instance();
   if (instance.is_master) {
-    printf(ANSI_COLOR_BLUE "[=END=] " ANSI_COLOR_RESET);
+    printf(ANSI_COLOR_YELLOW "[=END=] " ANSI_COLOR_RESET);
     instance.print_status();
   }
   instance.start_times.pop_back();

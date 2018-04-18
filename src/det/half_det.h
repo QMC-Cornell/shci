@@ -2,6 +2,7 @@
 
 #include <hps/src/hps.h>
 #include <set>
+#include "diff_result.h"
 
 class HalfDet {
  public:
@@ -15,7 +16,7 @@ class HalfDet {
 
   bool has(const unsigned orb) const;
 
-  std::pair<std::vector<unsigned>, std::vector<unsigned>> diff(const HalfDet& det) const;
+  DiffResult diff(const HalfDet& det) const;
 
   template <class B>
   void serialize(hps::OutputBuffer<B>& buf) const;
@@ -26,12 +27,7 @@ class HalfDet {
  private:
   unsigned n_elecs_hf;
 
-  std::set<unsigned> orbs_from;
-
-  std::set<unsigned> orbs_to;
-
-  std::pair<std::vector<unsigned>, std::vector<unsigned>> diff_set(
-      const std::set<unsigned>& a, const std::set<unsigned>& b) const;
+  std::set<unsigned> orbs;
 
   friend bool operator==(const HalfDet& a, const HalfDet& b);
 
@@ -45,15 +41,48 @@ class HalfDet {
 template <class B>
 void HalfDet::serialize(hps::OutputBuffer<B>& buf) const {
   hps::Serializer<unsigned, B>::serialize(n_elecs_hf, buf);
-  hps::Serializer<std::set<unsigned>, B>::serialize(orbs_from, buf);
-  hps::Serializer<std::set<unsigned>, B>::serialize(orbs_to, buf);
+  unsigned level = 0;
+  std::vector<unsigned> diffs;
+  for (const unsigned orb : orbs) {
+    if (orb < n_elecs_hf) {
+      while (level < orb) {
+        diffs.push_back(level);
+        level++;
+      }
+      level++;
+    } else {
+      while (level < n_elecs_hf) {
+        diffs.push_back(level);
+        level++;
+      }
+      diffs.push_back(orb);
+    }
+  }
+  hps::Serializer<std::vector<unsigned>, B>::serialize(diffs, buf);
 }
 
 template <class B>
 void HalfDet::parse(hps::InputBuffer<B>& buf) {
   hps::Serializer<unsigned, B>::parse(n_elecs_hf, buf);
-  hps::Serializer<std::set<unsigned>, B>::parse(orbs_from, buf);
-  hps::Serializer<std::set<unsigned>, B>::parse(orbs_to, buf);
+  std::vector<unsigned> diffs;
+  hps::Serializer<std::vector<unsigned>, B>::parse(diffs, buf);
+  unsigned level = 0;
+  orbs.clear();
+  for (const unsigned diff : diffs) {
+    if (diff < n_elecs_hf) {
+      while (level < diff) {
+        orbs.insert(level);
+        level++;
+      }
+      level++;
+    } else {
+      while (level < n_elecs_hf) {
+        orbs.insert(level);
+        level++;
+      }
+      orbs.insert(diff);
+    }
+  }
 }
 
 namespace hps {
