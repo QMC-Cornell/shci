@@ -115,5 +115,5 @@ void Davidson::diagonalize(
   }
 
   lowest_eigenvector.resize(dim);
-  for (int i = 0; i < dim; i++) lowest_eigenvector[i] = w(i);
+  for (unsigned i = 0; i < dim; i++) lowest_eigenvector[i] = w(i);
 }
