@@ -32,6 +32,17 @@ void Timer::start(const std::string& event) {
   instance.prev_time = now;
 }
 
+void Timer::checkpoint(const std::string& event) {
+  Parallel::barrier();
+  const auto& now = std::chrono::high_resolution_clock::now();
+  auto& instance = get_instance();
+  if (instance.is_master) {
+    printf(ANSI_COLOR_GREEN "[-CHK-] " ANSI_COLOR_RESET "%s ", event.c_str());
+    instance.print_status();
+  }
+  instance.prev_time = now;
+}
+
 void Timer::end() {
   Parallel::barrier();
   const auto& now = std::chrono::high_resolution_clock::now();

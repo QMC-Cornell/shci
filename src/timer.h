@@ -13,6 +13,8 @@ class Timer {
 
   static void start(const std::string& event);
 
+  static void checkpoint(const std::string& event);
+
   static void end();
 
  private:

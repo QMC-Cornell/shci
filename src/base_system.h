@@ -1,7 +1,7 @@
 #pragma once
 
-#include <functional>
 #include <hps/src/hps.h>
+#include <functional>
 #include <string>
 #include <vector>
 #include "det/det.h"
@@ -21,6 +21,8 @@ class BaseSystem {
   double energy_hf;
 
   double energy_var;
+
+  size_t get_n_dets() const { return dets.size(); }
 
   virtual void setup() = 0;
 
@@ -62,4 +64,4 @@ class Serializer<S, B, typename std::enable_if<std::is_base_of<BaseSystem, S>::v
   static void serialize(const S& system, hps::OutputBuffer<B>& buf) { system.serialize(buf); }
   static void parse(S& system, hps::InputBuffer<B>& buf) { system.parse(buf); }
 };
-}
+}  // namespace hps
