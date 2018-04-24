@@ -55,21 +55,12 @@ class ChemSystem : public BaseSystem {
 
   double get_two_body_diag(const Det& det) const;
 
-  double get_one_body_single(
-      const Det& det_i,
-      const Det& det_j,
-      const DiffResult& diff_up,
-      const DiffResult& diff_dn) const;
+  double get_one_body_single(const DiffResult& diff_up, const DiffResult& diff_dn) const;
 
   double get_two_body_single(
       const Det& det_i,
-      const Det& det_j,
       const DiffResult& diff_up,
       const DiffResult& diff_dn) const;
 
-  double get_two_body_double(
-      const Det& det_i,
-      const Det& det_j,
-      const DiffResult& diff_up,
-      const DiffResult& diff_dn) const;
+  double get_two_body_double(const DiffResult& diff_up, const DiffResult& diff_dn) const;
 };

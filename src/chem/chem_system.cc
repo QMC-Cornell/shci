@@ -115,26 +115,26 @@ void ChemSystem::setup_hci_queue() {
 double ChemSystem::get_hci_queue_elem(
     const unsigned p, const unsigned q, const unsigned r, const unsigned s) {
   if (p == q || r == s || p == r || q == s || p == s || q == r) return 0.0;
-  Det det_pq;
-  Det det_rs;
+  DiffResult diff_up;
+  DiffResult diff_dn;
   if (p < n_orbs && q < n_orbs) {
     assert(r < n_orbs);
     assert(s < n_orbs);
-    det_pq.up.set(p);
-    det_pq.up.set(q);
-    det_rs.up.set(r);
-    det_rs.up.set(s);
+    diff_up.leftOnly.push_back(p);
+    diff_up.leftOnly.push_back(q);
+    diff_up.rightOnly.push_back(r);
+    diff_up.rightOnly.push_back(s);
   } else if (p < n_orbs && q >= n_orbs) {
     assert(r < n_orbs);
     assert(s >= n_orbs);
-    det_pq.up.set(p);
-    det_pq.dn.set(q - n_orbs);
-    det_rs.up.set(r);
-    det_rs.dn.set(s - n_orbs);
+    diff_up.leftOnly.push_back(p);
+    diff_dn.leftOnly.push_back(q - n_orbs);
+    diff_up.rightOnly.push_back(r);
+    diff_dn.rightOnly.push_back(s - n_orbs);
   } else {
     throw std::runtime_error("impossible pqrs for getting hci queue elem");
   }
-  return std::abs(get_hamiltonian_elem_kernel(det_pq, det_rs, 2));
+  return std::abs(get_two_body_double(diff_up, diff_dn));
 }
 
 void ChemSystem::find_connected_dets(
@@ -286,11 +286,11 @@ double ChemSystem::get_hamiltonian_elem_kernel(
     const double two_body_energy = get_two_body_diag(det_i);
     return one_body_energy + two_body_energy + integrals.energy_core;
   } else if (n_excite == 1) {
-    const double one_body_energy = get_one_body_single(det_i, det_j, diff_up, diff_dn);
-    const double two_body_energy = get_two_body_single(det_i, det_j, diff_up, diff_dn);
+    const double one_body_energy = get_one_body_single(diff_up, diff_dn);
+    const double two_body_energy = get_two_body_single(det_i, diff_up, diff_dn);
     return one_body_energy + two_body_energy;
   } else if (n_excite == 2) {
-    return get_two_body_double(det_i, det_j, diff_up, diff_dn);
+    return get_two_body_double(diff_up, diff_dn);
   }
 
   throw new std::runtime_error("Calling hamiltonian kernel with >2 exicitation");
@@ -350,8 +350,7 @@ double ChemSystem::get_two_body_diag(const Det& det) const {
   return direct_energy + exchange_energy;
 }
 
-double ChemSystem::get_one_body_single(
-    const Det&, const Det&, const DiffResult& diff_up, const DiffResult& diff_dn) const {
+double ChemSystem::get_one_body_single(const DiffResult& diff_up, const DiffResult& diff_dn) const {
   const bool is_up_single = diff_up.leftOnly.size() == 1;
   const auto& diff = is_up_single ? diff_up : diff_dn;
   const unsigned orb_i = diff.leftOnly[0];
@@ -360,7 +359,7 @@ double ChemSystem::get_one_body_single(
 }
 
 double ChemSystem::get_two_body_single(
-    const Det& det_i, const Det&, const DiffResult& diff_up, const DiffResult& diff_dn) const {
+    const Det& det_i, const DiffResult& diff_up, const DiffResult& diff_dn) const {
   const bool is_up_single = diff_up.leftOnly.size() == 1;
   const auto& diff = is_up_single ? diff_up : diff_dn;
   const unsigned orb_i = diff.leftOnly[0];
@@ -380,8 +379,7 @@ double ChemSystem::get_two_body_single(
   return energy;
 }
 
-double ChemSystem::get_two_body_double(
-    const Det&, const Det&, const DiffResult& diff_up, const DiffResult& diff_dn) const {
+double ChemSystem::get_two_body_double(const DiffResult& diff_up, const DiffResult& diff_dn) const {
   double energy = 0.0;
   if (diff_up.leftOnly.size() == 0) {
     const auto& diff = diff_dn;
