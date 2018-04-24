@@ -104,7 +104,7 @@ void Davidson::diagonalize(
     Hw = Hv.leftCols(it) * eigenvectors.col(lowest_id).topRows(it);
 
     if (verbose) printf("Davidson #%zu: %.10f\n", it, lowest_eigenvalue);
-    if (abs(lowest_eigenvalue - lowest_eigenvalue_prev) < TOLERANCE) {
+    if (std::abs(lowest_eigenvalue - lowest_eigenvalue_prev) < TOLERANCE) {
       converged = true;
       break;
     } else {

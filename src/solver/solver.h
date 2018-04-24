@@ -1,6 +1,6 @@
 #pragma once
 
-#include <cfloat>
+#include <cmath>
 #include <unordered_set>
 #include "../config.h"
 #include "../det/det.h"
@@ -95,10 +95,10 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
     for (size_t i = 0; i < n_dets; i++) {
       const double coef = system.coefs[i];
       const double coef_prev = coefs_prev[i];
-      if (abs(coef) <= abs(coef_prev)) continue;
+      if (std::abs(coef) <= std::abs(coef_prev)) continue;
       hps::parse_from_string(tmp_det, system.dets[i]);
-      const double eps_max = coef_prev == 0.0 ? Util::INF : eps_var / abs(coef_prev);
-      const double eps_min = eps_var / abs(coef);
+      const double eps_max = coef_prev == 0.0 ? Util::INF : eps_var / std::abs(coef_prev);
+      const double eps_min = eps_var / std::abs(coef);
       system.find_connected_dets(tmp_det, eps_max, eps_min, connected_det_handler);
     }
     const size_t n_dets_new = system.dets.size();
@@ -107,7 +107,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
     const double energy_var_new = davidson.get_eigenvalue();
     coefs_prev = system.coefs;
     system.coefs = davidson.get_eigenvector();
-    if (n_dets_new == n_dets && abs(energy_var_new - energy_var) < 1.0e-6) {
+    if (n_dets_new == n_dets && std::abs(energy_var_new - energy_var) < 1.0e-6) {
       converged = true;
     }
     n_dets = n_dets_new;

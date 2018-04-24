@@ -16,6 +16,8 @@ class Util {
 
   static bool str_iequals(const std::string& a, const std::string& b);
 
+  static void error_handler(const int sig);
+
   constexpr static double EPS = 1.0e-15;
 
   constexpr static double INF = std::numeric_limits<double>::max();

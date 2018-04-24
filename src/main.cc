@@ -1,4 +1,5 @@
 #include <cstdio>
+#include <csignal>
 #include <ctime>
 #include "chem/chem_system.h"
 #include "config.h"
@@ -7,6 +8,8 @@
 #include "util.h"
 
 int main() {
+  signal(SIGSEGV, Util::error_handler);
+
   const int proc_id = Parallel::get_proc_id();
   if (proc_id == 0) {
     printf("Semistochastic Heat-bath Configuration Interation (SHCI)\n\n");
