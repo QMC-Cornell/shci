@@ -1,12 +1,12 @@
 #include "half_det.h"
 
 std::vector<unsigned> HalfDet::get_occupied_orbs() const {
-  std::vector<unsigned> occupied_orbs;
-  occupied_orbs.reserve(n_elecs_hf);
+  std::vector<unsigned> res;
+  res.reserve(n_elecs_hf);
   for (unsigned orb : orbs) {
-    occupied_orbs.push_back(orb);
+    res.push_back(orb);
   }
-  return occupied_orbs;
+  return res;
 }
 
 HalfDet& HalfDet::set(const unsigned orb) {

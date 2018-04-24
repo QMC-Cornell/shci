@@ -22,6 +22,8 @@ class BaseSystem {
 
   double energy_var;
 
+  std::string get_det(const size_t i) const { return dets[i]; }
+
   size_t get_n_dets() const { return dets.size(); }
 
   virtual void setup() = 0;
@@ -33,7 +35,7 @@ class BaseSystem {
       const std::function<void(const Det&, const double)>& connected_det_handler) const = 0;
 
   virtual double get_hamiltonian_elem(
-      const Det& det_i, const Det& det_j, const unsigned excitation_level) const = 0;
+      const Det& det_i, const Det& det_j, const int n_excite = -1) const = 0;
 
   template <class B>
   void serialize(hps::OutputBuffer<B>& buf) const {

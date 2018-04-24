@@ -18,8 +18,7 @@ class ChemSystem : public BaseSystem {
       const double eps_min,
       const std::function<void(const Det&, const double)>& connected_det_handler) const;
 
-  double get_hamiltonian_elem(
-      const Det& det_i, const Det& det_j, const unsigned n_excite) const;
+  double get_hamiltonian_elem(const Det& det_i, const Det& det_j, const int n_excite = -1) const;
 
  private:
   unsigned n_orbs;
@@ -50,16 +49,27 @@ class ChemSystem : public BaseSystem {
 
   double get_hci_queue_elem(const unsigned p, const unsigned q, const unsigned r, const unsigned s);
 
-  double get_hamiltonian_elem_kernel(
-      const Det& det_i, const Det& det_j, const unsigned n_excite) const;
+  double get_hamiltonian_elem_kernel(const Det& det_i, const Det& det_j, int n_excite) const;
 
   double get_one_body_diag(const Det& det) const;
 
   double get_two_body_diag(const Det& det) const;
 
-  double get_one_body_single(const Det& det_i, const Det& det_j) const;
+  double get_one_body_single(
+      const Det& det_i,
+      const Det& det_j,
+      const DiffResult& diff_up,
+      const DiffResult& diff_dn) const;
 
-  double get_two_body_single(const Det& det_i, const Det& det_j) const;
+  double get_two_body_single(
+      const Det& det_i,
+      const Det& det_j,
+      const DiffResult& diff_up,
+      const DiffResult& diff_dn) const;
 
-  double get_two_body_double(const Det& det_i, const Det& det_j, const bool no_sign = false) const;
+  double get_two_body_double(
+      const Det& det_i,
+      const Det& det_j,
+      const DiffResult& diff_up,
+      const DiffResult& diff_dn) const;
 };

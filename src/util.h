@@ -11,7 +11,7 @@
 
 class Util {
  public:
-  template <typename... Args>
+  template <class... Args>
   static std::string str_printf(const std::string& format, Args... args);
 
   static bool str_iequals(const std::string& a, const std::string& b);

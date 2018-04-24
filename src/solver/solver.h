@@ -20,8 +20,6 @@ class Solver {
 
   Hamiltonian<S> hamiltonian;
 
-  void setup();
-
   void run_all_variations();
 
   void run_variation(const double eps_var, const bool until_converged = true);
@@ -33,7 +31,7 @@ class Solver {
 
 template <class S>
 void Solver<S>::run() {
-  setup();
+  std::setlocale(LC_ALL, "en_US.UTF-8");
   system.setup();
   Timer::start("variation");
   run_all_variations();
@@ -43,11 +41,6 @@ void Solver<S>::run() {
   Timer::end();
 
   Result::dump();
-}
-
-template <class S>
-void Solver<S>::setup() {
-  std::setlocale(LC_ALL, "en_US.UTF-8");
 }
 
 template <class S>
@@ -106,7 +99,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
       hps::parse_from_string(tmp_det, system.dets[i]);
       const double eps_max = coef_prev == 0.0 ? Util::INF : eps_var / abs(coef_prev);
       const double eps_min = eps_var / abs(coef);
-      // system.find_connected_dets(tmp_det, eps_max, eps_min, connected_det_handler);
+      system.find_connected_dets(tmp_det, eps_max, eps_min, connected_det_handler);
     }
     const size_t n_dets_new = system.dets.size();
     hamiltonian.update(system);

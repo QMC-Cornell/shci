@@ -11,7 +11,7 @@ class SparseMatrix {
 
   std::vector<T> mul(const std::vector<T>& vec) const;
 
-  SparseVector<T>& get_row(const size_t i) const { return row[i]; }
+  SparseVector<T>& get_row(const size_t i) { return rows[i]; }
 
  private:
   std::vector<SparseVector<T>> rows;
