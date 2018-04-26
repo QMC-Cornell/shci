@@ -3,11 +3,11 @@
   "n_up": 4,
   "n_dn": 2,
   "eps_vars": [
-    2e-3,
     1e-3
   ],
   "eps_vars_schedule": [
-    5e-3
+    2e-3,
+    2e-3
   ],
   "chem": {
     "point_group": "d2h",

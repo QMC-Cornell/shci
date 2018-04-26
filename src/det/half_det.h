@@ -58,6 +58,10 @@ void HalfDet::serialize(hps::OutputBuffer<B>& buf) const {
       diffs.push_back(orb);
     }
   }
+  while (level < n_elecs_hf) {
+    diffs.push_back(level);
+    level++;
+  }
   hps::Serializer<std::vector<unsigned>, B>::serialize(diffs, buf);
 }
 
@@ -66,8 +70,8 @@ void HalfDet::parse(hps::InputBuffer<B>& buf) {
   hps::Serializer<unsigned, B>::parse(n_elecs_hf, buf);
   std::vector<unsigned> diffs;
   hps::Serializer<std::vector<unsigned>, B>::parse(diffs, buf);
-  unsigned level = 0;
   orbs.clear();
+  unsigned level = 0;
   for (const unsigned diff : diffs) {
     if (diff < n_elecs_hf) {
       while (level < diff) {
@@ -82,6 +86,10 @@ void HalfDet::parse(hps::InputBuffer<B>& buf) {
       }
       orbs.insert(diff);
     }
+  }
+  while (level < n_elecs_hf) {
+    orbs.insert(level);
+    level++;
   }
 }
 

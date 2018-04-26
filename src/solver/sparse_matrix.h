@@ -7,17 +7,22 @@
 template <class T>
 class SparseMatrix {
  public:
-  T get_diag(const size_t i) const { return diag[i]; }
+  T get_diag(const size_t i) const { return rows[i].get_value(0); }
 
   std::vector<T> mul(const std::vector<T>& vec) const;
 
-  SparseVector<T>& get_row(const size_t i) { return rows[i]; }
+  void append_elem(const size_t i, const size_t j, const T& elem);
+
+  void set_dim(const size_t dim);
 
  private:
   std::vector<SparseVector<T>> rows;
-
-  std::vector<T> diag;
 };
+
+template <class T>
+void SparseMatrix<T>::append_elem(const size_t i, const size_t j, const T& elem) {
+  rows[i].append(j, elem);
+}
 
 template <class T>
 std::vector<T> SparseMatrix<T>::mul(const std::vector<T>& vec) const {
@@ -66,7 +71,13 @@ std::vector<T> SparseMatrix<T>::mul(const std::vector<T>& vec) const {
   //   printf("Number of non-zero elements: %'llu\n", n_nonzero_elems[0]);
   // }
 
-  Timer::checkpoint("hamiltonian applied");
+  // Timer::checkpoint("hamiltonian applied");
 
   return res[0];
 }
+
+template <class T>
+void SparseMatrix<T>::set_dim(const size_t dim) {
+  rows.resize(dim);
+}
+

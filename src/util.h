@@ -3,8 +3,8 @@
 #include <cmath>
 #include <cstdio>
 #include <iostream>
-#include <memory>
 #include <limits>
+#include <memory>
 #include <string>
 
 #define ENERGY_FORMAT "%.10f Ha"
@@ -20,11 +20,11 @@ class Util {
 
   constexpr static double EPS = 1.0e-15;
 
-  constexpr static double INF = std::numeric_limits<double>::max();
+  constexpr static double INF = 1.0e100;
 
-  constexpr static double SQRT2 = sqrt(2);
+  constexpr static double SQRT2 = sqrt(2.0);
 
-  constexpr static double SQRT2_INV = 1.0 / sqrt(2);
+  constexpr static double SQRT2_INV = 1.0 / SQRT2;
 };
 
 template <typename... Args>

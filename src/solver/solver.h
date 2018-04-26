@@ -4,6 +4,7 @@
 #include <unordered_set>
 #include "../config.h"
 #include "../det/det.h"
+#include "../parallel.h"
 #include "../result.h"
 #include "../timer.h"
 #include "../util.h"
@@ -31,8 +32,11 @@ class Solver {
 
 template <class S>
 void Solver<S>::run() {
+  Timer::start("setup");
   std::setlocale(LC_ALL, "en_US.UTF-8");
   system.setup();
+  Timer::end();
+
   Timer::start("variation");
   run_all_variations();
   Timer::end();
@@ -54,7 +58,7 @@ void Solver<S>::run_all_variations() {
     const auto& filename = Util::str_printf("var_%#.4g.dat", eps_var);
     if (!load_variation_result(filename)) {
       // Perform extra scheduled eps.
-      while (it_schedule != eps_vars_schedule.end() && *it_schedule >= eps_var_prev) it_schedule++;
+      while (it_schedule != eps_vars_schedule.end() && *it_schedule > eps_var_prev) it_schedule++;
       while (it_schedule != eps_vars_schedule.end() && *it_schedule > eps_var) {
         const double eps_var_extra = *it_schedule;
         Timer::start(Util::str_printf("extra %#.4g", eps_var_extra));
@@ -76,44 +80,61 @@ void Solver<S>::run_all_variations() {
 
 template <class S>
 void Solver<S>::run_variation(const double eps_var, const bool until_converged) {
-  Det tmp_det;
-  std::string tmp_det_str;
   Davidson davidson;
   std::unordered_set<std::string> var_dets_set;
+  omp_lock_t lock;
+  omp_init_lock(&lock);
   for (const auto& var_det : system.dets) var_dets_set.insert(var_det);
   const auto& connected_det_handler = [&](const Det& connected_det, const double) {
-    hps::serialize_to_string(connected_det, tmp_det_str);
-    if (var_dets_set.count(tmp_det_str) == 1) return;
-    system.dets.push_back(tmp_det_str);
-    var_dets_set.insert(tmp_det_str);
+    const auto& det_str = hps::serialize_to_string(connected_det);
+    omp_set_lock(&lock);
+    if (var_dets_set.count(det_str) == 0) {
+      system.dets.push_back(det_str);
+      system.coefs.push_back(0.0);
+      var_dets_set.insert(det_str);
+    }
+    omp_unset_lock(&lock);
   };
   size_t n_dets = system.dets.size();
   double energy_var = 0.0;
   bool converged = false;
   std::vector<double> coefs_prev(n_dets, 0.0);
-  while (!converged && until_converged) {
+  size_t iteration = 0;
+  while (!converged) {
+    Timer::start(Util::str_printf("#%zu", iteration));
+// #pragma omp parallel for schedule(static, 1)
     for (size_t i = 0; i < n_dets; i++) {
       const double coef = system.coefs[i];
       const double coef_prev = coefs_prev[i];
       if (std::abs(coef) <= std::abs(coef_prev)) continue;
-      hps::parse_from_string(tmp_det, system.dets[i]);
+      const auto& det = hps::parse_from_string<Det>(system.dets[i]);
       const double eps_max = coef_prev == 0.0 ? Util::INF : eps_var / std::abs(coef_prev);
       const double eps_min = eps_var / std::abs(coef);
-      system.find_connected_dets(tmp_det, eps_max, eps_min, connected_det_handler);
+      system.find_connected_dets(det, eps_max, eps_min, connected_det_handler);
     }
     const size_t n_dets_new = system.dets.size();
+    if (Parallel::is_master()) {
+      printf("Number of dets / new dets: %'zu / %'zu\n", n_dets_new, n_dets_new - n_dets);
+    }
     hamiltonian.update(system);
-    davidson.diagonalize(hamiltonian.matrix, system.coefs);
-    const double energy_var_new = davidson.get_eigenvalue();
+    davidson.diagonalize(hamiltonian.matrix, system.coefs, Parallel::is_master());
+    const double energy_var_new = davidson.get_lowest_eigenvalue();
     coefs_prev = system.coefs;
-    system.coefs = davidson.get_eigenvector();
+    system.coefs = davidson.get_lowest_eigenvector();
+    Timer::checkpoint("hamiltonian diagonalized");
+    if (Parallel::is_master()) {
+      printf("Current variational energy: " ENERGY_FORMAT "\n", energy_var_new);
+    }
     if (n_dets_new == n_dets && std::abs(energy_var_new - energy_var) < 1.0e-6) {
       converged = true;
     }
     n_dets = n_dets_new;
     energy_var = energy_var_new;
+    Timer::end();
+    if (!until_converged) break;
   }
   system.energy_var = energy_var;
+  omp_destroy_lock(&lock);
 }
 
 template <class S>

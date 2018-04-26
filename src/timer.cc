@@ -28,6 +28,7 @@ void Timer::start(const std::string& event) {
   if (instance.is_master) {
     printf("\n" ANSI_COLOR_GREEN "[START] " ANSI_COLOR_RESET);
     instance.print_status();
+    instance.print_time();
   }
   instance.prev_time = now;
 }
@@ -38,7 +39,7 @@ void Timer::checkpoint(const std::string& event) {
   auto& instance = get_instance();
   if (instance.is_master) {
     printf(ANSI_COLOR_GREEN "[-CHK-] " ANSI_COLOR_RESET "%s ", event.c_str());
-    instance.print_status();
+    instance.print_time();
   }
   instance.prev_time = now;
 }
@@ -50,6 +51,7 @@ void Timer::end() {
   if (instance.is_master) {
     printf(ANSI_COLOR_YELLOW "[=END=] " ANSI_COLOR_RESET);
     instance.print_status();
+    instance.print_time();
   }
   instance.start_times.pop_back();
   instance.prev_time = now;
@@ -60,6 +62,9 @@ void Timer::print_status() const {
     printf("%s >> ", start_times[i].first.c_str());
   }
   printf("%s ", start_times.back().first.c_str());
+}
+
+void Timer::print_time() const {
   const auto& now = std::chrono::high_resolution_clock::now();
   const auto& event_start_time = start_times.back().second;
   printf(

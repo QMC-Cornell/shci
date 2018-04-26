@@ -21,8 +21,6 @@ class Hamiltonian {
   void clear();
 
  private:
-  bool is_master = false;
-
   size_t n_dets = 0;
 
   size_t n_dets_prev = 0;
@@ -74,7 +72,6 @@ class Hamiltonian {
 
 template <class S>
 Hamiltonian<S>::Hamiltonian() {
-  is_master = Parallel::get_proc_id() == 0;
   n_up = Config::get<unsigned>("n_up");
   n_dn = Config::get<unsigned>("n_dn");
 }
@@ -86,6 +83,7 @@ void Hamiltonian<S>::update(const S& system) {
   if (n_dets_prev == n_dets) return;
 
   update_abdet(system);
+  Timer::checkpoint("updated unique ab");
   update_abm1(system);
   Timer::checkpoint("updated abm1");
   update_absingles(system);
@@ -280,7 +278,7 @@ void Hamiltonian<S>::update_absingles(const S& system) {
     singles_cnt += beta_id_to_single_ids[beta_id].size();
   }
 
-  if (is_master) {
+  if (Parallel::is_master()) {
     printf(
         "Outer size of a/b singles: %'zu / %'zu\n",
         alpha_id_to_single_ids.size(),
@@ -293,16 +291,16 @@ template <class S>
 void Hamiltonian<S>::update_matrix(const S& system) {
   const size_t proc_id = Parallel::get_proc_id();
   const size_t n_procs = Parallel::get_n_procs();
+  matrix.set_dim(system.get_n_dets());
 
 #pragma omp parallel for schedule(static, 1)
   for (size_t det_id = proc_id; det_id < n_dets; det_id += n_procs) {
-    SparseVector<double>& row = matrix.get_row(det_id);
     const auto& det = hps::parse_from_string<Det>(system.get_det(det_id));
     Det connected_det;
     const bool is_new_det = det_id >= n_dets_prev;
     if (is_new_det) {
       const double H = system.get_hamiltonian_elem(det, det);
-      row.append(det_id, H);
+      matrix.append_elem(det_id, det_id, H);
     }
     const size_t start_id = is_new_det ? det_id + 1 : n_dets_prev;
 
@@ -316,7 +314,7 @@ void Hamiltonian<S>::update_matrix(const S& system) {
       hps::parse_from_string(connected_det, system.get_det(alpha_det_id));
       const double H = system.get_hamiltonian_elem(det, connected_det);
       if (std::abs(H) < Util::EPS) continue;
-      row.append(alpha_det_id, H);
+      matrix.append_elem(det_id, alpha_det_id, H);
     }
 
     // Single or double beta excitations.
@@ -329,7 +327,7 @@ void Hamiltonian<S>::update_matrix(const S& system) {
       hps::parse_from_string(connected_det, system.get_det(beta_det_id));
       const double H = system.get_hamiltonian_elem(det, connected_det);
       if (std::abs(H) < Util::EPS) continue;
-      row.append(beta_det_id, H);
+      matrix.append_elem(det_id, beta_det_id, H);
     }
 
     // Mixed double excitation.
@@ -354,7 +352,7 @@ void Hamiltonian<S>::update_matrix(const S& system) {
           hps::parse_from_string(connected_det, system.get_det(related_det_id));
           const double H = system.get_hamiltonian_elem(det, connected_det);
           if (std::abs(H) < Util::EPS) continue;
-          row.append(related_det_id, H);
+          matrix.append_elem(det_id, related_det_id, H);
         }
       }
     }
@@ -379,4 +377,3 @@ void Hamiltonian<S>::sort_by_first(std::vector<size_t>& vec1, std::vector<size_t
     vec2[i] = vec[i].second;
   }
 }
-
