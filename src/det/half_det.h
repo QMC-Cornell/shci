@@ -6,7 +6,7 @@
 
 class HalfDet {
  public:
-  HalfDet(const unsigned n_elecs_hf = 0) : n_elecs_hf(n_elecs_hf) {}
+  HalfDet(const unsigned n_elecs_hf = 0) {}
 
   std::vector<unsigned> get_occupied_orbs() const;
 
@@ -26,8 +26,10 @@ class HalfDet {
   template <class B>
   void parse(hps::InputBuffer<B>& buf);
 
+#ifndef DEBUG
  private:
-  unsigned n_elecs_hf;
+#endif
+  // unsigned n_elecs_hf;
 
   std::set<unsigned> orbs;
 
@@ -42,6 +44,7 @@ class HalfDet {
 
 template <class B>
 void HalfDet::serialize(hps::OutputBuffer<B>& buf) const {
+  unsigned n_elecs_hf = orbs.size();
   hps::Serializer<unsigned, B>::serialize(n_elecs_hf, buf);
   unsigned level = 0;
   std::vector<unsigned> diffs;
@@ -69,6 +72,7 @@ void HalfDet::serialize(hps::OutputBuffer<B>& buf) const {
 
 template <class B>
 void HalfDet::parse(hps::InputBuffer<B>& buf) {
+  unsigned n_elecs_hf;
   hps::Serializer<unsigned, B>::parse(n_elecs_hf, buf);
   std::vector<unsigned> diffs;
   hps::Serializer<std::vector<unsigned>, B>::parse(diffs, buf);

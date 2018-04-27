@@ -37,7 +37,7 @@ std::vector<T> SparseMatrix<T>::mul(const std::vector<T>& vec) const {
   for (int i = 0; i < n_threads; i++) res[i].resize(dim, 0.0);
     // std::vector<unsigned long long> n_nonzero_elems(n_threads, 0);
 
-// #pragma omp parallel for schedule(static, 1)
+#pragma omp parallel for schedule(static, 1)
   for (size_t i = proc_id; i < dim; i += n_procs) {
     const int thread_id = omp_get_thread_num();
     const auto& row = rows[i];
@@ -59,7 +59,7 @@ std::vector<T> SparseMatrix<T>::mul(const std::vector<T>& vec) const {
     //   n_nonzero_elems[0] += n_nonzero_elems[i];
     // }
 
-// #pragma omp parallel for
+#pragma omp parallel for
   for (size_t j = 0; j < dim; j++) {
     for (int i = 1; i < n_threads; i++) {
       res[0][j] += res[i][j];

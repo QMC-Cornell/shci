@@ -86,8 +86,10 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
   omp_init_lock(&lock);
   for (const auto& var_det : system.dets) var_dets_set.insert(var_det);
   const auto& connected_det_handler = [&](const Det& connected_det, const double) {
+    // printf("h1");
     const auto& det_str = hps::serialize_to_string(connected_det);
     omp_set_lock(&lock);
+    // printf("h2");
     if (var_dets_set.count(det_str) == 0) {
       system.dets.push_back(det_str);
       system.coefs.push_back(0.0);
@@ -96,7 +98,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
     omp_unset_lock(&lock);
   };
   size_t n_dets = system.dets.size();
-  double energy_var = 0.0;
+  double energy_var_prev = 0.0;
   bool converged = false;
   std::vector<double> coefs_prev(n_dets, 0.0);
   size_t iteration = 0;
@@ -108,6 +110,8 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
       const double coef_prev = coefs_prev[i];
       if (std::abs(coef) <= std::abs(coef_prev)) continue;
       const auto& det = hps::parse_from_string<Det>(system.dets[i]);
+      // assert(det.up.n_elecs_hf == 4);
+      // assert(det.dn.n_elecs_hf == 2);
       const double eps_max = coef_prev == 0.0 ? Util::INF : eps_var / std::abs(coef_prev);
       const double eps_min = eps_var / std::abs(coef);
       system.find_connected_dets(det, eps_max, eps_min, connected_det_handler);
@@ -116,11 +120,12 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
     if (Parallel::is_master()) {
       printf("Number of dets / new dets: %'zu / %'zu\n", n_dets_new, n_dets_new - n_dets);
     }
-    std::sort(system.dets.begin(), system.dets.end(), [&](const std::string& a, const std::string& b) {
-      const auto& det_a = hps::parse_from_string<Det>(a);     
-      const auto& det_b = hps::parse_from_string<Det>(b);     
-      return det_a < det_b;
-    });
+    // std::sort(system.dets.begin(), system.dets.end(), [&](const std::string& a, const
+    // std::string& b) {
+    //   const auto& det_a = hps::parse_from_string<Det>(a);
+    //   const auto& det_b = hps::parse_from_string<Det>(b);
+    //   return det_a < det_b;
+    // });
     hamiltonian.update(system);
     davidson.diagonalize(hamiltonian.matrix, system.coefs, Parallel::is_master());
     const double energy_var_new = davidson.get_lowest_eigenvalue();
@@ -130,18 +135,18 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
     if (Parallel::is_master()) {
       printf("Current variational energy: " ENERGY_FORMAT "\n", energy_var_new);
     }
-    if (n_dets_new == n_dets && std::abs(energy_var_new - energy_var) < 1.0e-6) {
+    if (n_dets_new == n_dets && std::abs(energy_var_new - energy_var_prev) < 1.0e-6) {
       converged = true;
     }
     n_dets = n_dets_new;
-    energy_var = energy_var_new;
+    energy_var_prev = energy_var_new;
     Timer::end();
     if (!until_converged) break;
     iteration++;
   }
-  system.energy_var = energy_var;
+  system.energy_var = energy_var_prev;
   omp_destroy_lock(&lock);
-  exit(0);
+  // exit(0);
 }
 
 template <class S>

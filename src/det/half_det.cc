@@ -2,7 +2,7 @@
 
 std::vector<unsigned> HalfDet::get_occupied_orbs() const {
   std::vector<unsigned> res;
-  res.reserve(n_elecs_hf);
+  res.reserve(orbs.size());
   for (unsigned orb : orbs) {
     res.push_back(orb);
   }
@@ -28,7 +28,7 @@ std::string HalfDet::to_string() const {
 }
 
 DiffResult HalfDet::diff(const HalfDet& det) const {
-  assert(n_elecs_hf == det.n_elecs_hf);
+  // assert(n_elecs_hf == det.n_elecs_hf);
   DiffResult res;
   unsigned n_elecs_left = 0;
   unsigned n_elecs_right = 0;
@@ -69,17 +69,10 @@ DiffResult HalfDet::diff(const HalfDet& det) const {
   return res;
 }
 
-bool operator==(const HalfDet& a, const HalfDet& b) {
-  return a.n_elecs_hf == b.n_elecs_hf && a.orbs == b.orbs;
-}
+bool operator==(const HalfDet& a, const HalfDet& b) { return a.orbs == b.orbs; }
 
 bool operator!=(const HalfDet& a, const HalfDet& b) { return !(a == b); }
 
-bool operator<(const HalfDet& a, const HalfDet& b) {
-  if (a.n_elecs_hf != b.n_elecs_hf) {
-    throw std::runtime_error("cannot compare half det of different HF elecs.");
-  }
-  return a.orbs < b.orbs;
-}
+bool operator<(const HalfDet& a, const HalfDet& b) { return a.orbs < b.orbs; }
 
 bool operator>(const HalfDet& a, const HalfDet& b) { return !(a < b); }

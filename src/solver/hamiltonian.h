@@ -140,8 +140,7 @@ void Hamiltonian<S>::update_abdet(const S& system) {
         alpha_id_to_beta_ids[alpha_id], alpha_id_to_det_ids[alpha_id]);
   }
   for (const size_t beta_id : updated_betas) {
-    Util::sort_by_first<size_t, size_t>(
-        beta_id_to_alpha_ids[beta_id], beta_id_to_det_ids[beta_id]);
+    Util::sort_by_first<size_t, size_t>(beta_id_to_alpha_ids[beta_id], beta_id_to_det_ids[beta_id]);
   }
 }
 
@@ -186,6 +185,8 @@ void Hamiltonian<S>::update_abm1(const S& system) {
 
 template <class S>
 void Hamiltonian<S>::update_absingles(const S& system) {
+  alpha_id_to_single_ids.clear();
+  beta_id_to_single_ids.clear();
   std::unordered_set<size_t> updated_alphas;
   std::unordered_set<size_t> updated_betas;
   alpha_id_to_single_ids.resize(alpha_to_id.size());
@@ -287,6 +288,8 @@ void Hamiltonian<S>::update_absingles(const S& system) {
         beta_id_to_single_ids.size());
     printf("Full size of absingles: %'llu\n", singles_cnt);
   }
+
+  abm1_to_ab_ids.clear();
 }
 
 template <class S>
@@ -295,7 +298,7 @@ void Hamiltonian<S>::update_matrix(const S& system) {
   const size_t n_procs = Parallel::get_n_procs();
   matrix.set_dim(system.get_n_dets());
 
-// #pragma omp parallel for schedule(static, 1)
+#pragma omp parallel for schedule(static, 1)
   for (size_t det_id = proc_id; det_id < n_dets; det_id += n_procs) {
     const auto& det = hps::parse_from_string<Det>(system.get_det(det_id));
     Det connected_det;
@@ -366,14 +369,14 @@ void Hamiltonian<S>::update_matrix(const S& system) {
     Util::sort_by_first<size_t, double>(matrix.rows[det_id].indices, matrix.rows[det_id].values);
     if (det_id == 1) {
       for (size_t i = 0; i < matrix.rows[det_id].indices.size(); i++) {
-        const auto& tmp_det = hps::parse_from_string<Det>(system.get_det(matrix.rows[det_id].indices[i]));
-        printf("%s; %s\n", tmp_det.up.to_string().c_str(), tmp_det.dn.to_string().c_str());
-        printf("%zu %g\n", matrix.rows[det_id].indices[i], matrix.rows[det_id].values[i]);
+        const auto& tmp_det =
+            hps::parse_from_string<Det>(system.get_det(matrix.rows[det_id].indices[i]));
+        // printf("%s; %s\n", tmp_det.up.to_string().c_str(), tmp_det.dn.to_string().c_str());
+        // printf("%zu %g\n", matrix.rows[det_id].indices[i], matrix.rows[det_id].values[i]);
       }
     }
 
-    printf("%zu %zu\n", det_id, matrix.rows[det_id].size());
+    // printf("%zu %zu\n", det_id, matrix.rows[det_id].size());
     // if (det_id == 1) exit(0);
   }
 }
-
