@@ -136,10 +136,12 @@ void Hamiltonian<S>::update_abdet(const S& system) {
 
   // Sort updated alpha/beta to det info.
   for (const size_t alpha_id : updated_alphas) {
-    sort_by_first(alpha_id_to_beta_ids[alpha_id], alpha_id_to_det_ids[alpha_id]);
+    Util::sort_by_first<size_t, size_t>(
+        alpha_id_to_beta_ids[alpha_id], alpha_id_to_det_ids[alpha_id]);
   }
   for (const size_t beta_id : updated_betas) {
-    sort_by_first(beta_id_to_alpha_ids[beta_id], beta_id_to_det_ids[beta_id]);
+    Util::sort_by_first<size_t, size_t>(
+        beta_id_to_alpha_ids[beta_id], beta_id_to_det_ids[beta_id]);
   }
 }
 
@@ -293,7 +295,7 @@ void Hamiltonian<S>::update_matrix(const S& system) {
   const size_t n_procs = Parallel::get_n_procs();
   matrix.set_dim(system.get_n_dets());
 
-#pragma omp parallel for schedule(static, 1)
+// #pragma omp parallel for schedule(static, 1)
   for (size_t det_id = proc_id; det_id < n_dets; det_id += n_procs) {
     const auto& det = hps::parse_from_string<Det>(system.get_det(det_id));
     Det connected_det;
@@ -301,6 +303,7 @@ void Hamiltonian<S>::update_matrix(const S& system) {
     if (is_new_det) {
       const double H = system.get_hamiltonian_elem(det, det);
       matrix.append_elem(det_id, det_id, H);
+      // if (det_id == 1) printf("%zu %f; ", det_id, H);
     }
     const size_t start_id = is_new_det ? det_id + 1 : n_dets_prev;
 
@@ -315,6 +318,7 @@ void Hamiltonian<S>::update_matrix(const S& system) {
       const double H = system.get_hamiltonian_elem(det, connected_det);
       if (std::abs(H) < Util::EPS) continue;
       matrix.append_elem(det_id, alpha_det_id, H);
+      // if (det_id == 1) printf("%zu %f; ", alpha_det_id, H);
     }
 
     // Single or double beta excitations.
@@ -328,6 +332,7 @@ void Hamiltonian<S>::update_matrix(const S& system) {
       const double H = system.get_hamiltonian_elem(det, connected_det);
       if (std::abs(H) < Util::EPS) continue;
       matrix.append_elem(det_id, beta_det_id, H);
+      // if (det_id == 1) printf("%zu %f; ", beta_det_id, H);
     }
 
     // Mixed double excitation.
@@ -353,27 +358,22 @@ void Hamiltonian<S>::update_matrix(const S& system) {
           const double H = system.get_hamiltonian_elem(det, connected_det);
           if (std::abs(H) < Util::EPS) continue;
           matrix.append_elem(det_id, related_det_id, H);
+          // if (det_id == 1) printf("%zu %f; ", related_det_id, H);
         }
       }
     }
+
+    Util::sort_by_first<size_t, double>(matrix.rows[det_id].indices, matrix.rows[det_id].values);
+    if (det_id == 1) {
+      for (size_t i = 0; i < matrix.rows[det_id].indices.size(); i++) {
+        const auto& tmp_det = hps::parse_from_string<Det>(system.get_det(matrix.rows[det_id].indices[i]));
+        printf("%s; %s\n", tmp_det.up.to_string().c_str(), tmp_det.dn.to_string().c_str());
+        printf("%zu %g\n", matrix.rows[det_id].indices[i], matrix.rows[det_id].values[i]);
+      }
+    }
+
+    printf("%zu %zu\n", det_id, matrix.rows[det_id].size());
+    // if (det_id == 1) exit(0);
   }
 }
 
-template <class S>
-void Hamiltonian<S>::sort_by_first(std::vector<size_t>& vec1, std::vector<size_t>& vec2) {
-  std::vector<std::pair<size_t, size_t>> vec;
-  const size_t n_vec = vec1.size();
-  for (size_t i = 0; i < n_vec; i++) {
-    vec.push_back(std::make_pair(vec1[i], vec2[i]));
-  }
-  std::sort(
-      vec.begin(),
-      vec.end(),
-      [&](const std::pair<size_t, size_t>& a, const std::pair<size_t, size_t>& b) {
-        return a.first < b.first;
-      });
-  for (size_t i = 0; i < n_vec; i++) {
-    vec1[i] = vec[i].first;
-    vec2[i] = vec[i].second;
-  }
-}

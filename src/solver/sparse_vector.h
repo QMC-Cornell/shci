@@ -17,7 +17,9 @@ class SparseVector {
 
   T get_value(const size_t i) const { return values[i]; }
 
+#ifndef DEBUG
  private:
+#endif
   std::vector<size_t> indices;
 
   std::vector<T> values;

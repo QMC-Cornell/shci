@@ -21,3 +21,4 @@ void Util::error_handler(const int sig) {
   backtrace_symbols_fd(array, size, STDERR_FILENO);
   exit(1);
 }
+

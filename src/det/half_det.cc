@@ -21,14 +21,20 @@ HalfDet& HalfDet::unset(const unsigned orb) {
 
 bool HalfDet::has(const unsigned orb) const { return orbs.count(orb) == 1; }
 
+std::string HalfDet::to_string() const {
+  std::string res = "";
+  for (unsigned orb : orbs) res = res + " " + std::to_string(orb);
+  return res;
+}
+
 DiffResult HalfDet::diff(const HalfDet& det) const {
   assert(n_elecs_hf == det.n_elecs_hf);
   DiffResult res;
-  size_t n_elecs_left = 0;
-  size_t n_elecs_right = 0;
+  unsigned n_elecs_left = 0;
+  unsigned n_elecs_right = 0;
   auto orbs_it_left = orbs.begin();
   auto orbs_it_right = det.orbs.begin();
-  int permutation_factor_helper = 0;
+  unsigned permutation_factor_helper = 0;
   while (orbs_it_left != orbs.end() && orbs_it_right != det.orbs.end()) {
     if (*orbs_it_left < *orbs_it_right) {
       res.leftOnly.push_back(*orbs_it_left);

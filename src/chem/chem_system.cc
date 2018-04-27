@@ -194,7 +194,11 @@ void ChemSystem::find_connected_dets(
       } else {
         connected_det.dn.unset(p).set(r);
       }
+      const size_t n_con_prev = n_con;
       prospective_det_handler(connected_det, 1);
+      if (n_con > n_con_prev) {
+        printf("p r: %u %u\n", p, r);
+      }
     }
   }
 
@@ -301,10 +305,12 @@ double ChemSystem::get_hamiltonian_elem_kernel(
   if (n_excite == 0) {
     const double one_body_energy = get_one_body_diag(det_i);
     const double two_body_energy = get_two_body_diag(det_i);
+    printf("1 2 body core diag: %f %f %f\n", one_body_energy, two_body_energy, integrals.energy_core);
     return one_body_energy + two_body_energy + integrals.energy_core;
   } else if (n_excite == 1) {
     const double one_body_energy = get_one_body_single(diff_up, diff_dn);
     const double two_body_energy = get_two_body_single(det_i, diff_up, diff_dn);
+    printf("1 2 body single: %f %f %f\n", one_body_energy, two_body_energy, one_body_energy + two_body_energy);
     return one_body_energy + two_body_energy;
   } else if (n_excite == 2) {
     return get_two_body_double(diff_up, diff_dn);

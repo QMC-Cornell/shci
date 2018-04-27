@@ -18,6 +18,8 @@ class HalfDet {
 
   DiffResult diff(const HalfDet& det) const;
 
+  std::string to_string() const;
+
   template <class B>
   void serialize(hps::OutputBuffer<B>& buf) const;
 

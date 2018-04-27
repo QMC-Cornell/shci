@@ -116,6 +116,11 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
     if (Parallel::is_master()) {
       printf("Number of dets / new dets: %'zu / %'zu\n", n_dets_new, n_dets_new - n_dets);
     }
+    std::sort(system.dets.begin(), system.dets.end(), [&](const std::string& a, const std::string& b) {
+      const auto& det_a = hps::parse_from_string<Det>(a);     
+      const auto& det_b = hps::parse_from_string<Det>(b);     
+      return det_a < det_b;
+    });
     hamiltonian.update(system);
     davidson.diagonalize(hamiltonian.matrix, system.coefs, Parallel::is_master());
     const double energy_var_new = davidson.get_lowest_eigenvalue();
@@ -132,9 +137,11 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
     energy_var = energy_var_new;
     Timer::end();
     if (!until_converged) break;
+    iteration++;
   }
   system.energy_var = energy_var;
   omp_destroy_lock(&lock);
+  exit(0);
 }
 
 template <class S>
