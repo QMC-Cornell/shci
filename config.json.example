@@ -13,6 +13,7 @@
     2e-4,
     1e-4
   ],
+  "eps_pt": 1e-6,
   "chem": {
     "point_group": "d2h",
     "irreps": [

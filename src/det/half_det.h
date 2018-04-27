@@ -6,8 +6,6 @@
 
 class HalfDet {
  public:
-  HalfDet(const unsigned n_elecs_hf = 0) {}
-
   std::vector<unsigned> get_occupied_orbs() const;
 
   HalfDet& set(const unsigned orb);
@@ -29,8 +27,6 @@ class HalfDet {
 #ifndef DEBUG
  private:
 #endif
-  // unsigned n_elecs_hf;
-
   std::set<unsigned> orbs;
 
   friend bool operator==(const HalfDet& a, const HalfDet& b);

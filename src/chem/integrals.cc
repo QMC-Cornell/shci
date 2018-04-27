@@ -84,7 +84,7 @@ void Integrals::read_fcidump() {
 
 std::vector<unsigned> Integrals::get_adams_syms(const std::vector<int>& orb_syms_raw) const {
   std::vector<unsigned> adams_syms;
-  const auto& point_group = Config::get<std::string>("chem.point_group");
+  const auto& point_group = Config::get<std::string>("chem/point_group");
   if (point_group != "dih") {
     adams_syms.assign(orb_syms_raw.begin(), orb_syms_raw.end());
     return adams_syms;
@@ -95,15 +95,15 @@ std::vector<unsigned> Integrals::get_adams_syms(const std::vector<int>& orb_syms
 }
 
 void Integrals::generate_det_hf() {
-  std::vector<unsigned> irreps = Config::get<std::vector<unsigned>>("chem.irreps");
-  std::vector<unsigned> irrep_occs_up = Config::get<std::vector<unsigned>>("chem.irrep_occs_up");
-  std::vector<unsigned> irrep_occs_dn = Config::get<std::vector<unsigned>>("chem.irrep_occs_dn");
+  std::vector<unsigned> irreps = Config::get<std::vector<unsigned>>("chem/irreps");
+  std::vector<unsigned> irrep_occs_up = Config::get<std::vector<unsigned>>("chem/irrep_occs_up");
+  std::vector<unsigned> irrep_occs_dn = Config::get<std::vector<unsigned>>("chem/irrep_occs_dn");
   n_up = Config::get<unsigned>("n_up");
   n_dn = Config::get<unsigned>("n_dn");
   assert(std::accumulate(irrep_occs_up.begin(), irrep_occs_up.end(), 0u) == n_up);
   assert(std::accumulate(irrep_occs_dn.begin(), irrep_occs_dn.end(), 0u) == n_dn);
   assert(n_up + n_dn == n_elecs);
-  det_hf = Det(n_up, n_dn);
+  det_hf = Det();
   const unsigned n_irreps = irreps.size();
   for (unsigned i = 0; i < n_irreps; i++) {
     const unsigned irrep = irreps[i];
@@ -186,7 +186,7 @@ void Integrals::reorder_orbs(const std::vector<double>& orb_energies) {
   }
 
   // Update HF det.
-  Det det_hf_new = Det(n_up, n_dn);
+  Det det_hf_new = Det();
   for (unsigned i = 0; i < n_orbs; i++) {
     if (det_hf.up.has(orb_order[i])) {
       det_hf_new.up.set(i);

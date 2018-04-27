@@ -15,7 +15,7 @@ void ChemSystem::setup() {
   time_sym = Config::get<bool>("time_sym", false);
   z = Config::get<int>("z", 1);
 
-  point_group = get_point_group(Config::get<std::string>("chem.point_group"));
+  point_group = get_point_group(Config::get<std::string>("chem/point_group"));
   product_table.set_point_group(point_group);
 
   Timer::start("load integrals");

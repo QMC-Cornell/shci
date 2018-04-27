@@ -10,6 +10,7 @@
 #include "../util.h"
 #include "davidson.h"
 #include "hamiltonian.h"
+#include "uncert_result.h"
 
 template <class S>
 class Solver {
@@ -25,6 +26,16 @@ class Solver {
 
   void run_variation(const double eps_var, const bool until_converged = true);
 
+  void run_all_perturbations();
+
+  void run_perturbation(const double eps_var);
+
+  double get_energy_pt_pre_dtm();
+
+  UncertResult get_energy_pt_dtm(const double energy_pt_pre_dtm);
+
+  UncertResult get_energy_pt_sto(const UncertResult& get_energy_pt_sto);
+
   bool load_variation_result(const std::string& filename);
 
   void save_variation_result(const std::string& filename);
@@ -35,6 +46,7 @@ void Solver<S>::run() {
   Timer::start("setup");
   std::setlocale(LC_ALL, "en_US.UTF-8");
   system.setup();
+  Result::put("energy_hf", system.energy_hf);
   Timer::end();
 
   Timer::start("variation");
@@ -42,6 +54,7 @@ void Solver<S>::run() {
   Timer::end();
 
   Timer::start("perturbation");
+  run_all_perturbations();
   Timer::end();
 
   Result::dump();
@@ -69,11 +82,22 @@ void Solver<S>::run_all_variations() {
 
       Timer::start("main");
       run_variation(eps_var);
+      Result::put<double>(Util::str_printf("energy_var/%#.4g", eps_var), system.energy_var);
       Timer::end();
 
       save_variation_result(filename);
     }
     eps_var_prev = eps_var;
+    Timer::end();
+  }
+}
+
+template <class S>
+void Solver<S>::run_all_perturbations() {
+  const auto& eps_vars = Config::get<std::vector<double>>("eps_vars");
+  for (const double eps_var : eps_vars) {
+    Timer::start(Util::str_printf("eps_var %#.4g", eps_var));
+    run_perturbation(eps_var);
     Timer::end();
   }
 }
@@ -104,7 +128,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
   size_t iteration = 0;
   while (!converged) {
     Timer::start(Util::str_printf("#%zu", iteration));
-// #pragma omp parallel for schedule(static, 1)
+    // #pragma omp parallel for schedule(static, 1)
     for (size_t i = 0; i < n_dets; i++) {
       const double coef = system.coefs[i];
       const double coef_prev = coefs_prev[i];
@@ -147,6 +171,55 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
   system.energy_var = energy_var_prev;
   omp_destroy_lock(&lock);
   // exit(0);
+}
+
+template <class S>
+void Solver<S>::run_perturbation(const double eps_var) {
+  // If result already exists, return.
+  const double eps_pt = Config::get<double>("eps_pt");
+  const auto& value_entry = Util::str_printf("energy_pt/%#.4g/%#.4g/value", eps_var, eps_pt);
+  const auto& uncert_entry = Util::str_printf("energy_pt/%#.4g/%#.4g/uncert", eps_var, eps_pt);
+  UncertResult res(Result::get<double>(value_entry, 0.0));
+  if (res.value != 0.0) {
+    if (Parallel::is_master()) {
+      res.uncert = Result::get<double>(uncert_entry, 0.0);
+      printf("PT energy: %s (loaded from result file)\n", res.to_string().c_str());
+    }
+    return;
+  }
+
+  // Load var wf.
+  const auto& var_filename = Util::str_printf("var_%#.4g.dat", eps_var);
+  if (!load_variation_result(var_filename)) {
+    throw new std::runtime_error("cannot load variation results");
+  }
+
+  // Perform multi stage PT.
+  const double energy_pt_pre_dtm = get_energy_pt_pre_dtm();
+  const UncertResult energy_pt_dtm = get_energy_pt_dtm(energy_pt_pre_dtm);
+  const UncertResult energy_pt = get_energy_pt_sto(energy_pt_dtm);
+  if (Parallel::is_master()) {
+    printf("PT energy: %s Ha\n", energy_pt.to_string().c_str());
+  }
+  Result::put(value_entry, energy_pt.value);
+  Result::put(uncert_entry, energy_pt.uncert);
+}
+
+template <class S>
+double Solver<S>::get_energy_pt_pre_dtm() {
+  const double eps_pt_pre_dtm = Config::get<double>("eps_pt_pre_dtm");
+  
+  return 0.0;
+}
+
+template <class S>
+UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
+  return UncertResult(energy_pt_pre_dtm - 1.0, 1.0);
+}
+
+template <class S>
+UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
+  return energy_pt_dtm + UncertResult(-1.0, 1.0);
 }
 
 template <class S>

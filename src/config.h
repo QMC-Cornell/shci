@@ -24,7 +24,7 @@ class Config {
     std::istringstream key_stream(key);
     std::string key_elem;
     try {
-      while (std::getline(key_stream, key_elem, '.')) {
+      while (std::getline(key_stream, key_elem, '/')) {
         if (!key_elem.empty()) {
           node_ref = std::cref(node_ref.get().at(key_elem));
         }
