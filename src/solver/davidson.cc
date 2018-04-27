@@ -9,7 +9,7 @@ void Davidson::diagonalize(
     const bool verbose) {
   const double TOLERANCE = 1.0e-10;
   const double EPSILON = 1.0e-8;
-  const size_t MAX_N_INTERATIONS = 10;
+  const size_t MAX_N_INTERATIONS = 7;
 
   const size_t dim = initial_vector.size();
 
