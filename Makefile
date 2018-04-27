@@ -15,9 +15,7 @@ UNAME := $(shell uname)
 ifeq ($(UNAME), Linux)
 	TOOLS_DIR := $(HOME)/tools
 	GPERFTOOLS_DIR := $(TOOLS_DIR)/gperftools
-	ifneq ($(wildcard $(GPERFTOOLS_DIR)),)
-		LDLIBS := -L $(GPERFTOOLS_DIR)/lib $(LDLIBS) -ltcmalloc
-	endif
+	LDLIBS := -L $(GPERFTOOLS_DIR)/lib $(LDLIBS) -ltcmalloc
 endif
 
 # Load Makefile.config if exists.
