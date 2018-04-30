@@ -3,8 +3,7 @@
   "n_up": 4,
   "n_dn": 2,
   "eps_vars": [
-    1e-3,
-    1e-4
+    1e-3
   ],
   "eps_vars_schedule": [
     2e-3,
@@ -13,7 +12,10 @@
     2e-4,
     1e-4
   ],
-  "eps_pt": 1e-6,
+  "eps_pt": 1e-4,
+  "eps_pt_pre_dtm": 1e-4,
+  "eps_pt_dtm": 2e-6,
+  "n_batches_pt_dtm": 8,
   "chem": {
     "point_group": "d2h",
     "irreps": [

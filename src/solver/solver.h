@@ -1,5 +1,6 @@
 #pragma once
 
+#include <omp_hash_map/src/omp_hash_map.h>
 #include <cmath>
 #include <unordered_set>
 #include "../config.h"
@@ -30,7 +31,7 @@ class Solver {
 
   void run_perturbation(const double eps_var);
 
-  double get_energy_pt_pre_dtm();
+  double get_energy_pt_pre_dtm(const double eps_var);
 
   UncertResult get_energy_pt_dtm(const double energy_pt_pre_dtm);
 
@@ -185,7 +186,7 @@ void Solver<S>::run_perturbation(const double eps_var) {
       res.uncert = Result::get<double>(uncert_entry, 0.0);
       printf("PT energy: %s (loaded from result file)\n", res.to_string().c_str());
     }
-    return;
+    // return;
   }
 
   // Load var wf.
@@ -195,7 +196,7 @@ void Solver<S>::run_perturbation(const double eps_var) {
   }
 
   // Perform multi stage PT.
-  const double energy_pt_pre_dtm = get_energy_pt_pre_dtm();
+  const double energy_pt_pre_dtm = get_energy_pt_pre_dtm(eps_var);
   const UncertResult energy_pt_dtm = get_energy_pt_dtm(energy_pt_pre_dtm);
   const UncertResult energy_pt = get_energy_pt_sto(energy_pt_dtm);
   if (Parallel::is_master()) {
@@ -206,10 +207,48 @@ void Solver<S>::run_perturbation(const double eps_var) {
 }
 
 template <class S>
-double Solver<S>::get_energy_pt_pre_dtm() {
+double Solver<S>::get_energy_pt_pre_dtm(const double eps_var) {
   const double eps_pt_pre_dtm = Config::get<double>("eps_pt_pre_dtm");
-  
-  return 0.0;
+  Timer::start(Util::str_printf("pre dtm %#.4g", eps_pt_pre_dtm));
+  const size_t n_var_dets = system.get_n_dets();
+  std::unordered_set<std::string> var_dets_set;
+  for (const auto& det : system.dets) var_dets_set.insert(hps::serialize_to_string(det));
+  omp_hash_map<std::string, double> partial_sum;
+
+  Timer::start("search");
+#pragma omp parallel for schedule(dynamic, 5)
+  for (size_t i = 0; i < n_var_dets; i++) {
+    const Det var_det = hps::parse_from_string<Det>(system.dets[i]);
+    const double coef = system.coefs[i];
+    const auto& pt_det_handler = [&](const Det& det_a, const double elem) {
+      const auto& det_a_code = hps::serialize_to_string(det_a);
+      if (var_dets_set.count(det_a_code) == 1) return;
+      const double partial_sum_term = elem * coef;
+      partial_sum.set(det_a_code, [&](double& value) { value += partial_sum_term; }, 0.0);
+    };
+    system.find_connected_dets(
+        var_det, Util::INF, eps_pt_pre_dtm / std::abs(coef), pt_det_handler);
+  }
+  if (Parallel::is_master()) {
+    printf("Number of pre dtm pt dets: %'zu\n", partial_sum.get_n_keys());
+  }
+  Timer::end();
+  Timer::start("accumulate");
+  double energy_pt_pre_dtm = 0.0;
+  partial_sum.apply([&](const std::string& det_code, const double value) {
+    const auto& det = hps::parse_from_string<Det>(det_code);
+    const double H_aa = system.get_hamiltonian_elem(det, det, 0);
+    const double contribution = value * value / (system.energy_var - H_aa);
+#pragma omp atomic
+    energy_pt_pre_dtm += contribution;
+  });
+  if (Parallel::is_master()) {
+    printf("PT pre dtm correction: " ENERGY_FORMAT "\n", energy_pt_pre_dtm);
+    printf("PT pre dtm energy: " ENERGY_FORMAT "\n", energy_pt_pre_dtm + system.energy_var);
+  }
+  Timer::end();
+  Timer::end();
+  return energy_pt_pre_dtm;
 }
 
 template <class S>
