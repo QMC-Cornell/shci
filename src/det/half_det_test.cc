@@ -2,7 +2,7 @@
 #include <gtest/gtest.h>
 
 TEST(HalfDetTest, SetAndGetOrbitals) {
-  HalfDet half_det(3);
+  HalfDet half_det;
   EXPECT_FALSE(half_det.has(0));
   EXPECT_EQ(half_det.get_occupied_orbs().size(), 0);
   half_det.set(0);
@@ -13,12 +13,12 @@ TEST(HalfDetTest, SetAndGetOrbitals) {
 }
 
 TEST(HalfDetTest, SerializeAndParse) {
-  HalfDet half_det(3);
+  HalfDet half_det;
   std::string serialized = hps::serialize_to_string(half_det);
   EXPECT_EQ(half_det, hps::parse_from_string<HalfDet>(serialized));
 
   half_det.set(0);
-  half_det.set(2);
+  half_det.set(1);
   serialized = hps::serialize_to_string(half_det);
   EXPECT_EQ(half_det, hps::parse_from_string<HalfDet>(serialized));
 

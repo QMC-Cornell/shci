@@ -216,21 +216,22 @@ double Solver<S>::get_energy_pt_pre_dtm(const double eps_var) {
   omp_hash_map<std::string, double> partial_sum;
 
   Timer::start("search");
-#pragma omp parallel for schedule(dynamic, 5)
+  // #pragma omp parallel for schedule(dynamic, 5)
+  size_t cnt = 0;
   for (size_t i = 0; i < n_var_dets; i++) {
     const Det var_det = hps::parse_from_string<Det>(system.dets[i]);
     const double coef = system.coefs[i];
     const auto& pt_det_handler = [&](const Det& det_a, const double elem) {
       const auto& det_a_code = hps::serialize_to_string(det_a);
+      cnt++;
       if (var_dets_set.count(det_a_code) == 1) return;
       const double partial_sum_term = elem * coef;
       partial_sum.set(det_a_code, [&](double& value) { value += partial_sum_term; }, 0.0);
     };
-    system.find_connected_dets(
-        var_det, Util::INF, eps_pt_pre_dtm / std::abs(coef), pt_det_handler);
+    system.find_connected_dets(var_det, Util::INF, eps_pt_pre_dtm / std::abs(coef), pt_det_handler);
   }
   if (Parallel::is_master()) {
-    printf("Number of pre dtm pt dets: %'zu\n", partial_sum.get_n_keys());
+    printf("Number of pre dtm pt dets: %'zu %'zu\n", partial_sum.get_n_keys(), cnt);
   }
   Timer::end();
   Timer::start("accumulate");
