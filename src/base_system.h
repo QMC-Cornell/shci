@@ -14,17 +14,17 @@ class BaseSystem {
 
   unsigned n_elecs;
 
-  std::vector<std::string> dets;
-
-  std::vector<double> coefs;
-
   double energy_hf;
 
   double energy_var;
 
-  std::string get_det(const size_t i) const { return dets[i]; }
+  std::vector<std::string> det_strs;
 
-  size_t get_n_dets() const { return dets.size(); }
+  std::vector<double> coefs;
+
+  Det get_det(const size_t i) const { return hps::parse_from_string<Det>(det_strs[i]); }
+
+  size_t get_n_dets() const { return det_strs.size(); }
 
   virtual void setup() = 0;
 
@@ -41,7 +41,7 @@ class BaseSystem {
   void serialize(hps::OutputBuffer<B>& buf) const {
     hps::Serializer<unsigned, B>::serialize(n_up, buf);
     hps::Serializer<unsigned, B>::serialize(n_dn, buf);
-    hps::Serializer<std::vector<std::string>, B>::serialize(dets, buf);
+    hps::Serializer<std::vector<std::string>, B>::serialize(det_strs, buf);
     hps::Serializer<std::vector<double>, B>::serialize(coefs, buf);
     hps::Serializer<double, B>::serialize(energy_hf, buf);
     hps::Serializer<double, B>::serialize(energy_var, buf);
@@ -52,7 +52,7 @@ class BaseSystem {
     hps::Serializer<unsigned, B>::parse(n_up, buf);
     hps::Serializer<unsigned, B>::parse(n_dn, buf);
     n_elecs = n_up + n_dn;
-    hps::Serializer<std::vector<std::string>, B>::parse(dets, buf);
+    hps::Serializer<std::vector<std::string>, B>::parse(det_strs, buf);
     hps::Serializer<std::vector<double>, B>::parse(coefs, buf);
     hps::Serializer<double, B>::parse(energy_hf, buf);
     hps::Serializer<double, B>::parse(energy_var, buf);

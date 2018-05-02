@@ -28,7 +28,7 @@ void ChemSystem::setup() {
   setup_hci_queue();
   Timer::end();
 
-  dets.push_back(hps::serialize_to_string(integrals.det_hf));
+  det_strs.push_back(hps::serialize_to_string(integrals.det_hf));
   coefs.push_back(1.0);
   energy_hf = get_hamiltonian_elem(integrals.det_hf, integrals.det_hf, 0);
   if (Parallel::is_master()) {
@@ -37,9 +37,9 @@ void ChemSystem::setup() {
 }
 
 PointGroup ChemSystem::get_point_group(const std::string& str) const {
-  if (Util::str_iequals("D2h", str)) {
+  if (Util::str_equals_ci("D2h", str)) {
     return PointGroup::D2h;
-  } else if (Util::str_iequals("Dooh", str) || Util::str_iequals("Dih", str)) {
+  } else if (Util::str_equals_ci("Dooh", str) || Util::str_equals_ci("Dih", str)) {
     return PointGroup::Dooh;
   }
   return PointGroup::None;
@@ -242,21 +242,10 @@ void ChemSystem::find_connected_dets(
         q < n_orbs ? connected_det.up.unset(q) : connected_det.dn.unset(q - n_orbs);
         r < n_orbs ? connected_det.up.set(r) : connected_det.dn.set(r - n_orbs);
         s < n_orbs ? connected_det.up.set(s) : connected_det.dn.set(s - n_orbs);
-        const size_t n_con_prev = n_con;
         prospective_det_handler(connected_det, 2);
-        if (n_con > n_con_prev) {
-          pq_count++;
-          // printf("p q r s: %u %u %u %u\n", p, q, r, s);
-        }
       }
-      // printf("p q count: %u %u %zu\n", p, q, pq_count);
     }
-    // printf("n_cons: %zu\n", n_con);
-    // exit(0);
   }
-
-  // printf("n_cons: %zu\n", n_con);
-  // exit(0);
 }
 
 double ChemSystem::get_hamiltonian_elem(

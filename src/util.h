@@ -1,13 +1,11 @@
 #pragma once
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
-#include <iostream>
-#include <limits>
-#include <memory>
 #include <string>
+#include <utility>
 #include <vector>
-#include <algorithm>
 
 #define ENERGY_FORMAT "%.10f Ha"
 
@@ -16,7 +14,7 @@ class Util {
   template <class... Args>
   static std::string str_printf(const std::string& format, Args... args);
 
-  static bool str_iequals(const std::string& a, const std::string& b);
+  static bool str_equals_ci(const std::string& a, const std::string& b);
 
   static void error_handler(const int sig);
 
@@ -55,4 +53,3 @@ void Util::sort_by_first(std::vector<T1>& vec1, std::vector<T2>& vec2) {
     vec2[i] = vec[i].second;
   }
 }
-

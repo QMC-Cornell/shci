@@ -109,20 +109,20 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
   std::unordered_set<std::string> var_dets_set;
   omp_lock_t lock;
   omp_init_lock(&lock);
-  for (const auto& var_det : system.dets) var_dets_set.insert(var_det);
+  for (const auto& var_det : system.det_strs) var_dets_set.insert(var_det);
   const auto& connected_det_handler = [&](const Det& connected_det, const double) {
     // printf("h1");
     const auto& det_str = hps::serialize_to_string(connected_det);
     omp_set_lock(&lock);
     // printf("h2");
     if (var_dets_set.count(det_str) == 0) {
-      system.dets.push_back(det_str);
+      system.det_strs.push_back(det_str);
       system.coefs.push_back(0.0);
       var_dets_set.insert(det_str);
     }
     omp_unset_lock(&lock);
   };
-  size_t n_dets = system.dets.size();
+  size_t n_dets = system.get_n_dets();
   double energy_var_prev = 0.0;
   bool converged = false;
   std::vector<double> coefs_prev(n_dets, 0.0);
@@ -134,14 +134,14 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
       const double coef = system.coefs[i];
       const double coef_prev = coefs_prev[i];
       if (std::abs(coef) <= std::abs(coef_prev)) continue;
-      const auto& det = hps::parse_from_string<Det>(system.dets[i]);
+      const auto& det = hps::parse_from_string<Det>(system.det_strs[i]);
       // assert(det.up.n_elecs_hf == 4);
       // assert(det.dn.n_elecs_hf == 2);
       const double eps_max = coef_prev == 0.0 ? Util::INF : eps_var / std::abs(coef_prev);
       const double eps_min = eps_var / std::abs(coef);
       system.find_connected_dets(det, eps_max, eps_min, connected_det_handler);
     }
-    const size_t n_dets_new = system.dets.size();
+    const size_t n_dets_new = system.get_n_dets();
     if (Parallel::is_master()) {
       printf("Number of dets / new dets: %'zu / %'zu\n", n_dets_new, n_dets_new - n_dets);
     }
@@ -212,37 +212,109 @@ double Solver<S>::get_energy_pt_pre_dtm(const double eps_var) {
   Timer::start(Util::str_printf("pre dtm %#.4g", eps_pt_pre_dtm));
   const size_t n_var_dets = system.get_n_dets();
   std::unordered_set<std::string> var_dets_set;
-  for (const auto& det : system.dets) var_dets_set.insert(hps::serialize_to_string(det));
-  omp_hash_map<std::string, double> partial_sum;
+  for (const auto& det_str : system.det_strs) {
+    var_dets_set.insert(det_str);
+  }
+  printf("n var dets: %'zu\n", var_dets_set.size());
+  // omp_hash_map<std::string, double> partial_sum;
+  std::unordered_map<std::string, double> partial_sum;
 
   Timer::start("search");
   // #pragma omp parallel for schedule(dynamic, 5)
   size_t cnt = 0;
+  double sum_sq = 0.0;
   for (size_t i = 0; i < n_var_dets; i++) {
-    const Det var_det = hps::parse_from_string<Det>(system.dets[i]);
+    const Det var_det = system.get_det(i);
     const double coef = system.coefs[i];
+    sum_sq += coef * coef;
     const auto& pt_det_handler = [&](const Det& det_a, const double elem) {
       const auto& det_a_code = hps::serialize_to_string(det_a);
+      const double H_aa = system.get_hamiltonian_elem(det_a, det_a, 0);
       cnt++;
       if (var_dets_set.count(det_a_code) == 1) return;
       const double partial_sum_term = elem * coef;
-      partial_sum.set(det_a_code, [&](double& value) { value += partial_sum_term; }, 0.0);
+      // partial_sum.set(det_a_code, [&](double& value) { value += partial_sum_term; }, 0.0);
+      partial_sum[det_a_code] += partial_sum_term;
+      if (std::abs(H_aa + 1.3593025419e+01) < 1.0e-9) {
+        printf(
+            "var_det: %s; %s; coef H_ai d E: %e %e %e %e\n",
+            var_det.up.to_string().c_str(),
+            var_det.dn.to_string().c_str(),
+            coef,
+            elem,
+            partial_sum_term,
+            partial_sum[det_a_code]);
+      }
     };
     system.find_connected_dets(var_det, Util::INF, eps_pt_pre_dtm / std::abs(coef), pt_det_handler);
   }
   if (Parallel::is_master()) {
-    printf("Number of pre dtm pt dets: %'zu %'zu\n", partial_sum.get_n_keys(), cnt);
+    // printf("Number of pre dtm pt dets: %'zu %'zu\n", partial_sum.get_n_keys(), cnt);
+    printf("Number of pre dtm pt dets: %'zu\n", partial_sum.size());
+    // printf("Sum sq: %f\n", sum_sq);
   }
   Timer::end();
   Timer::start("accumulate");
   double energy_pt_pre_dtm = 0.0;
-  partial_sum.apply([&](const std::string& det_code, const double value) {
-    const auto& det = hps::parse_from_string<Det>(det_code);
-    const double H_aa = system.get_hamiltonian_elem(det, det, 0);
+  size_t i = 0;
+  for (const auto& kv : partial_sum) {
+    const auto& det_a = hps::parse_from_string<Det>(kv.first);
+    const double value = kv.second;
+    const double H_aa = system.get_hamiltonian_elem(det_a, det_a, 0);
     const double contribution = value * value / (system.energy_var - H_aa);
-#pragma omp atomic
     energy_pt_pre_dtm += contribution;
-  });
+    if (std::abs(H_aa + 9.3496357713054490) < 1.0e-10) {
+      printf(
+          "value, energy_var, H_aa, contrib: %e %e %e %e\n",
+          value,
+          system.energy_var,
+          H_aa,
+          contribution);
+    }
+    i++;
+    if (i % 1000 == 0) {
+      printf(
+          "partial sum / diag / d / E: %g %g %g %g\n",
+          value,
+          H_aa,
+          contribution,
+          energy_pt_pre_dtm);
+    }
+    if (std::abs(contribution) > 0.001) {
+      printf("det_a: %s; %s", det_a.up.to_string().c_str(), det_a.dn.to_string().c_str());
+      printf(
+          "value, energy_var, H_aa, contrib: %e %e %.10e %e\n",
+          value,
+          system.energy_var,
+          H_aa,
+          contribution);
+    }
+  }
+  //   partial_sum.apply([&](const std::string& det_a_code, const double value) {
+  //     const auto& det_a = hps::parse_from_string<Det>(det_a_code);
+  //     const double H_aa = system.get_hamiltonian_elem(det_a, det_a, 0);
+  //     const double contribution = value * value / (system.energy_var - H_aa);
+  // #pragma omp atomic
+  //     energy_pt_pre_dtm += contribution;
+  //     i++;
+  //     if (i % 1000 == 0) {
+  //       printf(
+  //           "partial sum / diag / d / E: %g %g %g %g\n",
+  //           value,
+  //           H_aa,
+  //           contribution,
+  //           energy_pt_pre_dtm);
+  //     }
+  //     if (std::abs(contribution) > 0.001) {
+  //       printf("det_a: %s; %s", det_a.up.to_string().c_str(), det_a.dn.to_string().c_str());
+  //       printf(
+  //           "value, energy_var, H_aa, contrib: %e %e %e %e\n",
+  //           value,
+  //           system.energy_var,
+  //           H_aa,
+  //           contribution);
+  //     }
+  //   });
   if (Parallel::is_master()) {
     printf("PT pre dtm correction: " ENERGY_FORMAT "\n", energy_pt_pre_dtm);
     printf("PT pre dtm energy: " ENERGY_FORMAT "\n", energy_pt_pre_dtm + system.energy_var);
@@ -268,7 +340,7 @@ bool Solver<S>::load_variation_result(const std::string& filename) {
   if (!file) return false;
   hps::parse_from_stream<S>(system, file);
   if (Parallel::get_proc_id() == 0) {
-    printf("Loaded %'zu dets from: %s\n", system.dets.size(), filename.c_str());
+    printf("Loaded %'zu dets from: %s\n", system.get_n_dets(), filename.c_str());
     printf("HF energy: " ENERGY_FORMAT "\n", system.energy_hf);
     printf("Variation energy: " ENERGY_FORMAT "\n", system.energy_var);
   }
