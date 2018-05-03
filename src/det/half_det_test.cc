@@ -14,22 +14,22 @@ TEST(HalfDetTest, SetAndGetOrbitals) {
 
 TEST(HalfDetTest, SerializeAndParse) {
   HalfDet half_det;
-  std::string serialized = hps::serialize_to_string(half_det);
-  EXPECT_EQ(half_det, hps::parse_from_string<HalfDet>(serialized));
+  std::string serialized = hps::to_string(half_det);
+  EXPECT_EQ(half_det, hps::from_string<HalfDet>(serialized));
 
   half_det.set(0);
   half_det.set(1);
-  serialized = hps::serialize_to_string(half_det);
-  EXPECT_EQ(half_det, hps::parse_from_string<HalfDet>(serialized));
+  serialized = hps::to_string(half_det);
+  EXPECT_EQ(half_det, hps::from_string<HalfDet>(serialized));
 
   half_det.unset(0);
   half_det.set(5);
-  serialized = hps::serialize_to_string(half_det);
-  EXPECT_EQ(half_det, hps::parse_from_string<HalfDet>(serialized));
+  serialized = hps::to_string(half_det);
+  EXPECT_EQ(half_det, hps::from_string<HalfDet>(serialized));
 
   half_det.unset(2);
   half_det.set(6);
-  serialized = hps::serialize_to_string(half_det);
-  EXPECT_EQ(half_det, hps::parse_from_string<HalfDet>(serialized));
+  serialized = hps::to_string(half_det);
+  EXPECT_EQ(half_det, hps::from_string<HalfDet>(serialized));
 }
 

@@ -1,7 +1,9 @@
 #pragma once
 
+#include <climits>
 #include "../parallel.h"
 #include "../timer.h"
+#include "../util.h"
 #include "sparse_vector.h"
 
 template <class T>
@@ -14,6 +16,10 @@ class SparseMatrix {
   void append_elem(const size_t i, const size_t j, const T& elem);
 
   void set_dim(const size_t dim);
+
+  void clear();
+
+  void sort_row(const size_t i);
 
 #ifndef DEBUG
  private:
@@ -35,7 +41,6 @@ std::vector<T> SparseMatrix<T>::mul(const std::vector<T>& vec) const {
   const size_t dim = rows.size();
   std::vector<std::vector<T>> res(n_threads);
   for (int i = 0; i < n_threads; i++) res[i].resize(dim, 0.0);
-    // std::vector<unsigned long long> n_nonzero_elems(n_threads, 0);
 
 #pragma omp parallel for schedule(static, 1)
   for (size_t i = proc_id; i < dim; i += n_procs) {
@@ -46,18 +51,8 @@ std::vector<T> SparseMatrix<T>::mul(const std::vector<T>& vec) const {
       const T H_ij = row.get_value(j_id);
       res[thread_id][i] += H_ij * vec[j];
       if (i != j) res[thread_id][j] += H_ij * vec[i];
-      // if (i != j) {
-      //   res[thread_id][j] += H_ij * vec[i];
-      //   n_nonzero_elems[thread_id] += 2;
-      // } else {
-      //   n_nonzero_elems[thread_id]++;
-      // }
     }
   }
-
-    // for (int i = 1; i < n_threads; i++) {
-    //   n_nonzero_elems[0] += n_nonzero_elems[i];
-    // }
 
 #pragma omp parallel for
   for (size_t j = 0; j < dim; j++) {
@@ -66,16 +61,10 @@ std::vector<T> SparseMatrix<T>::mul(const std::vector<T>& vec) const {
     }
   }
 
-  // parallel->reduce_to_sum(res[0]);
-  // parallel->reduce_to_sum(n_nonzero_elems[0]);
+  if (dim <= 0 || dim >= INT_MAX) throw std::runtime_error("invalid number of dets");
+  MPI_Allreduce(res[0].data(), res[1].data(), dim, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
-  // if (verbose && first_iteration) {
-  //   printf("Number of non-zero elements: %'llu\n", n_nonzero_elems[0]);
-  // }
-
-  // Timer::checkpoint("hamiltonian applied");
-
-  return res[0];
+  return res[1];
 }
 
 template <class T>
@@ -83,3 +72,12 @@ void SparseMatrix<T>::set_dim(const size_t dim) {
   rows.resize(dim);
 }
 
+template <class T>
+void SparseMatrix<T>::clear() {
+  rows.clear();
+}
+
+template <class T>
+void SparseMatrix<T>::sort_row(const size_t i) {
+ rows[i].sort();
+}

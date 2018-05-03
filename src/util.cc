@@ -5,6 +5,14 @@
 #include <cctype>
 #include <cstdio>
 
+constexpr double Util::EPS;
+
+constexpr double Util::INF;
+
+constexpr double Util::SQRT2;
+
+constexpr double Util::SQRT2_INV;
+
 bool Util::str_equals_ci(const std::string& a, const std::string& b) {
   size_t size = a.size();
   if (b.size() != size) return false;

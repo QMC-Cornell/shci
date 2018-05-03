@@ -7,12 +7,12 @@ class HegSystem : public BaseSystem {
   void setup() {}
 
   void find_connected_dets(
-      const Det& det,
-      const double eps_max,
-      const double eps_min,
-      const std::function<void(const Det&, const double)>& connected_det_handler) const {}
+      const Det&,
+      const double,
+      const double,
+      const std::function<void(const Det&, const double)>&) const {}
 
-  double get_hamiltonian_elem(const Det& det_i, const Det& det_j, const int n_excite = -1) const {
-    return 0.0;
+  double get_hamiltonian_elem(const Det&, const Det&, const int n_excite = -1) const {
+    return n_excite;
   }
 };

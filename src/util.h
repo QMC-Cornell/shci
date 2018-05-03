@@ -6,6 +6,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <memory>
 
 #define ENERGY_FORMAT "%.10f Ha"
 

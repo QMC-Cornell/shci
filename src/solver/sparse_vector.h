@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <vector>
+#include "../util.h"
 
 template <class T>
 class SparseVector {
@@ -13,9 +14,11 @@ class SparseVector {
 
   size_t size() const { return indices.size(); }
 
-  size_t get_index(const size_t i) const { return indices[i]; }
+  size_t get_index(const size_t i) const { return indices.at(i); }
 
-  T get_value(const size_t i) const { return values[i]; }
+  T get_value(const size_t i) const { return values.at(i); }
+
+  void sort() { Util::sort_by_first<size_t, double>(indices, values); }
 
 #ifndef DEBUG
  private:

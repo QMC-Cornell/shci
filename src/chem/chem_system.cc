@@ -28,7 +28,7 @@ void ChemSystem::setup() {
   setup_hci_queue();
   Timer::end();
 
-  det_strs.push_back(hps::serialize_to_string(integrals.det_hf));
+  det_strs.push_back(hps::to_string(integrals.det_hf));
   coefs.push_back(1.0);
   energy_hf = get_hamiltonian_elem(integrals.det_hf, integrals.det_hf, 0);
   if (Parallel::is_master()) {
@@ -151,7 +151,6 @@ void ChemSystem::find_connected_dets(
 
   auto occ_orbs_up = det.up.get_occupied_orbs();
   auto occ_orbs_dn = det.dn.get_occupied_orbs();
-  size_t n_con = 0;
 
   const auto& prospective_det_handler = [&](Det& connected_det, const unsigned n_excite) {
     if (time_sym) {
@@ -174,7 +173,6 @@ void ChemSystem::find_connected_dets(
       }
     }
     connected_det_handler(connected_det, matrix_elem);
-    n_con++;
   };
 
   // Add single excitations.
@@ -194,11 +192,7 @@ void ChemSystem::find_connected_dets(
       } else {
         connected_det.dn.unset(p).set(r);
       }
-      const size_t n_con_prev = n_con;
       prospective_det_handler(connected_det, 1);
-      if (n_con > n_con_prev) {
-        // printf("p r: %u %u\n", p, r);
-      }
     }
   }
 
@@ -217,7 +211,6 @@ void ChemSystem::find_connected_dets(
         p2 = q - n_orbs;
         q2 = p + n_orbs;
       }
-      size_t pq_count = 0;
       const unsigned pq = Integrals::combine2(p2, q2);
       for (const auto& hrs : hci_queue.at(pq)) {
         const double H = hrs.H;
@@ -250,7 +243,7 @@ void ChemSystem::find_connected_dets(
 
 double ChemSystem::get_hamiltonian_elem(
     const Det& det_i, const Det& det_j, const int n_excite) const {
-  if (!time_sym) return get_hamiltonian_elem_kernel(det_i, det_j, n_excite);
+  if (!time_sym) return get_hamiltonian_elem_no_time_sym(det_i, det_j, n_excite);
   double norm_ket_inv = 1.0;
   double norm_bra = 1.0;
   bool check = true;
@@ -259,11 +252,14 @@ double ChemSystem::get_hamiltonian_elem(
     norm_bra = Util::SQRT2;
     check = false;
   }
-  const double matrix_elem_1 = get_hamiltonian_elem_kernel(det_i, det_j, n_excite);
+  const double matrix_elem_1 = get_hamiltonian_elem_no_time_sym(det_i, det_j, n_excite);
   double matrix_elem_2 = 1.0;
   if (check) {
     if (det_i.up != det_j.dn) {
-      matrix_elem_2 = get_hamiltonian_elem_kernel(det_i, det_j, n_excite);
+      Det det_i_inv;
+      det_i_inv.up = det_i.dn;
+      det_i_inv.dn = det_i.up;
+      matrix_elem_2 = get_hamiltonian_elem_no_time_sym(det_i_inv, det_j, n_excite);
     } else {
       matrix_elem_2 = matrix_elem_1;
     }
@@ -271,7 +267,7 @@ double ChemSystem::get_hamiltonian_elem(
   return norm_bra * norm_ket_inv * (matrix_elem_1 + z * matrix_elem_2);
 }
 
-double ChemSystem::get_hamiltonian_elem_kernel(
+double ChemSystem::get_hamiltonian_elem_no_time_sym(
     const Det& det_i, const Det& det_j, int n_excite) const {
   DiffResult diff_up;
   DiffResult diff_dn;
@@ -294,20 +290,16 @@ double ChemSystem::get_hamiltonian_elem_kernel(
   if (n_excite == 0) {
     const double one_body_energy = get_one_body_diag(det_i);
     const double two_body_energy = get_two_body_diag(det_i);
-    // printf("1 2 body core diag: %f %f %f\n", one_body_energy, two_body_energy,
-    // integrals.energy_core);
     return one_body_energy + two_body_energy + integrals.energy_core;
   } else if (n_excite == 1) {
     const double one_body_energy = get_one_body_single(diff_up, diff_dn);
     const double two_body_energy = get_two_body_single(det_i, diff_up, diff_dn);
-    // printf("1 2 body single: %f %f %f\n", one_body_energy, two_body_energy, one_body_energy +
-    // two_body_energy);
     return one_body_energy + two_body_energy;
   } else if (n_excite == 2) {
     return get_two_body_double(diff_up, diff_dn);
   }
 
-  throw new std::runtime_error("Calling hamiltonian kernel with >2 exicitation");
+  throw new std::runtime_error("Calling hamiltonian with >2 exicitation");
 }
 
 double ChemSystem::get_one_body_diag(const Det& det) const {

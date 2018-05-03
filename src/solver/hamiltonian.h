@@ -87,9 +87,28 @@ void Hamiltonian<S>::update(const S& system) {
   update_abm1(system);
   Timer::checkpoint("updated abm1");
   update_absingles(system);
+  abm1_to_ab_ids.clear();
   Timer::checkpoint("updated absingles");
   update_matrix(system);
+  alpha_id_to_single_ids.clear();
+  beta_id_to_single_ids.clear();
   Timer::checkpoint("updated hamiltonian matrix");
+}
+
+template <class S>
+void Hamiltonian<S>::clear() {
+  unique_alphas.clear();
+  unique_betas.clear();
+  alpha_to_id.clear();
+  beta_to_id.clear();
+  abm1_to_ab_ids.clear();
+  alpha_id_to_single_ids.clear();
+  beta_id_to_single_ids.clear();
+  alpha_id_to_beta_ids.clear();
+  alpha_id_to_det_ids.clear();
+  beta_id_to_alpha_ids.clear();
+  beta_id_to_det_ids.clear();
+  matrix.clear();
 }
 
 template <class S>
@@ -97,10 +116,10 @@ void Hamiltonian<S>::update_abdet(const S& system) {
   std::unordered_set<size_t> updated_alphas;
   std::unordered_set<size_t> updated_betas;
   for (size_t i = n_dets_prev; i < n_dets; i++) {
-    const auto& det = hps::parse_from_string<Det>(system.get_det(i));
+    const auto& det = system.get_det(i);
 
     // Obtain alpha id.
-    const auto& alpha = hps::serialize_to_string(det.up);
+    const auto& alpha = hps::to_string(det.up);
     size_t alpha_id;
     if (alpha_to_id.count(alpha) == 0) {
       alpha_id = alpha_to_id.size();
@@ -113,7 +132,7 @@ void Hamiltonian<S>::update_abdet(const S& system) {
     }
 
     // Obtain beta id.
-    const auto& beta = hps::serialize_to_string(det.dn);
+    const auto& beta = hps::to_string(det.dn);
     size_t beta_id;
     if (beta_to_id.count(beta) == 0) {
       beta_id = beta_to_id.size();
@@ -149,17 +168,17 @@ void Hamiltonian<S>::update_abm1(const S& system) {
   std::unordered_set<size_t> updated_alphas;
   std::unordered_set<size_t> updated_betas;
   for (size_t i = n_dets_prev; i < n_dets; i++) {
-    const auto& det = hps::parse_from_string<Det>(system.get_det(i));
+    const auto& det = system.get_det(i);
 
     // Update alpha m1.
-    const auto& alpha = hps::serialize_to_string(det.up);
+    const auto& alpha = hps::to_string(det.up);
     const size_t alpha_id = alpha_to_id[alpha];
     if (updated_alphas.count(alpha_id) == 0) {
       const auto& up_elecs = det.up.get_occupied_orbs();
       HalfDet half_det = det.up;
       for (unsigned j = 0; j < n_up; j++) {
         half_det.unset(up_elecs[j]);
-        const auto& alpha_m1 = hps::serialize_to_string(half_det);
+        const auto& alpha_m1 = hps::to_string(half_det);
         abm1_to_ab_ids[alpha_m1].first.push_back(alpha_id);
         half_det.set(up_elecs[j]);
       }
@@ -167,14 +186,14 @@ void Hamiltonian<S>::update_abm1(const S& system) {
     }
 
     // Update beta m1.
-    const auto& beta = hps::serialize_to_string(det.dn);
+    const auto& beta = hps::to_string(det.dn);
     const size_t beta_id = beta_to_id[beta];
     if (updated_betas.count(beta_id) == 0) {
       const auto& dn_elecs = det.dn.get_occupied_orbs();
       HalfDet half_det = det.dn;
       for (unsigned j = 0; j < n_dn; j++) {
         half_det.unset(dn_elecs[j]);
-        const auto& beta_m1 = hps::serialize_to_string(half_det);
+        const auto& beta_m1 = hps::to_string(half_det);
         abm1_to_ab_ids[beta_m1].second.push_back(beta_id);
         half_det.set(dn_elecs[j]);
       }
@@ -185,21 +204,19 @@ void Hamiltonian<S>::update_abm1(const S& system) {
 
 template <class S>
 void Hamiltonian<S>::update_absingles(const S& system) {
-  alpha_id_to_single_ids.clear();
-  beta_id_to_single_ids.clear();
   std::unordered_set<size_t> updated_alphas;
   std::unordered_set<size_t> updated_betas;
   alpha_id_to_single_ids.resize(alpha_to_id.size());
   beta_id_to_single_ids.resize(beta_to_id.size());
 
   for (size_t i = n_dets_prev; i < n_dets; i++) {
-    const auto& det = hps::parse_from_string<Det>(system.get_det(i));
+    const auto& det = system.get_det(i);
 
-    const auto& alpha = hps::serialize_to_string(det.up);
+    const auto& alpha = hps::to_string(det.up);
     const size_t alpha_id = alpha_to_id[alpha];
     updated_alphas.insert(alpha_id);
 
-    const auto& beta = hps::serialize_to_string(det.dn);
+    const auto& beta = hps::to_string(det.dn);
     const size_t beta_id = beta_to_id[beta];
     updated_betas.insert(beta_id);
   }
@@ -215,11 +232,11 @@ void Hamiltonian<S>::update_absingles(const S& system) {
 #pragma omp parallel for schedule(static, 1)
   for (size_t alpha_id = 0; alpha_id < n_unique_alphas; alpha_id++) {
     const auto& alpha = unique_alphas[alpha_id];
-    HalfDet half_det = hps::parse_from_string<HalfDet>(alpha);
+    HalfDet half_det = hps::from_string<HalfDet>(alpha);
     const auto& up_elecs = half_det.get_occupied_orbs();
     for (unsigned j = 0; j < n_up; j++) {
       half_det.unset(up_elecs[j]);
-      const auto& alpha_m1 = hps::serialize_to_string(half_det);
+      const auto& alpha_m1 = hps::to_string(half_det);
       if (abm1_to_ab_ids.count(alpha_m1) == 1) {
         for (const size_t alpha_single : abm1_to_ab_ids[alpha_m1].first) {
           if (alpha_single == alpha_id) continue;
@@ -242,11 +259,11 @@ void Hamiltonian<S>::update_absingles(const S& system) {
 #pragma omp parallel for schedule(static, 1)
   for (size_t beta_id = 0; beta_id < n_unique_betas; beta_id++) {
     const auto& beta = unique_betas[beta_id];
-    HalfDet half_det = hps::parse_from_string<HalfDet>(beta);
+    HalfDet half_det = hps::from_string<HalfDet>(beta);
     const auto& dn_elecs = half_det.get_occupied_orbs();
     for (unsigned j = 0; j < n_dn; j++) {
       half_det.unset(dn_elecs[j]);
-      const auto& beta_m1 = hps::serialize_to_string(half_det);
+      const auto& beta_m1 = hps::to_string(half_det);
       if (abm1_to_ab_ids.count(beta_m1) == 1) {
         for (const size_t beta_single : abm1_to_ab_ids[beta_m1].second) {
           if (beta_single == beta_id) continue;
@@ -288,8 +305,6 @@ void Hamiltonian<S>::update_absingles(const S& system) {
         beta_id_to_single_ids.size());
     printf("Full size of absingles: %'llu\n", singles_cnt);
   }
-
-  abm1_to_ab_ids.clear();
 }
 
 template <class S>
@@ -300,42 +315,39 @@ void Hamiltonian<S>::update_matrix(const S& system) {
 
 #pragma omp parallel for schedule(static, 1)
   for (size_t det_id = proc_id; det_id < n_dets; det_id += n_procs) {
-    const auto& det = hps::parse_from_string<Det>(system.get_det(det_id));
+    const auto& det = system.get_det(det_id);
     Det connected_det;
     const bool is_new_det = det_id >= n_dets_prev;
     if (is_new_det) {
-      const double H = system.get_hamiltonian_elem(det, det);
+      const double H = system.get_hamiltonian_elem(det, det, 0);
       matrix.append_elem(det_id, det_id, H);
-      // if (det_id == 1) printf("%zu %f; ", det_id, H);
     }
     const size_t start_id = is_new_det ? det_id + 1 : n_dets_prev;
 
     // Single or double alpha excitations.
-    const auto& beta = hps::serialize_to_string(det.dn);
+    const auto& beta = hps::to_string(det.dn);
     const size_t beta_id = beta_to_id[beta];
     const auto& alpha_dets = beta_id_to_det_ids[beta_id];
     for (auto it = alpha_dets.begin(); it != alpha_dets.end(); it++) {
       const size_t alpha_det_id = *it;
       if (alpha_det_id < start_id) continue;
-      hps::parse_from_string(connected_det, system.get_det(alpha_det_id));
+      hps::from_string(system.det_strs[alpha_det_id], connected_det);
       const double H = system.get_hamiltonian_elem(det, connected_det);
       if (std::abs(H) < Util::EPS) continue;
       matrix.append_elem(det_id, alpha_det_id, H);
-      // if (det_id == 1) printf("%zu %f; ", alpha_det_id, H);
     }
 
     // Single or double beta excitations.
-    const auto& alpha = hps::serialize_to_string(det.up);
+    const auto& alpha = hps::to_string(det.up);
     const size_t alpha_id = alpha_to_id[alpha];
     const auto& beta_dets = alpha_id_to_det_ids[alpha_id];
     for (auto it = beta_dets.begin(); it != beta_dets.end(); it++) {
       const size_t beta_det_id = *it;
       if (beta_det_id < start_id) continue;
-      hps::parse_from_string(connected_det, system.get_det(beta_det_id));
+      hps::from_string(system.det_strs[beta_det_id], connected_det);
       const double H = system.get_hamiltonian_elem(det, connected_det);
       if (std::abs(H) < Util::EPS) continue;
       matrix.append_elem(det_id, beta_det_id, H);
-      // if (det_id == 1) printf("%zu %f; ", beta_det_id, H);
     }
 
     // Mixed double excitation.
@@ -357,26 +369,14 @@ void Hamiltonian<S>::update_matrix(const S& system) {
           const size_t related_det_id = related_det_ids[ptr];
           ptr++;
           if (related_det_id < start_id) continue;
-          hps::parse_from_string(connected_det, system.get_det(related_det_id));
+          hps::from_string(system.det_strs[related_det_id], connected_det);
           const double H = system.get_hamiltonian_elem(det, connected_det);
           if (std::abs(H) < Util::EPS) continue;
           matrix.append_elem(det_id, related_det_id, H);
-          // if (det_id == 1) printf("%zu %f; ", related_det_id, H);
         }
       }
     }
 
-    Util::sort_by_first<size_t, double>(matrix.rows[det_id].indices, matrix.rows[det_id].values);
-    if (det_id == 1) {
-      for (size_t i = 0; i < matrix.rows[det_id].indices.size(); i++) {
-        const auto& tmp_det =
-            hps::parse_from_string<Det>(system.get_det(matrix.rows[det_id].indices[i]));
-        // printf("%s; %s\n", tmp_det.up.to_string().c_str(), tmp_det.dn.to_string().c_str());
-        // printf("%zu %g\n", matrix.rows[det_id].indices[i], matrix.rows[det_id].values[i]);
-      }
-    }
-
-    // printf("%zu %zu\n", det_id, matrix.rows[det_id].size());
-    // if (det_id == 1) exit(0);
+    matrix.sort_row(det_id);
   }
 }

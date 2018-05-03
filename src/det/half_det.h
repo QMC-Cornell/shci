@@ -19,10 +19,10 @@ class HalfDet {
   std::string to_string() const;
 
   template <class B>
-  void serialize(hps::OutputBuffer<B>& buf) const;
+  void serialize(B& buf) const;
 
   template <class B>
-  void parse(hps::InputBuffer<B>& buf);
+  void parse(B& buf);
 
 #ifndef DEBUG
  private:
@@ -39,7 +39,7 @@ class HalfDet {
 };
 
 template <class B>
-void HalfDet::serialize(hps::OutputBuffer<B>& buf) const {
+void HalfDet::serialize(B& buf) const {
   unsigned n_elecs_hf = orbs.size();
   hps::Serializer<unsigned, B>::serialize(n_elecs_hf, buf);
   unsigned level = 0;
@@ -67,7 +67,7 @@ void HalfDet::serialize(hps::OutputBuffer<B>& buf) const {
 }
 
 template <class B>
-void HalfDet::parse(hps::InputBuffer<B>& buf) {
+void HalfDet::parse(B& buf) {
   unsigned n_elecs_hf;
   hps::Serializer<unsigned, B>::parse(n_elecs_hf, buf);
   std::vector<unsigned> diffs;
@@ -94,12 +94,3 @@ void HalfDet::parse(hps::InputBuffer<B>& buf) {
     level++;
   }
 }
-
-namespace hps {
-template <class B>
-class Serializer<HalfDet, B> {
- public:
-  static void serialize(const HalfDet& det, OutputBuffer<B>& buf) { det.serialize(buf); }
-  static void parse(HalfDet& det, InputBuffer<B>& buf) { det.parse(buf); }
-};
-}  // namespace hps

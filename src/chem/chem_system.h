@@ -31,8 +31,6 @@ class ChemSystem : public BaseSystem {
 
   double max_hci_queue_elem;
 
-  //  std::vector<unsigned> sym_n_orbs;
-
   std::vector<std::vector<unsigned>> sym_orbs;
 
   PointGroup point_group;
@@ -49,7 +47,7 @@ class ChemSystem : public BaseSystem {
 
   double get_hci_queue_elem(const unsigned p, const unsigned q, const unsigned r, const unsigned s);
 
-  double get_hamiltonian_elem_kernel(const Det& det_i, const Det& det_j, int n_excite) const;
+  double get_hamiltonian_elem_no_time_sym(const Det& det_i, const Det& det_j, int n_excite) const;
 
   double get_one_body_diag(const Det& det) const;
 
