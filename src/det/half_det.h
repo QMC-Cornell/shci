@@ -41,7 +41,6 @@ class HalfDet {
 template <class B>
 void HalfDet::serialize(B& buf) const {
   unsigned n_elecs_hf = orbs.size();
-  hps::Serializer<unsigned, B>::serialize(n_elecs_hf, buf);
   unsigned level = 0;
   std::vector<unsigned> diffs;
   for (const unsigned orb : orbs) {
@@ -63,15 +62,14 @@ void HalfDet::serialize(B& buf) const {
     diffs.push_back(level);
     level++;
   }
-  hps::Serializer<std::vector<unsigned>, B>::serialize(diffs, buf);
+  buf << n_elecs_hf << diffs;
 }
 
 template <class B>
 void HalfDet::parse(B& buf) {
   unsigned n_elecs_hf;
-  hps::Serializer<unsigned, B>::parse(n_elecs_hf, buf);
   std::vector<unsigned> diffs;
-  hps::Serializer<std::vector<unsigned>, B>::parse(diffs, buf);
+  buf >> n_elecs_hf >> diffs;
   orbs.clear();
   unsigned level = 0;
   for (const unsigned diff : diffs) {

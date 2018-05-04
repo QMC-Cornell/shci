@@ -22,7 +22,7 @@ class SparseMatrix {
   void sort_row(const size_t i);
 
 #ifndef DEBUG
- private:
+//  private:
 #endif
   std::vector<SparseVector<T>> rows;
 };
@@ -39,8 +39,9 @@ std::vector<T> SparseMatrix<T>::mul(const std::vector<T>& vec) const {
   const int n_procs = Parallel::get_n_procs();
   const int n_threads = Parallel::get_n_threads();
   const size_t dim = rows.size();
-  std::vector<std::vector<T>> res(n_threads);
-  for (int i = 0; i < n_threads; i++) res[i].resize(dim, 0.0);
+  std::vector<std::vector<T>> res_local(n_threads);
+  std::vector<T> res(dim);
+  for (int i = 0; i < n_threads; i++) res_local[i].assign(dim, 0.0);
 
 #pragma omp parallel for schedule(static, 1)
   for (size_t i = proc_id; i < dim; i += n_procs) {
@@ -49,22 +50,21 @@ std::vector<T> SparseMatrix<T>::mul(const std::vector<T>& vec) const {
     for (size_t j_id = 0; j_id < row.size(); j_id++) {
       const size_t j = row.get_index(j_id);
       const T H_ij = row.get_value(j_id);
-      res[thread_id][i] += H_ij * vec[j];
-      if (i != j) res[thread_id][j] += H_ij * vec[i];
+      res_local[thread_id][i] += H_ij * vec[j];
+      if (i != j) res_local[thread_id][j] += H_ij * vec[i];
     }
   }
 
 #pragma omp parallel for
   for (size_t j = 0; j < dim; j++) {
     for (int i = 1; i < n_threads; i++) {
-      res[0][j] += res[i][j];
+      res_local[0][j] += res_local[i][j];
     }
   }
 
-  if (dim <= 0 || dim >= INT_MAX) throw std::runtime_error("invalid number of dets");
-  MPI_Allreduce(res[0].data(), res[1].data(), dim, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(res_local[0].data(), res.data(), dim, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
-  return res[1];
+  return res;
 }
 
 template <class T>
@@ -79,5 +79,5 @@ void SparseMatrix<T>::clear() {
 
 template <class T>
 void SparseMatrix<T>::sort_row(const size_t i) {
- rows[i].sort();
+  rows[i].sort();
 }

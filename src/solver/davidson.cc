@@ -37,7 +37,6 @@ void Davidson::diagonalize(
   Eigen::VectorXd work(len_work);
   bool converged = false;
   std::vector<double> tmp_v(dim);
-
   // Get diagonal elements.
   Eigen::VectorXd diag_elems(dim);
   for (size_t i = 0; i < dim; i++) diag_elems[i] = matrix.get_diag(i);

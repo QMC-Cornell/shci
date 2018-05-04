@@ -97,6 +97,8 @@ void Hamiltonian<S>::update(const S& system) {
 
 template <class S>
 void Hamiltonian<S>::clear() {
+  n_dets = 0;
+  n_dets_prev = 0;
   unique_alphas.clear();
   unique_betas.clear();
   alpha_to_id.clear();
@@ -320,8 +322,10 @@ void Hamiltonian<S>::update_matrix(const S& system) {
     const bool is_new_det = det_id >= n_dets_prev;
     if (is_new_det) {
       const double H = system.get_hamiltonian_elem(det, det, 0);
+      if (H < -20) throw std::runtime_error("here");
       matrix.append_elem(det_id, det_id, H);
     }
+    if (det_id >= 480) continue;
     const size_t start_id = is_new_det ? det_id + 1 : n_dets_prev;
 
     // Single or double alpha excitations.
@@ -370,13 +374,12 @@ void Hamiltonian<S>::update_matrix(const S& system) {
           ptr++;
           if (related_det_id < start_id) continue;
           hps::from_string(system.det_strs[related_det_id], connected_det);
-          const double H = system.get_hamiltonian_elem(det, connected_det);
+          const double H = system.get_hamiltonian_elem(det, connected_det, 2);
           if (std::abs(H) < Util::EPS) continue;
           matrix.append_elem(det_id, related_det_id, H);
         }
       }
     }
-
     matrix.sort_row(det_id);
   }
 }

@@ -97,6 +97,8 @@ void Solver<S>::run_all_variations() {
       Timer::end();
 
       save_variation_result(filename);
+    } else {
+      hamiltonian.clear();
     }
     eps_var_prev = eps_var;
     Timer::end();
@@ -128,14 +130,14 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
   double energy_var_prev = 0.0;
   bool converged = false;
   size_t iteration = 0;
-  eps_prev.resize(n_dets, Util::INF);
   while (!converged) {
+    eps_prev.resize(n_dets, Util::INF);
     Timer::start(Util::str_printf("#%zu", iteration));
     for (size_t i = 0; i < n_dets; i++) {
       const double coef = system.coefs[i];
       const double eps_min = eps_var / std::abs(coef);
       if (eps_min >= eps_prev[i]) continue;
-      const auto& det = hps::from_string<Det>(system.det_strs[i]);
+      const auto& det = system.get_det(i);
       system.find_connected_dets(det, eps_prev[i], eps_min, connected_det_handler);
       eps_prev[i] = eps_min;
     }
@@ -144,7 +146,20 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
       printf("Number of dets / new dets: %'zu / %'zu\n", n_dets_new, n_dets_new - n_dets);
     }
     hamiltonian.update(system);
+    // for (size_t i = 0; i < n_dets_new; i++) {
+    //   printf("diag i: %zu %f\n", i, hamiltonian.matrix.get_diag(i));
+    //   if (hamiltonian.matrix.rows[i].size() > 1) {
+    //     printf(
+    //         "; next %zu %f\n",
+    //         hamiltonian.matrix.rows[i].get_index(1),
+    //         hamiltonian.matrix.rows[i].get_value(1));
+    //   }
+    // }
     davidson.diagonalize(hamiltonian.matrix, system.coefs, Parallel::is_master());
+    // system.coefs = davidson.get_lowest_eigenvector();
+    // hamiltonian.update(system);
+    // davidson.diagonalize(hamiltonian.matrix, system.coefs, Parallel::is_master());
+    // exit(0);
     const double energy_var_new = davidson.get_lowest_eigenvalue();
     system.coefs = davidson.get_lowest_eigenvector();
     Timer::checkpoint("hamiltonian diagonalized");
@@ -157,7 +172,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
     n_dets = n_dets_new;
     energy_var_prev = energy_var_new;
     Timer::end();
-    if (!until_converged) break;
+    // if (!until_converged) break;
     iteration++;
   }
   system.energy_var = energy_var_prev;
@@ -215,8 +230,7 @@ double Solver<S>::get_energy_pt_pre_dtm() {
       const double hc = h_ai * coef;
       hc_sums.set(det_a_code, [&](double& value) { value += hc; }, 0.0);
     };
-    system.find_connected_dets(
-        var_det, eps_prev[i], eps_pt_pre_dtm / std::abs(coef), pt_det_handler);
+    system.find_connected_dets(var_det, Util::INF, eps_pt_pre_dtm / std::abs(coef), pt_det_handler);
   }
   if (Parallel::is_master()) {
     printf("Number of pre dtm pt dets: %'zu\n", hc_sums.get_n_keys());

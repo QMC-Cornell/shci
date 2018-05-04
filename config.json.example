@@ -7,6 +7,7 @@
   ],
   "eps_vars_schedule": [
     2e-3,
+    2e-3,
     1e-3,
     5e-4,
     2e-4,
