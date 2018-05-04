@@ -322,10 +322,10 @@ void Hamiltonian<S>::update_matrix(const S& system) {
     const bool is_new_det = det_id >= n_dets_prev;
     if (is_new_det) {
       const double H = system.get_hamiltonian_elem(det, det, 0);
-      if (H < -20) throw std::runtime_error("here");
+      // if (H < -20) throw std::runtime_error("here");
       matrix.append_elem(det_id, det_id, H);
     }
-    if (det_id >= 480) continue;
+    // if (det_id >= 480) continue;
     const size_t start_id = is_new_det ? det_id + 1 : n_dets_prev;
 
     // Single or double alpha excitations.
