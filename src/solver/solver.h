@@ -74,8 +74,7 @@ void Solver<S>::run_all_variations() {
   const auto& eps_vars = Config::get<std::vector<double>>("eps_vars");
   const auto& eps_vars_schedule = Config::get<std::vector<double>>("eps_vars_schedule");
   double eps_var_prev = Util::INF;
-  eps_prev.clear();
-  var_det_strs.clear();
+  for (const auto& det_str : system.det_strs) var_det_strs.insert(det_str);
   auto it_schedule = eps_vars_schedule.begin();
   for (const double eps_var : eps_vars) {
     Timer::start(Util::str_printf("eps_var %#.4g", eps_var));
@@ -131,6 +130,8 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
   bool converged = false;
   size_t iteration = 0;
   while (!converged) {
+    // var_det_strs.clear();
+    // for (const auto& det_str : system.det_strs) var_det_strs.insert(det_str);
     eps_prev.resize(n_dets, Util::INF);
     Timer::start(Util::str_printf("#%zu", iteration));
     for (size_t i = 0; i < n_dets; i++) {
