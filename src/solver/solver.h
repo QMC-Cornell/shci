@@ -329,7 +329,7 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
   Timer::start(Util::str_printf("sto %#.4g", eps_pt));
   while (iteration < max_pt_iterations) {
     Timer::start(Util::str_printf("#%zu", iteration));
-
+    
     Timer::end();
     iteration++;
     if (iteration >= 3 && (energy_pt_sto + energy_pt_dtm).uncert < target_error) {
