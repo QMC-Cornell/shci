@@ -319,7 +319,25 @@ UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
 
 template <class S>
 UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
-  return energy_pt_dtm + UncertResult(-1.0, 1.0);
+  const double eps_pt_dtm = Config::get<double>("eps_pt_dtm");
+  const double eps_pt = Config::get<double>("eps_pt");
+  const size_t max_pt_iterations = Config::get<size_t>("max_pt_iterations", 100);
+  size_t iteration = 0;
+  const auto& str_hasher = std::hash<std::string>();
+  const double target_error = Config::get<double>("target_error", 1.0e-5);
+  UncertResult energy_pt_sto;
+  Timer::start(Util::str_printf("sto %#.4g", eps_pt));
+  while (iteration < max_pt_iterations) {
+    Timer::start(Util::str_printf("#%zu", iteration));
+
+    Timer::end();
+    iteration++;
+    if (iteration >= 3 && (energy_pt_sto + energy_pt_dtm).uncert < target_error) {
+      break;
+    }
+  }
+  Timer::end();
+  return energy_pt_sto + energy_pt_dtm;
 }
 
 template <class S>
