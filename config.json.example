@@ -7,15 +7,14 @@
   ],
   "eps_vars_schedule": [
     2e-3,
-    2e-3,
     1e-3,
     5e-4,
     2e-4,
     1e-4
   ],
-  "eps_pt": 1e-4,
+  "eps_pt": 1e-7,
   "eps_pt_pre_dtm": 1e-4,
-  "eps_pt_dtm": 2e-6,
+  "eps_pt_dtm": 1e-5,
   "n_batches_pt_dtm": 8,
   "chem": {
     "point_group": "d2h",

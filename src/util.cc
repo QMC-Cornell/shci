@@ -29,3 +29,22 @@ void Util::error_handler(const int sig) {
   backtrace_symbols_fd(array, size, STDERR_FILENO);
   exit(1);
 }
+
+double Util::avg(const std::vector<double>& vec) {
+  double sum = 0.0;
+  for (const double num : vec) {
+    sum += num;
+  }
+  return sum / vec.size();
+}
+
+double Util::stdev(const std::vector<double>& vec) {
+  double sum = 0.0;
+  double sq_sum = 0.0;
+  for (const double num : vec) {
+    sum += num;
+    sq_sum += num * num;
+  }
+  const double n = vec.size();
+  return sqrt((sq_sum - sum * sum / n) / (n - 1));
+}

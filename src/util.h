@@ -3,10 +3,10 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
-#include <memory>
 
 #define ENERGY_FORMAT "%.10f Ha"
 
@@ -18,6 +18,10 @@ class Util {
   static bool str_equals_ci(const std::string& a, const std::string& b);
 
   static void error_handler(const int sig);
+
+  static double avg(const std::vector<double>& vec);
+
+  static double stdev(const std::vector<double>& vec);
 
   template <class T1, class T2>
   static void sort_by_first(std::vector<T1>& v1, std::vector<T2>& v2);

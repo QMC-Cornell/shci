@@ -3,6 +3,7 @@
 #include <hps/src/hps.h>
 #include <omp_hash_map/src/omp_hash_map.h>
 #include <cmath>
+#include <functional>
 #include <unordered_set>
 #include "../config.h"
 #include "../det/det.h"
@@ -130,8 +131,6 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
   bool converged = false;
   size_t iteration = 0;
   while (!converged) {
-    // var_det_strs.clear();
-    // for (const auto& det_str : system.det_strs) var_det_strs.insert(det_str);
     eps_prev.resize(n_dets, Util::INF);
     Timer::start(Util::str_printf("#%zu", iteration));
     for (size_t i = 0; i < n_dets; i++) {
@@ -147,20 +146,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
       printf("Number of dets / new dets: %'zu / %'zu\n", n_dets_new, n_dets_new - n_dets);
     }
     hamiltonian.update(system);
-    // for (size_t i = 0; i < n_dets_new; i++) {
-    //   printf("diag i: %zu %f\n", i, hamiltonian.matrix.get_diag(i));
-    //   if (hamiltonian.matrix.rows[i].size() > 1) {
-    //     printf(
-    //         "; next %zu %f\n",
-    //         hamiltonian.matrix.rows[i].get_index(1),
-    //         hamiltonian.matrix.rows[i].get_value(1));
-    //   }
-    // }
     davidson.diagonalize(hamiltonian.matrix, system.coefs, Parallel::is_master());
-    // system.coefs = davidson.get_lowest_eigenvector();
-    // hamiltonian.update(system);
-    // davidson.diagonalize(hamiltonian.matrix, system.coefs, Parallel::is_master());
-    // exit(0);
     const double energy_var_new = davidson.get_lowest_eigenvalue();
     system.coefs = davidson.get_lowest_eigenvector();
     Timer::checkpoint("hamiltonian diagonalized");
@@ -173,7 +159,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
     n_dets = n_dets_new;
     energy_var_prev = energy_var_new;
     Timer::end();
-    // if (!until_converged) break;
+    if (!until_converged) break;
     iteration++;
   }
   system.energy_var = energy_var_prev;
@@ -254,12 +240,81 @@ double Solver<S>::get_energy_pt_pre_dtm() {
   Timer::end();  // accumulate
 
   Timer::end();  // pre dtm
-  return energy_pt_pre_dtm;
+  return energy_pt_pre_dtm + system.energy_var;
 }
 
 template <class S>
 UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
-  return UncertResult(energy_pt_pre_dtm - 1.0, 1.0);
+  const double eps_pt_dtm = Config::get<double>("eps_pt_dtm");
+  const double eps_pt_pre_dtm = Config::get<double>("eps_pt_pre_dtm");
+  Timer::start(Util::str_printf("dtm %#.4g", eps_pt_dtm));
+  const size_t n_var_dets = system.get_n_dets();
+  const size_t n_batches = Config::get<size_t>("n_batches_pt_dtm");
+  omp_hash_map<std::string, double> hc_sums_pre;
+  omp_hash_map<std::string, double> hc_sums;
+  const size_t n_procs = Parallel::get_n_procs();
+  const size_t proc_id = Parallel::get_proc_id();
+  std::vector<double> energy_pt_dtm_batches;
+  UncertResult energy_pt_dtm;
+  const auto& str_hasher = std::hash<std::string>();
+  const double target_error = Config::get<double>("target_error", 1.0e-5);
+
+  for (size_t batch_id = 0; batch_id < n_batches; batch_id++) {
+    Timer::start(Util::str_printf("#%zu", batch_id));
+
+    Timer::start("search");
+#pragma omp parallel for schedule(dynamic, 5)
+    for (size_t i = 0; i < n_var_dets; i++) {
+      const Det var_det = system.get_det(i);
+      const double coef = system.coefs[i];
+      const auto& pt_det_handler = [&](const Det& det_a, const double h_ai) {
+        const auto& det_a_code = hps::to_string(det_a);
+        if (var_det_strs.count(det_a_code) == 1) return;
+        const size_t det_a_hash = str_hasher(det_a_code);
+        if (det_a_hash % n_procs != proc_id) return;
+        if ((det_a_hash / n_procs) % n_batches != batch_id) return;
+        const double hc = h_ai * coef;
+        hc_sums.set(det_a_code, [&](double& value) { value += hc; }, 0.0);
+        if (std::abs(hc) < eps_pt_pre_dtm) return;
+        hc_sums_pre.set(det_a_code, [&](double& value) { value += hc; }, 0.0);
+      };
+      system.find_connected_dets(var_det, Util::INF, eps_pt_dtm / std::abs(coef), pt_det_handler);
+    }
+    if (Parallel::is_master()) {
+      printf("Number of pre dtm pt dets: %'zu\n", hc_sums.get_n_keys());
+    }
+    Timer::end();  // search
+
+    Timer::start("accumulate");
+    double energy_pt_dtm_batch = 0.0;
+    hc_sums.apply([&](const std::string& det_a_code, const double hc_sum) {
+      const auto& det_a = hps::from_string<Det>(det_a_code);
+      const double H_aa = system.get_hamiltonian_elem(det_a, det_a, 0);
+      const double hc_sum_pre = hc_sums_pre.get_copy_or_default(det_a_code, 0.0);
+      const double hc_sum_diff = hc_sum - hc_sum_pre;
+      const double contribution = hc_sum_diff * hc_sum_diff / (system.energy_var - H_aa);
+#pragma omp atomic
+      energy_pt_dtm_batch += contribution;
+    });
+    energy_pt_dtm_batches.push_back(energy_pt_dtm_batch);
+    energy_pt_dtm.value = Util::avg(energy_pt_dtm_batches) * n_batches;
+    energy_pt_dtm.uncert = Util::stdev(energy_pt_dtm_batches) * sqrt(n_batches);
+    if (Parallel::is_master()) {
+      printf("PT dtm correction batch: " ENERGY_FORMAT "\n", energy_pt_dtm_batch);
+      printf("PT dtm correction: %s Ha\n", energy_pt_dtm.to_string().c_str());
+      printf("PT dtm energy: %s Ha\n", (energy_pt_dtm + energy_pt_pre_dtm).to_string().c_str());
+    }
+    Timer::end();  // accumulate
+
+    hc_sums_pre.clear();
+    hc_sums.clear();
+    Timer::end();  // batch
+
+    if (batch_id >= 3 && energy_pt_dtm.uncert < target_error / 5) break;
+  }
+
+  Timer::end();  // dtm
+  return energy_pt_dtm + energy_pt_pre_dtm;
 }
 
 template <class S>
