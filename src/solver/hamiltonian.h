@@ -315,8 +315,8 @@ void Hamiltonian<S>::update_matrix(const S& system) {
   const size_t n_procs = Parallel::get_n_procs();
   matrix.set_dim(system.get_n_dets());
 
-#pragma omp parallel for schedule(static, 1)
-  for (size_t det_id = proc_id; det_id < n_dets; det_id += n_procs) {
+#pragma omp parallel for schedule(dynamic, 10)
+  for (size_t det_id = 0; det_id < n_dets; det_id++) {
     const auto& det = system.get_det(det_id);
     Det connected_det;
     const bool is_new_det = det_id >= n_dets_prev;
@@ -324,6 +324,7 @@ void Hamiltonian<S>::update_matrix(const S& system) {
       const double H = system.get_hamiltonian_elem(det, det, 0);
       matrix.append_elem(det_id, det_id, H);
     }
+    if (det_id % n_procs != proc_id) continue;  // Only cache dets of certain ids.
     const size_t start_id = is_new_det ? det_id + 1 : n_dets_prev;
 
     // Single or double alpha excitations.
@@ -334,7 +335,7 @@ void Hamiltonian<S>::update_matrix(const S& system) {
       const size_t alpha_det_id = *it;
       if (alpha_det_id < start_id) continue;
       hps::from_string(system.det_strs[alpha_det_id], connected_det);
-      const double H = system.get_hamiltonian_elem(det, connected_det);
+      const double H = system.get_hamiltonian_elem(det, connected_det, -1);
       if (std::abs(H) < Util::EPS) continue;
       matrix.append_elem(det_id, alpha_det_id, H);
     }
@@ -347,7 +348,7 @@ void Hamiltonian<S>::update_matrix(const S& system) {
       const size_t beta_det_id = *it;
       if (beta_det_id < start_id) continue;
       hps::from_string(system.det_strs[beta_det_id], connected_det);
-      const double H = system.get_hamiltonian_elem(det, connected_det);
+      const double H = system.get_hamiltonian_elem(det, connected_det, -1);
       if (std::abs(H) < Util::EPS) continue;
       matrix.append_elem(det_id, beta_det_id, H);
     }

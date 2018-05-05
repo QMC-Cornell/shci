@@ -4,15 +4,13 @@
 
 class HegSystem : public BaseSystem {
  public:
-  void setup() {}
+  void setup() override {}
 
   void find_connected_dets(
       const Det&,
       const double,
       const double,
-      const std::function<void(const Det&, const double)>&) const {}
+      const std::function<void(const Det&, const int)>&) const override {}
 
-  double get_hamiltonian_elem(const Det&, const Det&, const int n_excite = -1) const {
-    return n_excite;
-  }
+  double get_hamiltonian_elem(const Det&, const Det&, const int) const override { return 0.0; }
 };

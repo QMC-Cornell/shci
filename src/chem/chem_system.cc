@@ -144,7 +144,7 @@ void ChemSystem::find_connected_dets(
     const Det& det,
     const double eps_max_in,
     const double eps_min_in,
-    const std::function<void(const Det&, const double)>& connected_det_handler) const {
+    const std::function<void(const Det&, const int)>& connected_det_handler) const {
   const double eps_max = time_sym ? eps_max_in * Util::SQRT2 : eps_max_in;
   const double eps_min = time_sym ? eps_min_in * Util::SQRT2 : eps_min_in;
   if (eps_max < eps_min) return;
@@ -152,27 +152,23 @@ void ChemSystem::find_connected_dets(
   auto occ_orbs_up = det.up.get_occupied_orbs();
   auto occ_orbs_dn = det.dn.get_occupied_orbs();
 
-  const auto& prospective_det_handler = [&](Det& connected_det, const unsigned n_excite) {
+  const auto& prospective_det_handler = [&](Det& connected_det, const int n_excite) {
     if (time_sym) {
       if (connected_det.up == connected_det.dn && z < 0) return;
       if (connected_det.up == det.dn && connected_det.dn == det.up) return;
     }
-    double matrix_elem = get_hamiltonian_elem(det, connected_det, n_excite);
-    if (std::abs(matrix_elem) > eps_max || std::abs(matrix_elem) < eps_min) return;
+    if (n_excite == 1) {
+      const double matrix_elem = get_hamiltonian_elem(det, connected_det, n_excite);
+      if (std::abs(matrix_elem) >= eps_max || std::abs(matrix_elem) < eps_min) return;
+    }
     if (time_sym) {
-      if (det.up == det.dn && connected_det.up != connected_det.dn) {
-        matrix_elem *= Util::SQRT2_INV;
-      } else if (det.up != det.dn && connected_det.up == connected_det.dn) {
-        matrix_elem *= Util::SQRT2;
-      }
       if (connected_det.up > connected_det.dn) {
-        HalfDet tmp_half_det = connected_det.up;
+        HalfDet tmp_up = connected_det.up;
         connected_det.up = connected_det.dn;
-        connected_det.dn = tmp_half_det;
-        matrix_elem *= z;
+        connected_det.dn = tmp_up;
       }
     }
-    connected_det_handler(connected_det, matrix_elem);
+    connected_det_handler(connected_det, n_excite);
   };
 
   // Add single excitations.
@@ -215,7 +211,7 @@ void ChemSystem::find_connected_dets(
       for (const auto& hrs : hci_queue.at(pq)) {
         const double H = hrs.H;
         if (H < eps_min) break;
-        if (H > eps_max) continue;
+        if (H >= eps_max) continue;
         unsigned r = hrs.r;
         unsigned s = hrs.s;
         if (p >= n_orbs && q >= n_orbs) {

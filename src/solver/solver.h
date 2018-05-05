@@ -2,6 +2,7 @@
 
 #include <hps/src/hps.h>
 #include <omp_hash_map/src/omp_hash_map.h>
+#include <omp_hash_map/src/omp_hash_set.h>
 #include <cmath>
 #include <functional>
 #include <unordered_set>
@@ -118,13 +119,17 @@ void Solver<S>::run_all_perturbations() {
 template <class S>
 void Solver<S>::run_variation(const double eps_var, const bool until_converged) {
   Davidson davidson;
-  const auto& connected_det_handler = [&](const Det& connected_det, const double) {
+  omp_lock_t lock;
+  omp_init_lock(&lock);
+  std::set<std::string> new_det_strs;
+  const auto& connected_det_handler = [&](const Det& connected_det, const int) {
     const auto& det_str = hps::to_string(connected_det);
+    omp_set_lock(&lock);
     if (var_det_strs.count(det_str) == 0) {
-      system.det_strs.push_back(det_str);
-      system.coefs.push_back(0.0);
       var_det_strs.insert(det_str);
+      new_det_strs.insert(det_str);
     }
+    omp_unset_lock(&lock);
   };
   size_t n_dets = system.get_n_dets();
   double energy_var_prev = 0.0;
@@ -133,6 +138,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
   while (!converged) {
     eps_prev.resize(n_dets, Util::INF);
     Timer::start(Util::str_printf("#%zu", iteration));
+#pragma omp parallel for schedule(static, 1)
     for (size_t i = 0; i < n_dets; i++) {
       const double coef = system.coefs[i];
       const double eps_min = eps_var / std::abs(coef);
@@ -141,6 +147,13 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
       system.find_connected_dets(det, eps_prev[i], eps_min, connected_det_handler);
       eps_prev[i] = eps_min;
     }
+
+    for (const auto& det_str : new_det_strs) {
+      system.det_strs.push_back(det_str);
+      system.coefs.push_back(0.0);
+    }
+    new_det_strs.clear();
+
     const size_t n_dets_new = system.get_n_dets();
     if (Parallel::is_master()) {
       printf("Number of dets / new dets: %'zu / %'zu\n", n_dets_new, n_dets_new - n_dets);
@@ -162,6 +175,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
     if (!until_converged) break;
     iteration++;
   }
+  omp_destroy_lock(&lock);
   system.energy_var = energy_var_prev;
 }
 
@@ -211,9 +225,10 @@ double Solver<S>::get_energy_pt_pre_dtm() {
   for (size_t i = 0; i < n_var_dets; i++) {
     const Det& var_det = system.get_det(i);
     const double coef = system.coefs[i];
-    const auto& pt_det_handler = [&](const Det& det_a, const double h_ai) {
+    const auto& pt_det_handler = [&](const Det& det_a, const int n_excite) {
       const auto& det_a_code = hps::to_string(det_a);
       if (var_det_strs.count(det_a_code) == 1) return;
+      const double h_ai = system.get_hamiltonian_elem(var_det, det_a, n_excite);
       const double hc = h_ai * coef;
       hc_sums.set(det_a_code, [&](double& value) { value += hc; }, 0.0);
     };
@@ -267,12 +282,13 @@ UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
     for (size_t i = 0; i < n_var_dets; i++) {
       const Det& var_det = system.get_det(i);
       const double coef = system.coefs[i];
-      const auto& pt_det_handler = [&](const Det& det_a, const double h_ai) {
+      const auto& pt_det_handler = [&](const Det& det_a, const int n_excite) {
         const auto& det_a_code = hps::to_string(det_a);
         if (var_det_strs.count(det_a_code) == 1) return;
         const size_t det_a_hash = str_hasher(det_a_code);
         if (det_a_hash % n_procs != proc_id) return;
         if ((det_a_hash / n_procs) % n_batches != batch_id) return;
+        const double h_ai = system.get_hamiltonian_elem(var_det, det_a, n_excite);
         const double hc = h_ai * coef;
         hc_sums.set(det_a_code, [&](double& value) { value += hc; }, 0.0);
         if (std::abs(hc) < eps_pt_pre_dtm) return;
@@ -381,12 +397,13 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
       const double prob = probs[i];
       const Det& var_det = system.get_det(i);
       const double coef = system.coefs[i];
-      const auto& pt_det_handler = [&](const Det& det_a, const double h_ai) {
+      const auto& pt_det_handler = [&](const Det& det_a, const int n_excite) {
         const auto& det_a_code = hps::to_string(det_a);
         if (var_det_strs.count(det_a_code) == 1) return;
         const size_t det_a_hash = str_hasher(det_a_code);
         if (det_a_hash % n_procs != proc_id) return;
         if ((det_a_hash / n_procs) % n_batches != batch_id) return;
+        const double h_ai = system.get_hamiltonian_elem(var_det, det_a, n_excite);
         const double hc = h_ai * coef;
         const double h_aa = system.get_hamiltonian_elem(det_a, det_a, 0);
         const double factor =

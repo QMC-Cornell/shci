@@ -38,22 +38,22 @@ void Integrals::read_fcidump() {
       if (match == "NORB") {
         it++;
         n_orbs = std::stoul(it->str());
-        printf("n_orbs: %u\n", n_orbs);
+        if (Parallel::is_master()) printf("n_orbs: %u\n", n_orbs);
         orb_syms_raw.reserve(n_orbs);
       } else if (match == "NELEC") {
         it++;
         n_elecs = std::stoul(it->str());
-        printf("n_elecs: %u\n", n_elecs);
+        if (Parallel::is_master()) printf("n_elecs: %u\n", n_elecs);
       } else if (match == "ORBSYM") {
         state = State::ORBSYM;
-        printf("orb_sym: ");
+        if (Parallel::is_master()) printf("orb_sym: ");
       } else if (state == State::ORBSYM) {
         const unsigned orb_sym = std::stoul(match);
         orb_syms_raw.push_back(orb_sym);
-        printf("%u ", orb_sym);
+        if (Parallel::is_master()) printf("%u ", orb_sym);
         if (orb_syms_raw.size() == n_orbs) {
           state = State::NONE;
-          printf("\n");
+          if (Parallel::is_master()) printf("\n");
         }
       } else if (match == "&END") {
         state = State::END;
@@ -126,11 +126,13 @@ void Integrals::generate_det_hf() {
       if (irrep_occ_up == 0 && irrep_occ_dn == 0 && j >= n_up && j >= n_dn) break;
     }
   }
-  printf("HF det up: ");
-  for (const unsigned orb : det_hf.up.get_occupied_orbs()) printf("%u ", orb);
-  printf("\nHF det dn: ");
-  for (const unsigned orb : det_hf.dn.get_occupied_orbs()) printf("%u ", orb);
-  printf("\n");
+  if (Parallel::is_master()) {
+    printf("HF det up: ");
+    for (const unsigned orb : det_hf.up.get_occupied_orbs()) printf("%u ", orb);
+    printf("\nHF det dn: ");
+    for (const unsigned orb : det_hf.dn.get_occupied_orbs()) printf("%u ", orb);
+    printf("\n");
+  }
 }
 
 std::vector<double> Integrals::get_orb_energies() const {
@@ -177,12 +179,14 @@ void Integrals::reorder_orbs(const std::vector<double>& orb_energies) {
   }
   orb_sym = std::move(orb_syms_new);
 
-  printf("\nOrbitals reordered by energy:\n");
+  if (Parallel::is_master()) printf("\nOrbitals reordered by energy:\n");
   for (unsigned i = 0; i < n_orbs; i++) {
     orb_order_inv[orb_order[i]] = i;
     const unsigned ori_id = orb_order[i];
     const double orb_energy = orb_energies[ori_id];
-    printf("#%3u: E = %16.12f, sym = %2u, origin #%3u\n", i, orb_energy, orb_sym[i], ori_id);
+    if (Parallel::is_master()) {
+      printf("#%3u: E = %16.12f, sym = %2u, origin #%3u\n", i, orb_energy, orb_sym[i], ori_id);
+    }
   }
 
   // Update HF det.
@@ -200,11 +204,13 @@ void Integrals::reorder_orbs(const std::vector<double>& orb_energies) {
     }
   }
   det_hf = std::move(det_hf_new);
-  printf("HF det up: ");
-  for (const unsigned orb : det_hf.up.get_occupied_orbs()) printf("%u ", orb);
-  printf("\nHF det dn: ");
-  for (const unsigned orb : det_hf.dn.get_occupied_orbs()) printf("%u ", orb);
-  printf("\n");
+  if (Parallel::is_master()) {
+    printf("HF det up: ");
+    for (const unsigned orb : det_hf.up.get_occupied_orbs()) printf("%u ", orb);
+    printf("\nHF det dn: ");
+    for (const unsigned orb : det_hf.dn.get_occupied_orbs()) printf("%u ", orb);
+    printf("\n");
+  }
 
   integrals_1b.clear();
   integrals_2b.clear();

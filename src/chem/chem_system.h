@@ -10,15 +10,16 @@
 
 class ChemSystem : public BaseSystem {
  public:
-  void setup();
+  void setup() override;
 
   void find_connected_dets(
       const Det& det,
       const double eps_max,
       const double eps_min,
-      const std::function<void(const Det&, const double)>& connected_det_handler) const;
+      const std::function<void(const Det&, const int)>& connected_det_handler) const override;
 
-  double get_hamiltonian_elem(const Det& det_i, const Det& det_j, const int n_excite = -1) const;
+  double get_hamiltonian_elem(
+      const Det& det_i, const Det& det_j, const int n_excite) const override;
 
  private:
   unsigned n_orbs;
@@ -56,9 +57,7 @@ class ChemSystem : public BaseSystem {
   double get_one_body_single(const DiffResult& diff_up, const DiffResult& diff_dn) const;
 
   double get_two_body_single(
-      const Det& det_i,
-      const DiffResult& diff_up,
-      const DiffResult& diff_dn) const;
+      const Det& det_i, const DiffResult& diff_up, const DiffResult& diff_dn) const;
 
   double get_two_body_double(const DiffResult& diff_up, const DiffResult& diff_dn) const;
 };
