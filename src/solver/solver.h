@@ -209,7 +209,7 @@ double Solver<S>::get_energy_pt_pre_dtm() {
   Timer::start("search");
 #pragma omp parallel for schedule(dynamic, 5)
   for (size_t i = 0; i < n_var_dets; i++) {
-    const Det var_det = system.get_det(i);
+    const Det& var_det = system.get_det(i);
     const double coef = system.coefs[i];
     const auto& pt_det_handler = [&](const Det& det_a, const double h_ai) {
       const auto& det_a_code = hps::to_string(det_a);
@@ -265,7 +265,7 @@ UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
     Timer::start("search");
 #pragma omp parallel for schedule(dynamic, 5)
     for (size_t i = 0; i < n_var_dets; i++) {
-      const Det var_det = system.get_det(i);
+      const Det& var_det = system.get_det(i);
       const double coef = system.coefs[i];
       const auto& pt_det_handler = [&](const Det& det_a, const double h_ai) {
         const auto& det_a_code = hps::to_string(det_a);
@@ -281,7 +281,7 @@ UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
       system.find_connected_dets(var_det, Util::INF, eps_pt_dtm / std::abs(coef), pt_det_handler);
     }
     if (Parallel::is_master()) {
-      printf("Number of pre dtm pt dets: %'zu\n", hc_sums.get_n_keys());
+      printf("Number of dtm pt dets: %'zu\n", hc_sums.get_n_keys());
     }
     Timer::end();  // search
 
@@ -291,14 +291,18 @@ UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
       const auto& det_a = hps::from_string<Det>(det_a_code);
       const double H_aa = system.get_hamiltonian_elem(det_a, det_a, 0);
       const double hc_sum_pre = hc_sums_pre.get_copy_or_default(det_a_code, 0.0);
-      const double hc_sum_diff = hc_sum - hc_sum_pre;
-      const double contribution = hc_sum_diff * hc_sum_diff / (system.energy_var - H_aa);
+      const double hc_sum_sq_diff = hc_sum * hc_sum - hc_sum_pre * hc_sum_pre;
+      const double contribution = hc_sum_sq_diff / (system.energy_var - H_aa);
 #pragma omp atomic
       energy_pt_dtm_batch += contribution;
     });
     energy_pt_dtm_batches.push_back(energy_pt_dtm_batch);
     energy_pt_dtm.value = Util::avg(energy_pt_dtm_batches) * n_batches;
-    energy_pt_dtm.uncert = Util::stdev(energy_pt_dtm_batches) * sqrt(n_batches);
+    if (batch_id == n_batches - 1) {
+      energy_pt_dtm.uncert = 0.0;
+    } else {
+      energy_pt_dtm.uncert = Util::stdev(energy_pt_dtm_batches) * n_batches / sqrt(batch_id + 1.0);
+    }
     if (Parallel::is_master()) {
       printf("PT dtm correction batch: " ENERGY_FORMAT "\n", energy_pt_dtm_batch);
       printf("PT dtm correction: %s Ha\n", energy_pt_dtm.to_string().c_str());
@@ -310,7 +314,9 @@ UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
     hc_sums.clear();
     Timer::end();  // batch
 
-    if (batch_id >= 3 && energy_pt_dtm.uncert < target_error / 5) break;
+    if (batch_id >= 3 && batch_id < n_batches * 0.8 && energy_pt_dtm.uncert < target_error * 0.2) {
+      break;
+    }
   }
 
   Timer::end();  // dtm
@@ -322,17 +328,111 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
   const double eps_pt_dtm = Config::get<double>("eps_pt_dtm");
   const double eps_pt = Config::get<double>("eps_pt");
   const size_t max_pt_iterations = Config::get<size_t>("max_pt_iterations", 100);
+  omp_hash_map<std::string, double> hc_sums_dtm;
+  omp_hash_map<std::string, double> hc_sums;
+  const size_t n_procs = Parallel::get_n_procs();
+  const size_t proc_id = Parallel::get_proc_id();
+  const size_t n_var_dets = system.get_n_dets();
+  const size_t n_batches = Config::get<size_t>("n_batches_pt_sto");
+  const size_t n_samples = Config::get<size_t>("n_samples_pt_sto");
+  std::vector<double> probs(n_var_dets);
+  std::vector<double> cum_probs(n_var_dets);  // For sampling.
+  std::unordered_map<size_t, unsigned> sample_dets;
+  std::vector<size_t> sample_dets_list;
   size_t iteration = 0;
   const auto& str_hasher = std::hash<std::string>();
   const double target_error = Config::get<double>("target_error", 1.0e-5);
   UncertResult energy_pt_sto;
+  std::vector<double> energy_pt_sto_loops;
+
+  // Contruct probs.
+  double sum_weights = 0.0;
+  for (size_t i = 0; i < n_var_dets; i++) sum_weights += std::abs(system.coefs[i]);
+  for (size_t i = 0; i < n_var_dets; i++) {
+    probs[i] = std::abs(system.coefs[i]) / sum_weights;
+    cum_probs[i] = probs[i];
+    if (i > 0) cum_probs[i] += cum_probs[i - 1];
+  }
+
   Timer::start(Util::str_printf("sto %#.4g", eps_pt));
+  srand(time(NULL));
   while (iteration < max_pt_iterations) {
     Timer::start(Util::str_printf("#%zu", iteration));
-    
+
+    // Generate random sample
+    for (size_t i = 0; i < n_samples; i++) {
+      const double rand_01 = ((double)rand() / (RAND_MAX));
+      const int sample_det_id =
+          std::lower_bound(cum_probs.begin(), cum_probs.end(), rand_01) - cum_probs.begin();
+      if (sample_dets.count(sample_det_id) == 0) sample_dets_list.push_back(sample_det_id);
+      sample_dets[sample_det_id]++;
+    }
+
+    // Select random batch.
+    const size_t batch_id = rand() % n_batches;
+    const size_t n_unique_samples = sample_dets_list.size();
+    double energy_pt_sto_loop = 0.0;
+
+    Timer::start("search");
+#pragma omp parallel for schedule(dynamic, 2)
+    for (size_t sample_id = 0; sample_id < n_unique_samples; sample_id++) {
+      const size_t i = sample_dets_list[sample_id];
+      const double count = static_cast<double>(sample_dets[i]);
+      const double prob = probs[i];
+      const Det& var_det = system.get_det(i);
+      const double coef = system.coefs[i];
+      const auto& pt_det_handler = [&](const Det& det_a, const double h_ai) {
+        const auto& det_a_code = hps::to_string(det_a);
+        if (var_det_strs.count(det_a_code) == 1) return;
+        const size_t det_a_hash = str_hasher(det_a_code);
+        if (det_a_hash % n_procs != proc_id) return;
+        if ((det_a_hash / n_procs) % n_batches != batch_id) return;
+        const double hc = h_ai * coef;
+        const double h_aa = system.get_hamiltonian_elem(det_a, det_a, 0);
+        const double factor =
+            n_batches / ((system.energy_var - h_aa) * n_samples * (n_samples - 1));
+        const double contrib_1 = count * hc / prob * sqrt(-factor);
+        hc_sums.set(det_a_code, [&](double& value) { value += contrib_1; }, 0.0);
+        if (std::abs(hc) < eps_pt_dtm) {
+          const double contrib_2 =
+              (count * (n_samples - 1) / prob - (count * count) / (prob * prob)) * hc * hc * factor;
+#pragma omp atomic
+          energy_pt_sto_loop += contrib_2;
+        } else {
+          hc_sums_dtm.set(det_a_code, [&](double& value) { value += contrib_1; }, 0.0);
+        }
+      };
+      system.find_connected_dets(var_det, Util::INF, eps_pt / std::abs(coef), pt_det_handler);
+    }
+    if (Parallel::is_master()) {
+      printf("Number of sto pt dets: %'zu\n", hc_sums.get_n_keys());
+    }
+    Timer::end();
+    sample_dets.clear();
+    sample_dets_list.clear();
+
+    Timer::start("accumulate");
+    hc_sums.apply([&](const std::string& det_a_code, const double hc_sum) {
+      const double hc_sum_dtm = hc_sums_dtm.get_copy_or_default(det_a_code, 0.0);
+      const double hc_sum_sq_diff = hc_sum * hc_sum - hc_sum_dtm * hc_sum_dtm;
+#pragma omp atomic
+      energy_pt_sto_loop -= hc_sum_sq_diff;
+    });
+    energy_pt_sto_loops.push_back(energy_pt_sto_loop);
+    energy_pt_sto.value = Util::avg(energy_pt_sto_loops);
+    energy_pt_sto.uncert = Util::stdev(energy_pt_sto_loops) / sqrt(iteration + 1.0);
+    if (Parallel::is_master()) {
+      printf("PT sto correction loop: " ENERGY_FORMAT "\n", energy_pt_sto_loop);
+      printf("PT sto correction: %s Ha\n", energy_pt_sto.to_string().c_str());
+      printf("PT sto energy: %s Ha\n", (energy_pt_sto + energy_pt_dtm).to_string().c_str());
+    }
+    Timer::end();
+
+    hc_sums_dtm.clear();
+    hc_sums.clear();
     Timer::end();
     iteration++;
-    if (iteration >= 3 && (energy_pt_sto + energy_pt_dtm).uncert < target_error) {
+    if (iteration >= 5 && (energy_pt_sto + energy_pt_dtm).uncert < target_error) {
       break;
     }
   }
