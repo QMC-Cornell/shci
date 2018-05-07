@@ -21,7 +21,6 @@ TEST(HalfDetTest, SerializeAndParse) {
   half_det.set(1);
   serialized = hps::to_string(half_det);
   EXPECT_EQ(half_det, hps::from_string<HalfDet>(serialized));
-
   half_det.unset(0);
   half_det.set(5);
   serialized = hps::to_string(half_det);
@@ -32,4 +31,3 @@ TEST(HalfDetTest, SerializeAndParse) {
   serialized = hps::to_string(half_det);
   EXPECT_EQ(half_det, hps::from_string<HalfDet>(serialized));
 }
-

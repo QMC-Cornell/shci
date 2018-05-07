@@ -213,7 +213,9 @@ void Integrals::reorder_orbs(const std::vector<double>& orb_energies) {
   }
 
   integrals_1b.clear();
+  integrals_1b.max_load_factor(0.5);
   integrals_2b.clear();
+  integrals_2b.max_load_factor(0.5);
   for (const auto& item : raw_integrals) {
     const unsigned p = std::get<0>(item);
     const unsigned q = std::get<1>(item);
