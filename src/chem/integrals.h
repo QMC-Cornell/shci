@@ -33,7 +33,11 @@ class Integrals {
  private:
   std::unordered_map<size_t, double> integrals_1b;
 
+#ifndef MEM_OPT
+  std::vector<double> integrals_2b;
+#else
   std::unordered_map<size_t, double> integrals_2b;
+#endif
 
   std::vector<std::tuple<unsigned, unsigned, unsigned, unsigned, double>> raw_integrals;
 

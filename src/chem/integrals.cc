@@ -66,6 +66,9 @@ void Integrals::read_fcidump() {
   // Read integrals.
   double integral;
   unsigned p, q, r, s;
+#ifndef MEM_OPT
+  integrals_2b.assign(combine4(n_orbs - 1, n_orbs - 1, n_orbs - 1, n_orbs - 1), 0.0);
+#endif
   while (true) {
     fcidump >> integral >> p >> q >> r >> s;
     if (fcidump.eof()) break;
@@ -214,8 +217,12 @@ void Integrals::reorder_orbs(const std::vector<double>& orb_energies) {
 
   integrals_1b.clear();
   integrals_1b.max_load_factor(0.5);
+#ifndef MEM_OPT
+  integrals_2b.assign(integrals_2b.size(), 0.0);
+#else
   integrals_2b.clear();
   integrals_2b.max_load_factor(0.5);
+#endif
   for (const auto& item : raw_integrals) {
     const unsigned p = std::get<0>(item);
     const unsigned q = std::get<1>(item);
@@ -245,9 +252,13 @@ double Integrals::get_1b(const unsigned p, const unsigned q) const {
 double Integrals::get_2b(
     const unsigned p, const unsigned q, const unsigned r, const unsigned s) const {
   const size_t combined = combine4(p, q, r, s);
+#ifndef MEM_OPT
+  return integrals_2b[combined];
+#else
   const auto& elem_it = integrals_2b.find(combined);
   if (elem_it != integrals_2b.end()) return elem_it->second;
   return 0.0;
+#endif
 }
 
 size_t Integrals::combine2(const size_t a, const size_t b) {
