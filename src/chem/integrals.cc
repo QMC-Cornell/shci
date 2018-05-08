@@ -245,7 +245,8 @@ double Integrals::get_1b(const unsigned p, const unsigned q) const {
 double Integrals::get_2b(
     const unsigned p, const unsigned q, const unsigned r, const unsigned s) const {
   const size_t combined = combine4(p, q, r, s);
-  if (integrals_2b.count(combined) == 1) return integrals_2b.at(combined);
+  const auto& elem_it = integrals_2b.find(combined);
+  if (elem_it != integrals_2b.end()) return elem_it->second;
   return 0.0;
 }
 
