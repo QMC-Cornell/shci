@@ -38,6 +38,7 @@ void Integrals::read_fcidump() {
       if (match == "NORB") {
         it++;
         n_orbs = std::stoul(it->str());
+        HalfDet::n_orbs = n_orbs;
         if (Parallel::is_master()) printf("n_orbs: %u\n", n_orbs);
         orb_syms_raw.reserve(n_orbs);
       } else if (match == "NELEC") {

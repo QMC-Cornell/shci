@@ -16,3 +16,6 @@
 [submodule "lib/omp_hash_map"]
 	path = lib/omp_hash_map
 	url = https://github.com/jl2922/omp_hash_map.git
+[submodule "lib/bitscan"]
+	path = src/bitscan
+	url = https://github.com/psanse/bitscan.git

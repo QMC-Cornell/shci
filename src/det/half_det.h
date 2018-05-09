@@ -3,6 +3,7 @@
 #include <hps/src/hps.h>
 #include <set>
 #include <vector>
+#include "../bitscan/bitscan.h"
 #include "diff_result.h"
 
 class HalfDet {
@@ -19,6 +20,12 @@ class HalfDet {
 
   std::string to_string() const;
 
+  static unsigned n_orbs;
+
+#ifndef LARGE_BASIS
+  HalfDet() { orbs = bitarray(n_orbs); }
+#endif
+
   template <class B>
   void serialize(B& buf) const;
 
@@ -29,10 +36,10 @@ class HalfDet {
  private:
 #endif
 
-#ifdef LARGE_BASIS
-  std::set<unsigned> occ_orbs;
+#ifndef LARGE_BASIS
+  bitarray orbs;
 #else
-  std::vector<bool> orbs;
+  std::set<unsigned> occ_orbs;
 #endif
 
   friend bool operator==(const HalfDet& a, const HalfDet& b);
@@ -81,35 +88,15 @@ void HalfDet::parse(B& buf) {
   unsigned n_elecs_hf;
   std::vector<unsigned> diffs;
   buf >> n_elecs_hf >> diffs;
-  std::vector<unsigned> occ_orbs;
-  orbs.clear();
   if (n_elecs_hf == 0) return;
-  occ_orbs.reserve(n_elecs_hf);
-  unsigned level = 0;
+  orbs.erase_bit();
+  orbs.set_bit(0, n_elecs_hf - 1);
   for (const unsigned diff : diffs) {
     if (diff < n_elecs_hf) {
-      while (level < diff) {
-        occ_orbs.push_back(level);
-        level++;
-      }
-      level++;
+      orbs.erase_bit(diff);
     } else {
-      while (level < n_elecs_hf) {
-        occ_orbs.push_back(level);
-        level++;
-      }
-      occ_orbs.push_back(diff);
+      orbs.set_bit(diff);
     }
-  }
-  while (level < n_elecs_hf) {
-    occ_orbs.push_back(level);
-    level++;
-  }
-  if (orbs.size() <= occ_orbs.back()) {
-    orbs.assign(occ_orbs.back() + 1, false);
-  }
-  for (const auto orb : occ_orbs) {
-    orbs[orb] = true;
   }
 }
 
