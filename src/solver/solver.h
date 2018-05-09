@@ -138,7 +138,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
   while (!converged) {
     eps_prev.resize(n_dets, Util::INF);
     Timer::start(Util::str_printf("#%zu", iteration));
-#pragma omp parallel for schedule(static, 1)
+#pragma omp parallel for schedule(dynamic, 3)
     for (size_t i = 0; i < n_dets; i++) {
       const double coef = system.coefs[i];
       const double eps_min = eps_var / std::abs(coef);
