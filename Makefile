@@ -10,7 +10,7 @@ EXE := shci
 TEST_EXE := shci_test
 
 # Libraries.
-CXXFLAGS := $(CXXFLAGS) -I $(LIB_DIR)/json/include -I $(LIB_DIR)
+CXXFLAGS := $(CXXFLAGS) -I $(LIB_DIR)
 UNAME := $(shell uname)
 ifeq ($(UNAME), Linux)
 	TOOLS_DIR := $(HOME)/tools
@@ -60,7 +60,7 @@ clean:
 	rm -f ./$(EXE)
 	rm -f ./$(TEST_EXE)
 
-$(EXE): $(OBJS) $(MAIN_SRC) $(HEADERS)
+$(EXE): $(OBJS) $(MAIN_SRC) $(HEADERS) $(GPERFTOOLS_DIR)
 	$(CXX) $(CXXFLAGS) $(MAIN_SRC) $(OBJS) -o $(EXE) $(LDLIBS)
 
 $(OBJS): $(BUILD_DIR)/%.o: $(SRC_DIR)/%.cc $(HEADERS)
@@ -80,3 +80,6 @@ $(TEST_LIB): $(BUILD_DIR)/gtest-all.o $(BUILD_DIR)/gmock-all.o
 
 $(TEST_OBJS): $(BUILD_DIR)/%.o: $(SRC_DIR)/%.cc $(HEADERS)
 	mkdir -p $(@D) && $(CXX) $(TEST_CXXFLAGS) -c $< -o $@
+
+$(GPERFTOOLS_DIR):
+	$(warning tcmalloc not found)

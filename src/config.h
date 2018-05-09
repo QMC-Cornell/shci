@@ -3,8 +3,9 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
-#include <nlohmann/json.hpp>
+#include <json/single_include/nlohmann/json.hpp>
 #include <sstream>
+#include "util.h"
 
 class Result;
 
@@ -22,12 +23,16 @@ class Config {
     auto node_ref = std::cref(get_instance().data);
     std::istringstream key_stream(key);
     std::string key_elem;
-    while (std::getline(key_stream, key_elem, '.')) {
-      if (!key_elem.empty()) {
-        node_ref = std::cref(node_ref.get().at(key_elem));
+    try {
+      while (std::getline(key_stream, key_elem, '/')) {
+        if (!key_elem.empty()) {
+          node_ref = std::cref(node_ref.get().at(key_elem));
+        }
       }
+      return node_ref.get().get<T>();
+    } catch (...) {
+      throw std::runtime_error(Util::str_printf("Cannot find '%s' in config.json", key.c_str()));
     }
-    return node_ref.get().get<T>();
   }
 
   template <class T>
@@ -42,7 +47,7 @@ class Config {
  private:
   Config() {
     std::ifstream config_file("config.json");
-    if (!config_file.good()) throw std::runtime_error("cannot load config.json");
+    if (!config_file) throw std::runtime_error("cannot open config.json");
     config_file >> data;
   }
 

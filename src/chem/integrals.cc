@@ -38,22 +38,23 @@ void Integrals::read_fcidump() {
       if (match == "NORB") {
         it++;
         n_orbs = std::stoul(it->str());
-        printf("n_orbs: %u\n", n_orbs);
+        HalfDet::n_orbs = n_orbs;
+        if (Parallel::is_master()) printf("n_orbs: %u\n", n_orbs);
         orb_syms_raw.reserve(n_orbs);
       } else if (match == "NELEC") {
         it++;
         n_elecs = std::stoul(it->str());
-        printf("n_elecs: %u\n", n_elecs);
+        if (Parallel::is_master()) printf("n_elecs: %u\n", n_elecs);
       } else if (match == "ORBSYM") {
         state = State::ORBSYM;
-        printf("orb_sym: ");
+        if (Parallel::is_master()) printf("orb_sym: ");
       } else if (state == State::ORBSYM) {
         const unsigned orb_sym = std::stoul(match);
         orb_syms_raw.push_back(orb_sym);
-        printf("%u ", orb_sym);
+        if (Parallel::is_master()) printf("%u ", orb_sym);
         if (orb_syms_raw.size() == n_orbs) {
           state = State::NONE;
-          printf("\n");
+          if (Parallel::is_master()) printf("\n");
         }
       } else if (match == "&END") {
         state = State::END;
@@ -66,6 +67,9 @@ void Integrals::read_fcidump() {
   // Read integrals.
   double integral;
   unsigned p, q, r, s;
+#ifndef MEM_OPT
+  integrals_2b.assign(combine4(n_orbs - 1, n_orbs - 1, n_orbs - 1, n_orbs - 1), 0.0);
+#endif
   while (true) {
     fcidump >> integral >> p >> q >> r >> s;
     if (fcidump.eof()) break;
@@ -84,7 +88,7 @@ void Integrals::read_fcidump() {
 
 std::vector<unsigned> Integrals::get_adams_syms(const std::vector<int>& orb_syms_raw) const {
   std::vector<unsigned> adams_syms;
-  const auto& point_group = Config::get<std::string>("chem.point_group");
+  const auto& point_group = Config::get<std::string>("chem/point_group");
   if (point_group != "dih") {
     adams_syms.assign(orb_syms_raw.begin(), orb_syms_raw.end());
     return adams_syms;
@@ -95,15 +99,15 @@ std::vector<unsigned> Integrals::get_adams_syms(const std::vector<int>& orb_syms
 }
 
 void Integrals::generate_det_hf() {
-  std::vector<unsigned> irreps = Config::get<std::vector<unsigned>>("chem.irreps");
-  std::vector<unsigned> irrep_occs_up = Config::get<std::vector<unsigned>>("chem.irrep_occs_up");
-  std::vector<unsigned> irrep_occs_dn = Config::get<std::vector<unsigned>>("chem.irrep_occs_dn");
+  std::vector<unsigned> irreps = Config::get<std::vector<unsigned>>("chem/irreps");
+  std::vector<unsigned> irrep_occs_up = Config::get<std::vector<unsigned>>("chem/irrep_occs_up");
+  std::vector<unsigned> irrep_occs_dn = Config::get<std::vector<unsigned>>("chem/irrep_occs_dn");
   n_up = Config::get<unsigned>("n_up");
   n_dn = Config::get<unsigned>("n_dn");
   assert(std::accumulate(irrep_occs_up.begin(), irrep_occs_up.end(), 0u) == n_up);
   assert(std::accumulate(irrep_occs_dn.begin(), irrep_occs_dn.end(), 0u) == n_dn);
   assert(n_up + n_dn == n_elecs);
-  det_hf = Det(n_up, n_dn);
+  det_hf = Det();
   const unsigned n_irreps = irreps.size();
   for (unsigned i = 0; i < n_irreps; i++) {
     const unsigned irrep = irreps[i];
@@ -126,11 +130,13 @@ void Integrals::generate_det_hf() {
       if (irrep_occ_up == 0 && irrep_occ_dn == 0 && j >= n_up && j >= n_dn) break;
     }
   }
-  printf("HF det up: ");
-  for (const unsigned orb : det_hf.up.get_occupied_orbs()) printf("%u ", orb);
-  printf("\nHF det dn: ");
-  for (const unsigned orb : det_hf.dn.get_occupied_orbs()) printf("%u ", orb);
-  printf("\n");
+  if (Parallel::is_master()) {
+    printf("HF det up: ");
+    for (const unsigned orb : det_hf.up.get_occupied_orbs()) printf("%u ", orb);
+    printf("\nHF det dn: ");
+    for (const unsigned orb : det_hf.dn.get_occupied_orbs()) printf("%u ", orb);
+    printf("\n");
+  }
 }
 
 std::vector<double> Integrals::get_orb_energies() const {
@@ -177,16 +183,18 @@ void Integrals::reorder_orbs(const std::vector<double>& orb_energies) {
   }
   orb_sym = std::move(orb_syms_new);
 
-  printf("\nOrbitals reordered by energy:\n");
+  if (Parallel::is_master()) printf("\nOrbitals reordered by energy:\n");
   for (unsigned i = 0; i < n_orbs; i++) {
     orb_order_inv[orb_order[i]] = i;
     const unsigned ori_id = orb_order[i];
     const double orb_energy = orb_energies[ori_id];
-    printf("#%3u: E = %16.12f, sym = %2u, origin #%3u\n", i, orb_energy, orb_sym[i], ori_id);
+    if (Parallel::is_master()) {
+      printf("#%3u: E = %16.12f, sym = %2u, origin #%3u\n", i, orb_energy, orb_sym[i], ori_id);
+    }
   }
 
   // Update HF det.
-  Det det_hf_new = Det(n_up, n_dn);
+  Det det_hf_new = Det();
   for (unsigned i = 0; i < n_orbs; i++) {
     if (det_hf.up.has(orb_order[i])) {
       det_hf_new.up.set(i);
@@ -200,14 +208,22 @@ void Integrals::reorder_orbs(const std::vector<double>& orb_energies) {
     }
   }
   det_hf = std::move(det_hf_new);
-  printf("HF det up: ");
-  for (const unsigned orb : det_hf.up.get_occupied_orbs()) printf("%u ", orb);
-  printf("\nHF det dn: ");
-  for (const unsigned orb : det_hf.dn.get_occupied_orbs()) printf("%u ", orb);
-  printf("\n");
+  if (Parallel::is_master()) {
+    printf("HF det up: ");
+    for (const unsigned orb : det_hf.up.get_occupied_orbs()) printf("%u ", orb);
+    printf("\nHF det dn: ");
+    for (const unsigned orb : det_hf.dn.get_occupied_orbs()) printf("%u ", orb);
+    printf("\n");
+  }
 
   integrals_1b.clear();
+  integrals_1b.max_load_factor(0.5);
+#ifndef MEM_OPT
+  integrals_2b.assign(integrals_2b.size(), 0.0);
+#else
   integrals_2b.clear();
+  integrals_2b.max_load_factor(0.5);
+#endif
   for (const auto& item : raw_integrals) {
     const unsigned p = std::get<0>(item);
     const unsigned q = std::get<1>(item);
@@ -237,8 +253,13 @@ double Integrals::get_1b(const unsigned p, const unsigned q) const {
 double Integrals::get_2b(
     const unsigned p, const unsigned q, const unsigned r, const unsigned s) const {
   const size_t combined = combine4(p, q, r, s);
-  if (integrals_2b.count(combined) == 1) return integrals_2b.at(combined);
+#ifndef MEM_OPT
+  return integrals_2b[combined];
+#else
+  const auto& elem_it = integrals_2b.find(combined);
+  if (elem_it != integrals_2b.end()) return elem_it->second;
   return 0.0;
+#endif
 }
 
 size_t Integrals::combine2(const size_t a, const size_t b) {

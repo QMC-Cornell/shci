@@ -1,115 +1,137 @@
 #include "half_det.h"
 
+unsigned HalfDet::n_orbs;
+
+#ifndef LARGE_BASIS
+
 std::vector<unsigned> HalfDet::get_occupied_orbs() const {
-  std::vector<unsigned> occupied_orbs;
-  occupied_orbs.reserve(n_elecs_hf);
-  unsigned level = 0;
-  for (unsigned orb : orbs_from) {
-    while (level < orb) occupied_orbs.push_back(level++);
-    level++;
-  }
-  while (level < n_elecs_hf) occupied_orbs.push_back(level++);
-  for (unsigned orb : orbs_to) occupied_orbs.push_back(orb);
-  return occupied_orbs;
-}
-
-void HalfDet::set(const unsigned orb) {
-  if (orb < n_elecs_hf) {
-    orbs_from.erase(orb);
-  } else {
-    orbs_to.insert(orb);
-  }
-}
-
-void HalfDet::unset(const unsigned orb) {
-  if (orb < n_elecs_hf) {
-    orbs_from.insert(orb);
-  } else {
-    orbs_to.erase(orb);
-  }
-}
-
-bool HalfDet::has(const unsigned orb) const {
-  if (orb < n_elecs_hf) {
-    return orbs_from.count(orb) == 0;
-  } else {
-    return orbs_to.count(orb) == 1;
-  }
-}
-
-std::pair<std::vector<unsigned>, std::vector<unsigned>> HalfDet::diff(const HalfDet& det) const {
-  assert(n_elecs_hf == det.n_elecs_hf);
-  auto diff_orbs_from = diff_set(det.orbs_from, orbs_from);
-  const auto& diff_orbs_to = diff_set(orbs_to, det.orbs_to);
-  diff_orbs_from.first.insert(
-      diff_orbs_from.first.end(), diff_orbs_to.first.begin(), diff_orbs_to.first.end());
-  diff_orbs_from.second.insert(
-      diff_orbs_from.second.end(), diff_orbs_to.second.begin(), diff_orbs_to.second.end());
-  return diff_orbs_from;
-}
-
-std::pair<std::vector<unsigned>, std::vector<unsigned>> HalfDet::diff_set(
-    const std::set<unsigned>& a, const std::set<unsigned>& b) const {
-  std::pair<std::vector<unsigned>, std::vector<unsigned>> res;
-  auto a_it = a.begin();
-  auto b_it = b.begin();
-  while (a_it != a.end() && b_it != b.end()) {
-    if (*a_it < *b_it) {
-      res.first.push_back(*a_it);
-      a_it++;
-    } else if (*a_it > *b_it) {
-      res.second.push_back(*b_it);
-      b_it++;
-    } else {
-      a_it++;
-      b_it++;
-    }
-  }
-  while (a_it != a.end()) {
-    res.first.push_back(*a_it);
-    a_it++;
-  }
-  while (b_it != b.end()) {
-    res.second.push_back(*b_it);
-    b_it++;
+  std::vector<unsigned> res;
+  bitarray orbs_copy(orbs);
+  orbs_copy.init_scan(bbo::DESTRUCTIVE);
+  // // orbs.init_scan(bbo::NON_DESTRUCTIVE);
+  while (true) {
+    const auto next_bit = orbs_copy.next_bit();
+    // printf("%d n\n", next_bit);
+  //   // const auto next_bit = orbs.next_bit();
+    if (next_bit == EMPTY_ELEM) break;
+    res.push_back(next_bit);
   }
   return res;
 }
 
-bool operator==(const HalfDet& a, const HalfDet& b) {
-  if (a.n_elecs_hf != b.n_elecs_hf) return false;
-  return (a.orbs_from == b.orbs_from && a.orbs_to == b.orbs_to);
+HalfDet& HalfDet::set(const unsigned orb) {
+  orbs.set_bit(orb);
+  return *this;
 }
 
-// std::vector<unsigned> HalfDet::get_diff_orbs(const HalfDet& det) const {
-//   assert(n_elecs_hf == det.n_elecs_hf);
-//   auto diff_orbs = get_set_diff(orbs_from, det.orbs_from);
-//   const auto& orbs_to_diff = get_set_diff(orbs_to, det.orbs_to);
-//   diff_orbs.reserve(diff_orbs.size() + orbs_to_diff.size());
-//   diff_orbs.insert(diff_orbs.end(), orbs_to_diff.begin(), orbs_to_diff.end());
-//   return diff_orbs;
-// }
+HalfDet& HalfDet::unset(const unsigned orb) {
+  orbs.erase_bit(orb);
+  return *this;
+}
 
-// std::vector<unsigned> HalfDet::get_set_diff(
-//     const std::set<unsigned>& a, const std::set<unsigned>& b) const {
-//   std::vector<unsigned> set_diff;
-//   auto a_it = a.begin();
-//   auto b_it = b.begin();
-//   while (a_it != a.end() && b_it != b.end()) {
-//     while (*a_it < *b_it) {
-//       set_diff.push_back(*a_it);
-//       a_it++;
-//     }
-//     while (*a_it > *b_it) {
-//       set_diff.push_back(*b_it);
-//       b_it++;
-//     }
-//     while (*a_it == *b_it) {
-//       a_it++;
-//       b_it++;
-//     }
-//   }
-//   while (a_it != a.end()) set_diff.push_back(*a_it);
-//   while (b_it != b.end()) set_diff.push_back(*b_it);
-//   return set_diff;
-// }
+bool HalfDet::has(const unsigned orb) const { return orbs.is_bit(orb); }
+
+std::string HalfDet::to_string() const {
+  std::string res = "";
+  for (size_t i = 0; i < n_orbs; i++) {
+    if (orbs.is_bit(i)) {
+      res = res + " " + std::to_string(i);
+    }
+  }
+  return res;
+}
+
+bool operator==(const HalfDet& a, const HalfDet& b) { return a.orbs == b.orbs; }
+
+bool operator!=(const HalfDet& a, const HalfDet& b) { return !(a == b); }
+
+bool operator<(const HalfDet& a, const HalfDet& b) {
+  return a.get_occupied_orbs() < b.get_occupied_orbs();
+}
+
+bool operator>(const HalfDet& a, const HalfDet& b) { return !(a < b); }
+
+#else
+
+std::vector<unsigned> HalfDet::get_occupied_orbs() const {
+  std::vector<unsigned> res;
+  res.reserve(occ_orbs.size());
+  for (unsigned orb : occ_orbs) {
+    res.push_back(orb);
+  }
+  return res;
+}
+
+HalfDet& HalfDet::set(const unsigned orb) {
+  occ_orbs.insert(orb);
+  return *this;
+}
+
+HalfDet& HalfDet::unset(const unsigned orb) {
+  occ_orbs.erase(orb);
+  return *this;
+}
+
+bool HalfDet::has(const unsigned orb) const { return occ_orbs.count(orb) == 1; }
+
+std::string HalfDet::to_string() const {
+  std::string res = "";
+  for (unsigned orb : occ_orbs) res = res + " " + std::to_string(orb);
+  return res;
+}
+
+bool operator==(const HalfDet& a, const HalfDet& b) { return a.occ_orbs == b.occ_orbs; }
+
+bool operator!=(const HalfDet& a, const HalfDet& b) { return !(a == b); }
+
+bool operator<(const HalfDet& a, const HalfDet& b) { return a.occ_orbs < b.occ_orbs; }
+
+bool operator>(const HalfDet& a, const HalfDet& b) { return !(a < b); }
+
+#endif
+
+DiffResult HalfDet::diff(const HalfDet& det) const {
+  // assert(n_elecs_hf == det.n_elecs_hf);
+  DiffResult res;
+  unsigned n_elecs_left = 0;
+  unsigned n_elecs_right = 0;
+#ifndef LARGE_BASIS
+  const auto& occ_orbs = get_occupied_orbs();
+#endif
+  const auto& det_occ_orbs = det.get_occupied_orbs();
+  auto orbs_it_left = occ_orbs.begin();
+  auto orbs_it_right = det_occ_orbs.begin();
+  unsigned permutation_factor_helper = 0;
+  while (orbs_it_left != occ_orbs.end() && orbs_it_right != det_occ_orbs.end()) {
+    if (*orbs_it_left < *orbs_it_right) {
+      res.leftOnly.push_back(*orbs_it_left);
+      permutation_factor_helper += n_elecs_left;
+      orbs_it_left++;
+      n_elecs_left++;
+    } else if (*orbs_it_left > *orbs_it_right) {
+      res.rightOnly.push_back(*orbs_it_right);
+      permutation_factor_helper += n_elecs_right;
+      orbs_it_right++;
+      n_elecs_right++;
+    } else {
+      orbs_it_left++;
+      orbs_it_right++;
+      n_elecs_left++;
+      n_elecs_right++;
+    }
+  }
+  while (orbs_it_left != occ_orbs.end()) {
+    res.leftOnly.push_back(*orbs_it_left);
+    permutation_factor_helper += n_elecs_left;
+    orbs_it_left++;
+    n_elecs_left++;
+  }
+  while (orbs_it_right != det_occ_orbs.end()) {
+    res.rightOnly.push_back(*orbs_it_right);
+    permutation_factor_helper += n_elecs_right;
+    orbs_it_right++;
+    n_elecs_right++;
+  }
+  res.permutation_factor = (permutation_factor_helper & 1) == 1 ? -1 : 1;
+  return res;
+}

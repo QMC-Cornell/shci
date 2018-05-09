@@ -3,7 +3,7 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
-#include <nlohmann/json.hpp>
+#include <json/single_include/nlohmann/json.hpp>
 
 class Result {
  public:
@@ -18,11 +18,37 @@ class Result {
   }
 
   template <class T>
+  static T get(const std::string& key) {
+    auto node_ref = std::cref(get_instance().data);
+    std::istringstream key_stream(key);
+    std::string key_elem;
+    try {
+      while (std::getline(key_stream, key_elem, '/')) {
+        if (!key_elem.empty()) {
+          node_ref = std::cref(node_ref.get().at(key_elem));
+        }
+      }
+      return node_ref.get().get<T>();
+    } catch (...) {
+      throw std::runtime_error(Util::str_printf("Cannot find '%s' in config.json", key.c_str()));
+    }
+  }
+
+  template <class T>
+  static T get(const std::string& key, const T& default_value) {
+    try {
+      return get<T>(key);
+    } catch (...) {
+      return default_value;
+    }
+  }
+
+  template <class T>
   static void put(const std::string& key, const T& value) {
     auto node_ref = std::ref(get_instance().data);
     std::istringstream key_stream(key);
     std::string key_elem;
-    while (std::getline(key_stream, key_elem, '.')) {
+    while (std::getline(key_stream, key_elem, '/')) {
       if (!key_elem.empty()) {
         node_ref = std::ref(node_ref.get()[key_elem]);
       }
@@ -31,7 +57,13 @@ class Result {
   }
 
  private:
-  Result() { data["config"] = Config::get_instance().data; }
+  Result() {
+    std::ifstream result_file("result.json");
+    if (result_file) {
+      result_file >> data;
+    }
+    data["config"] = Config::get_instance().data;
+  }
 
   nlohmann::json data;
 };

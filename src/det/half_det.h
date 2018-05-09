@@ -2,59 +2,134 @@
 
 #include <hps/src/hps.h>
 #include <set>
+#include <vector>
+#include "../bitscan/bitscan.h"
+#include "diff_result.h"
 
 class HalfDet {
  public:
-  HalfDet(const unsigned n_elecs_hf = 0) : n_elecs_hf(n_elecs_hf) {}
-
   std::vector<unsigned> get_occupied_orbs() const;
 
-  void set(const unsigned orb);
+  HalfDet& set(const unsigned orb);
 
-  void unset(const unsigned orb);
+  HalfDet& unset(const unsigned orb);
 
   bool has(const unsigned orb) const;
 
-  std::pair<std::vector<unsigned>, std::vector<unsigned>> diff(const HalfDet& det) const;
+  DiffResult diff(const HalfDet& det) const;
+
+  std::string to_string() const;
+
+  static unsigned n_orbs;
+
+#ifndef LARGE_BASIS
+  HalfDet() {
+    orbs = bitarray(n_orbs);
+  }
+#endif
 
   template <class B>
-  void serialize(hps::OutputBuffer<B>& buf) const;
+  void serialize(B& buf) const;
 
   template <class B>
-  void parse(hps::InputBuffer<B>& buf);
+  void parse(B& buf);
 
+#ifndef DEBUG
  private:
-  unsigned n_elecs_hf;
+#endif
 
-  std::set<unsigned> orbs_from;
-
-  std::set<unsigned> orbs_to;
-
-  std::pair<std::vector<unsigned>, std::vector<unsigned>> diff_set(
-      const std::set<unsigned>& a, const std::set<unsigned>& b) const;
+#ifndef LARGE_BASIS
+  bitarray orbs;
+#else
+  std::set<unsigned> occ_orbs;
+#endif
 
   friend bool operator==(const HalfDet& a, const HalfDet& b);
+
+  friend bool operator!=(const HalfDet& a, const HalfDet& b);
+
+  friend bool operator<(const HalfDet& a, const HalfDet& b);
+
+  friend bool operator>(const HalfDet& a, const HalfDet& b);
 };
 
 template <class B>
-void HalfDet::serialize(hps::OutputBuffer<B>& buf) const {
-  hps::Serializer<unsigned, B>::serialize(n_elecs_hf, buf);
-  hps::Serializer<std::set<unsigned>, B>::serialize(orbs_from, buf);
-  hps::Serializer<std::set<unsigned>, B>::serialize(orbs_to, buf);
+void HalfDet::serialize(B& buf) const {
+#ifndef LARGE_BASIS
+  const auto& occ_orbs = get_occupied_orbs();
+#endif
+  unsigned n_elecs_hf = occ_orbs.size();
+  unsigned level = 0;
+  std::vector<unsigned> diffs;
+  for (const unsigned orb : occ_orbs) {
+    if (orb < n_elecs_hf) {
+      while (level < orb) {
+        diffs.push_back(level);
+        level++;
+      }
+      level++;
+    } else {
+      while (level < n_elecs_hf) {
+        diffs.push_back(level);
+        level++;
+      }
+      diffs.push_back(orb);
+    }
+  }
+  while (level < n_elecs_hf) {
+    diffs.push_back(level);
+    level++;
+  }
+  buf << n_elecs_hf << diffs;
 }
 
+#ifndef LARGE_BASIS
+
 template <class B>
-void HalfDet::parse(hps::InputBuffer<B>& buf) {
-  hps::Serializer<unsigned, B>::parse(n_elecs_hf, buf);
-  hps::Serializer<std::set<unsigned>, B>::parse(orbs_from, buf);
-  hps::Serializer<std::set<unsigned>, B>::parse(orbs_to, buf);
+void HalfDet::parse(B& buf) {
+  unsigned n_elecs_hf;
+  std::vector<unsigned> diffs;
+  buf >> n_elecs_hf >> diffs;
+  if (n_elecs_hf == 0) return;
+  orbs.erase_bit();
+  orbs.set_bit(0, n_elecs_hf - 1);
+  for (const unsigned diff : diffs) {
+    if (diff < n_elecs_hf) {
+      orbs.erase_bit(diff);
+    } else {
+      orbs.set_bit(diff);
+    }
+  }
 }
 
-namespace hps {
+#else
+
 template <class B>
-class Serializer<HalfDet, B> {
- public:
-  static void serialize(const HalfDet& det, OutputBuffer<B>& buf) { det.serialize(buf); }
-  static void parse(HalfDet& det, InputBuffer<B>& buf) { det.parse(buf); }
-};
-}  // namespace hps
+void HalfDet::parse(B& buf) {
+  unsigned n_elecs_hf;
+  std::vector<unsigned> diffs;
+  buf >> n_elecs_hf >> diffs;
+  occ_orbs.clear();
+  unsigned level = 0;
+  for (const unsigned diff : diffs) {
+    if (diff < n_elecs_hf) {
+      while (level < diff) {
+        occ_orbs.insert(level);
+        level++;
+      }
+      level++;
+    } else {
+      while (level < n_elecs_hf) {
+        occ_orbs.insert(level);
+        level++;
+      }
+      occ_orbs.insert(diff);
+    }
+  }
+  while (level < n_elecs_hf) {
+    occ_orbs.insert(level);
+    level++;
+  }
+}
+
+#endif

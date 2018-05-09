@@ -1,6 +1,6 @@
 #pragma once
 
-class HRS {
+class Hrs {
  public:
   double H;
 
@@ -8,5 +8,5 @@ class HRS {
 
   unsigned s;
 
-  HRS(const double H, const unsigned r, const unsigned s) : H(H), r(r), s(s) {}
+  Hrs(const double H, const unsigned r, const unsigned s) : H(H), r(r), s(s) {}
 };
