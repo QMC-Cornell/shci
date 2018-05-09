@@ -25,9 +25,6 @@ class HalfDet {
 #ifndef LARGE_BASIS
   HalfDet() {
     orbs = bitarray(n_orbs);
-    bitarray test(333);
-    orbs = test;
-    // printf("n blocks %d\n", orbs.number_of_bitblocks());
   }
 #endif
 
