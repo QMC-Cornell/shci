@@ -23,7 +23,12 @@ class HalfDet {
   static unsigned n_orbs;
 
 #ifndef LARGE_BASIS
-  HalfDet() { orbs = bitarray(n_orbs); }
+  HalfDet() {
+    orbs = bitarray(n_orbs);
+    bitarray test(333);
+    orbs = test;
+    // printf("n blocks %d\n", orbs.number_of_bitblocks());
+  }
 #endif
 
   template <class B>

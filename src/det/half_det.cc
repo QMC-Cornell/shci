@@ -8,8 +8,11 @@ std::vector<unsigned> HalfDet::get_occupied_orbs() const {
   std::vector<unsigned> res;
   bitarray orbs_copy(orbs);
   orbs_copy.init_scan(bbo::DESTRUCTIVE);
+  // // orbs.init_scan(bbo::NON_DESTRUCTIVE);
   while (true) {
-    const auto next_bit = orbs_copy.next_bit_del();
+    const auto next_bit = orbs_copy.next_bit();
+    // printf("%d n\n", next_bit);
+  //   // const auto next_bit = orbs.next_bit();
     if (next_bit == EMPTY_ELEM) break;
     res.push_back(next_bit);
   }
