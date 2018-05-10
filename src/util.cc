@@ -48,3 +48,7 @@ double Util::stdev(const std::vector<double>& vec) {
   const double n = vec.size();
   return sqrt((sq_sum - sum * sum / n) / (n - 1));
 }
+
+int Util::ctz(const unsigned long long num) { return __builtin_ctzll(num); }
+
+int Util::popcnt(const unsigned long long num) { return __builtin_popcountll(num); }

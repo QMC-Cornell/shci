@@ -23,6 +23,10 @@ class Util {
 
   static double stdev(const std::vector<double>& vec);
 
+  static int ctz(const unsigned long long num);
+
+  static int popcnt(const unsigned long long num);
+
   template <class T1, class T2>
   static void sort_by_first(std::vector<T1>& v1, std::vector<T2>& v2);
 

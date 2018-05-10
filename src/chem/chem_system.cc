@@ -12,8 +12,6 @@ void ChemSystem::setup() {
   n_dn = Config::get<unsigned>("n_dn");
   n_elecs = n_up + n_dn;
   Result::put("n_elecs", n_elecs);
-  time_sym = Config::get<bool>("time_sym", false);
-  z = Config::get<int>("z", 1);
 
   point_group = get_point_group(Config::get<std::string>("chem/point_group"));
   product_table.set_point_group(point_group);
@@ -28,21 +26,12 @@ void ChemSystem::setup() {
   setup_hci_queue();
   Timer::end();
 
-  det_strs.push_back(hps::to_string(integrals.det_hf));
+  dets.push_back(integrals.det_hf);
   coefs.push_back(1.0);
   energy_hf = get_hamiltonian_elem(integrals.det_hf, integrals.det_hf, 0);
   if (Parallel::is_master()) {
     printf("HF energy: " ENERGY_FORMAT "\n", energy_hf);
   }
-}
-
-PointGroup ChemSystem::get_point_group(const std::string& str) const {
-  if (Util::str_equals_ci("D2h", str)) {
-    return PointGroup::D2h;
-  } else if (Util::str_equals_ci("Dooh", str) || Util::str_equals_ci("Dih", str)) {
-    return PointGroup::Dooh;
-  }
-  return PointGroup::None;
 }
 
 void ChemSystem::setup_hci_queue() {
@@ -115,6 +104,15 @@ void ChemSystem::setup_hci_queue() {
   }
 }
 
+PointGroup ChemSystem::get_point_group(const std::string& str) const {
+  if (Util::str_equals_ci("D2h", str)) {
+    return PointGroup::D2h;
+  } else if (Util::str_equals_ci("Dooh", str) || Util::str_equals_ci("Dih", str)) {
+    return PointGroup::Dooh;
+  }
+  return PointGroup::None;
+}
+
 double ChemSystem::get_hci_queue_elem(
     const unsigned p, const unsigned q, const unsigned r, const unsigned s) {
   if (p == q || r == s || p == r || q == s || p == s || q == r) return 0.0;
@@ -123,144 +121,126 @@ double ChemSystem::get_hci_queue_elem(
   if (p < n_orbs && q < n_orbs) {
     assert(r < n_orbs);
     assert(s < n_orbs);
-    diff_up.leftOnly.push_back(p);
-    diff_up.leftOnly.push_back(q);
-    diff_up.rightOnly.push_back(r);
-    diff_up.rightOnly.push_back(s);
+    diff_up.leftOnly[0] = p;
+    diff_up.leftOnly[1] = q;
+    diff_up.rightOnly[0] = r;
+    diff_up.rightOnly[1] = s;
+    diff_up.n_diffs = 2;
   } else if (p < n_orbs && q >= n_orbs) {
     assert(r < n_orbs);
     assert(s >= n_orbs);
-    diff_up.leftOnly.push_back(p);
-    diff_dn.leftOnly.push_back(q - n_orbs);
-    diff_up.rightOnly.push_back(r);
-    diff_dn.rightOnly.push_back(s - n_orbs);
+    diff_up.leftOnly[0] = p;
+    diff_dn.leftOnly[0] = q - n_orbs;
+    diff_up.rightOnly[0] = r;
+    diff_dn.rightOnly[0] = s - n_orbs;
+    diff_up.n_diffs = 1;
+    diff_dn.n_diffs = 1;
   } else {
     throw std::runtime_error("impossible pqrs for getting hci queue elem");
   }
   return std::abs(get_two_body_double(diff_up, diff_dn));
 }
 
-void ChemSystem::find_connected_dets(
-    const Det& det,
-    const double eps_max_in,
-    const double eps_min_in,
-    const std::function<void(const Det&, const int)>& connected_det_handler) const {
-  const double eps_max = time_sym ? eps_max_in * Util::SQRT2 : eps_max_in;
-  const double eps_min = time_sym ? eps_min_in * Util::SQRT2 : eps_min_in;
-  if (eps_max < eps_min) return;
+// void ChemSystem::find_connected_dets(
+//     const Det& det,
+//     const double eps_max_in,
+//     const double eps_min_in,
+//     const std::function<void(const Det&, const int)>& connected_det_handler) const {
+//   const double eps_max = time_sym ? eps_max_in * Util::SQRT2 : eps_max_in;
+//   const double eps_min = time_sym ? eps_min_in * Util::SQRT2 : eps_min_in;
+//   if (eps_max < eps_min) return;
 
-  auto occ_orbs_up = det.up.get_occupied_orbs();
-  auto occ_orbs_dn = det.dn.get_occupied_orbs();
+//   auto occ_orbs_up = det.up.get_occupied_orbs();
+//   auto occ_orbs_dn = det.dn.get_occupied_orbs();
 
-  const auto& prospective_det_handler = [&](Det& connected_det, const int n_excite) {
-    if (time_sym) {
-      if (connected_det.up == connected_det.dn && z < 0) return;
-      if (connected_det.up == det.dn && connected_det.dn == det.up) return;
-    }
-    if (n_excite == 1) {
-      const double matrix_elem = get_hamiltonian_elem(det, connected_det, n_excite);
-      if (std::abs(matrix_elem) >= eps_max || std::abs(matrix_elem) < eps_min) return;
-    }
-    if (time_sym) {
-      if (connected_det.up > connected_det.dn) {
-        HalfDet tmp_up = connected_det.up;
-        connected_det.up = connected_det.dn;
-        connected_det.dn = tmp_up;
-      }
-    }
-    connected_det_handler(connected_det, n_excite);
-  };
+//   const auto& prospective_det_handler = [&](Det& connected_det, const int n_excite) {
+//     if (time_sym) {
+//       if (connected_det.up == connected_det.dn && z < 0) return;
+//       if (connected_det.up == det.dn && connected_det.dn == det.up) return;
+//     }
+//     if (n_excite == 1) {
+//       const double matrix_elem = get_hamiltonian_elem(det, connected_det, n_excite);
+//       if (std::abs(matrix_elem) >= eps_max || std::abs(matrix_elem) < eps_min) return;
+//     }
+//     if (time_sym) {
+//       if (connected_det.up > connected_det.dn) {
+//         HalfDet tmp_up = connected_det.up;
+//         connected_det.up = connected_det.dn;
+//         connected_det.dn = tmp_up;
+//       }
+//     }
+//     connected_det_handler(connected_det, n_excite);
+//   };
 
-  // Add single excitations.
-  for (unsigned p_id = 0; p_id < n_elecs; p_id++) {
-    const unsigned p = p_id < n_up ? occ_orbs_up[p_id] : occ_orbs_dn[p_id - n_up];
-    const unsigned sym_p = orb_sym[p];
-    for (unsigned r = 0; r < n_orbs; r++) {
-      if (p_id < n_up) {
-        if (det.up.has(r)) continue;
-      } else {
-        if (det.dn.has(r)) continue;
-      }
-      if (orb_sym[r] != sym_p) continue;
-      Det connected_det = det;
-      if (p_id < n_up) {
-        connected_det.up.unset(p).set(r);
-      } else {
-        connected_det.dn.unset(p).set(r);
-      }
-      prospective_det_handler(connected_det, 1);
-    }
-  }
+//   // Add single excitations.
+//   for (unsigned p_id = 0; p_id < n_elecs; p_id++) {
+//     const unsigned p = p_id < n_up ? occ_orbs_up[p_id] : occ_orbs_dn[p_id - n_up];
+//     const unsigned sym_p = orb_sym[p];
+//     for (unsigned r = 0; r < n_orbs; r++) {
+//       if (p_id < n_up) {
+//         if (det.up.has(r)) continue;
+//       } else {
+//         if (det.dn.has(r)) continue;
+//       }
+//       if (orb_sym[r] != sym_p) continue;
+//       Det connected_det = det;
+//       if (p_id < n_up) {
+//         connected_det.up.unset(p).set(r);
+//       } else {
+//         connected_det.dn.unset(p).set(r);
+//       }
+//       prospective_det_handler(connected_det, 1);
+//     }
+//   }
 
-  // Add double excitations.
-  if (eps_min > max_hci_queue_elem) return;
-  for (unsigned p_id = 0; p_id < n_elecs; p_id++) {
-    for (unsigned q_id = p_id + 1; q_id < n_elecs; q_id++) {
-      const unsigned p = p_id < n_up ? occ_orbs_up[p_id] : occ_orbs_dn[p_id - n_up] + n_orbs;
-      const unsigned q = q_id < n_up ? occ_orbs_up[q_id] : occ_orbs_dn[q_id - n_up] + n_orbs;
-      double p2 = p;
-      double q2 = q;
-      if (p >= n_orbs && q >= n_orbs) {
-        p2 -= n_orbs;
-        q2 -= n_orbs;
-      } else if (p < n_orbs && q >= n_orbs && p > q - n_orbs) {
-        p2 = q - n_orbs;
-        q2 = p + n_orbs;
-      }
-      const unsigned pq = Integrals::combine2(p2, q2);
-      for (const auto& hrs : hci_queue.at(pq)) {
-        const double H = hrs.H;
-        if (H < eps_min) break;
-        if (H >= eps_max) continue;
-        unsigned r = hrs.r;
-        unsigned s = hrs.s;
-        if (p >= n_orbs && q >= n_orbs) {
-          r += n_orbs;
-          s += n_orbs;
-        } else if (p < n_orbs && q >= n_orbs && p > q - n_orbs) {
-          const unsigned tmp_r = s - n_orbs;
-          s = r + n_orbs;
-          r = tmp_r;
-        }
-        const bool occ_r = r < n_orbs ? det.up.has(r) : det.dn.has(r - n_orbs);
-        if (occ_r) continue;
-        const bool occ_s = s < n_orbs ? det.up.has(s) : det.dn.has(s - n_orbs);
-        if (occ_s) continue;
-        Det connected_det = det;
-        p < n_orbs ? connected_det.up.unset(p) : connected_det.dn.unset(p - n_orbs);
-        q < n_orbs ? connected_det.up.unset(q) : connected_det.dn.unset(q - n_orbs);
-        r < n_orbs ? connected_det.up.set(r) : connected_det.dn.set(r - n_orbs);
-        s < n_orbs ? connected_det.up.set(s) : connected_det.dn.set(s - n_orbs);
-        prospective_det_handler(connected_det, 2);
-      }
-    }
-  }
-}
+//   // Add double excitations.
+//   if (eps_min > max_hci_queue_elem) return;
+//   for (unsigned p_id = 0; p_id < n_elecs; p_id++) {
+//     for (unsigned q_id = p_id + 1; q_id < n_elecs; q_id++) {
+//       const unsigned p = p_id < n_up ? occ_orbs_up[p_id] : occ_orbs_dn[p_id - n_up] + n_orbs;
+//       const unsigned q = q_id < n_up ? occ_orbs_up[q_id] : occ_orbs_dn[q_id - n_up] + n_orbs;
+//       double p2 = p;
+//       double q2 = q;
+//       if (p >= n_orbs && q >= n_orbs) {
+//         p2 -= n_orbs;
+//         q2 -= n_orbs;
+//       } else if (p < n_orbs && q >= n_orbs && p > q - n_orbs) {
+//         p2 = q - n_orbs;
+//         q2 = p + n_orbs;
+//       }
+//       const unsigned pq = Integrals::combine2(p2, q2);
+//       for (const auto& hrs : hci_queue.at(pq)) {
+//         const double H = hrs.H;
+//         if (H < eps_min) break;
+//         if (H >= eps_max) continue;
+//         unsigned r = hrs.r;
+//         unsigned s = hrs.s;
+//         if (p >= n_orbs && q >= n_orbs) {
+//           r += n_orbs;
+//           s += n_orbs;
+//         } else if (p < n_orbs && q >= n_orbs && p > q - n_orbs) {
+//           const unsigned tmp_r = s - n_orbs;
+//           s = r + n_orbs;
+//           r = tmp_r;
+//         }
+//         const bool occ_r = r < n_orbs ? det.up.has(r) : det.dn.has(r - n_orbs);
+//         if (occ_r) continue;
+//         const bool occ_s = s < n_orbs ? det.up.has(s) : det.dn.has(s - n_orbs);
+//         if (occ_s) continue;
+//         Det connected_det = det;
+//         p < n_orbs ? connected_det.up.unset(p) : connected_det.dn.unset(p - n_orbs);
+//         q < n_orbs ? connected_det.up.unset(q) : connected_det.dn.unset(q - n_orbs);
+//         r < n_orbs ? connected_det.up.set(r) : connected_det.dn.set(r - n_orbs);
+//         s < n_orbs ? connected_det.up.set(s) : connected_det.dn.set(s - n_orbs);
+//         prospective_det_handler(connected_det, 2);
+//       }
+//     }
+//   }
+// }
 
 double ChemSystem::get_hamiltonian_elem(
     const Det& det_i, const Det& det_j, const int n_excite) const {
-  if (!time_sym) return get_hamiltonian_elem_no_time_sym(det_i, det_j, n_excite);
-  double norm_ket_inv = 1.0;
-  double norm_bra = 1.0;
-  bool check = true;
-  if (det_j.up == det_j.dn) norm_ket_inv = Util::SQRT2_INV;
-  if (det_i.up == det_i.dn) {
-    norm_bra = Util::SQRT2;
-    check = false;
-  }
-  const double matrix_elem_1 = get_hamiltonian_elem_no_time_sym(det_i, det_j, n_excite);
-  double matrix_elem_2 = 1.0;
-  if (check) {
-    if (det_i.up != det_j.dn) {
-      Det det_i_inv;
-      det_i_inv.up = det_i.dn;
-      det_i_inv.dn = det_i.up;
-      matrix_elem_2 = get_hamiltonian_elem_no_time_sym(det_i_inv, det_j, n_excite);
-    } else {
-      matrix_elem_2 = matrix_elem_1;
-    }
-  }
-  return norm_bra * norm_ket_inv * (matrix_elem_1 + z * matrix_elem_2);
+  return get_hamiltonian_elem_no_time_sym(det_i, det_j, n_excite);
 }
 
 double ChemSystem::get_hamiltonian_elem_no_time_sym(
@@ -269,16 +249,13 @@ double ChemSystem::get_hamiltonian_elem_no_time_sym(
   DiffResult diff_dn;
   if (n_excite < 0) {
     diff_up = det_i.up.diff(det_j.up);
-    const int n_excite_up = diff_up.leftOnly.size();
-    if (n_excite_up > 2) return 0.0;
+    if (diff_up.n_diffs > 2) return 0.0;
     diff_dn = det_i.dn.diff(det_j.dn);
-    const int n_excite_dn = diff_dn.leftOnly.size();
-    n_excite = n_excite_up + n_excite_dn;
+    n_excite = diff_up.n_diffs + diff_dn.n_diffs;
     if (n_excite > 2) return 0.0;
   } else {
     diff_up = det_i.up.diff(det_j.up);
-    const int n_excite_up = diff_up.leftOnly.size();
-    if (n_excite_up < n_excite) {
+    if (diff_up.n_diffs < n_excite) {
       diff_dn = det_i.dn.diff(det_j.dn);
     }
   }
@@ -353,7 +330,7 @@ double ChemSystem::get_two_body_diag(const Det& det) const {
 }
 
 double ChemSystem::get_one_body_single(const DiffResult& diff_up, const DiffResult& diff_dn) const {
-  const bool is_up_single = diff_up.leftOnly.size() == 1;
+  const bool is_up_single = diff_up.n_diffs == 1;
   const auto& diff = is_up_single ? diff_up : diff_dn;
   const unsigned orb_i = diff.leftOnly[0];
   const unsigned orb_j = diff.rightOnly[0];
@@ -362,7 +339,7 @@ double ChemSystem::get_one_body_single(const DiffResult& diff_up, const DiffResu
 
 double ChemSystem::get_two_body_single(
     const Det& det_i, const DiffResult& diff_up, const DiffResult& diff_dn) const {
-  const bool is_up_single = diff_up.leftOnly.size() == 1;
+  const bool is_up_single = diff_up.n_diffs == 1;
   const auto& diff = is_up_single ? diff_up : diff_dn;
   const unsigned orb_i = diff.leftOnly[0];
   const unsigned orb_j = diff.rightOnly[0];
@@ -383,29 +360,26 @@ double ChemSystem::get_two_body_single(
 
 double ChemSystem::get_two_body_double(const DiffResult& diff_up, const DiffResult& diff_dn) const {
   double energy = 0.0;
-  if (diff_up.leftOnly.size() == 0) {
-    const auto& diff = diff_dn;
-    if (diff.leftOnly.size() != 2 || diff.rightOnly.size() != 2) return 0.0;
-    const unsigned orb_i1 = diff.leftOnly[0];
-    const unsigned orb_i2 = diff.leftOnly[1];
-    const unsigned orb_j1 = diff.rightOnly[0];
-    const unsigned orb_j2 = diff.rightOnly[1];
+  if (diff_up.n_diffs == 0) {
+    if (diff_dn.n_diffs != 2) return 0.0;
+    const unsigned orb_i1 = diff_dn.leftOnly[0];
+    const unsigned orb_i2 = diff_dn.leftOnly[1];
+    const unsigned orb_j1 = diff_dn.rightOnly[0];
+    const unsigned orb_j2 = diff_dn.rightOnly[1];
     energy = integrals.get_2b(orb_i1, orb_j1, orb_i2, orb_j2) -
              integrals.get_2b(orb_i1, orb_j2, orb_i2, orb_j1);
-    energy *= diff.permutation_factor;
-  } else if (diff_dn.leftOnly.size() == 0) {
-    const auto& diff = diff_up;
-    if (diff.leftOnly.size() != 2 || diff.rightOnly.size() != 2) return 0.0;
-    const unsigned orb_i1 = diff.leftOnly[0];
-    const unsigned orb_i2 = diff.leftOnly[1];
-    const unsigned orb_j1 = diff.rightOnly[0];
-    const unsigned orb_j2 = diff.rightOnly[1];
+    energy *= diff_dn.permutation_factor;
+  } else if (diff_dn.n_diffs == 0) {
+    if (diff_up.n_diffs != 2) return 0.0;
+    const unsigned orb_i1 = diff_up.leftOnly[0];
+    const unsigned orb_i2 = diff_up.leftOnly[1];
+    const unsigned orb_j1 = diff_up.rightOnly[0];
+    const unsigned orb_j2 = diff_up.rightOnly[1];
     energy = integrals.get_2b(orb_i1, orb_j1, orb_i2, orb_j2) -
              integrals.get_2b(orb_i1, orb_j2, orb_i2, orb_j1);
-    energy *= diff.permutation_factor;
+    energy *= diff_up.permutation_factor;
   } else {
-    if (diff_up.leftOnly.size() != 1 || diff_up.rightOnly.size() != 1) return 0.0;
-    if (diff_dn.leftOnly.size() != 1 || diff_dn.rightOnly.size() != 1) return 0.0;
+    if (diff_up.n_diffs != 1 || diff_dn.n_diffs != 1) return 0.0;
     const unsigned orb_i1 = diff_up.leftOnly[0];
     const unsigned orb_i2 = diff_dn.leftOnly[0];
     const unsigned orb_j1 = diff_up.rightOnly[0];
@@ -415,3 +389,9 @@ double ChemSystem::get_two_body_double(const DiffResult& diff_up, const DiffResu
   }
   return energy;
 }
+
+void ChemSystem::find_connected_dets(
+    const Det& det,
+    const double eps_max,
+    const double eps_min,
+    const std::function<void(const Det&, const int)>& connected_det_handler) const {};

@@ -21,6 +21,7 @@ void print_info() {
 
 int main() {
   signal(SIGSEGV, Util::error_handler);
+  MPI_Init(nullptr, nullptr);
 
   if (Parallel::is_master()) print_info();
 
@@ -34,5 +35,6 @@ int main() {
     throw std::invalid_argument(Util::str_printf("system '%s' is not supported.", type.c_str()));
   }
 
+  MPI_Finalize();
   return 0;
 }

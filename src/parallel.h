@@ -22,18 +22,9 @@ class Parallel {
 
  private:
   Parallel() {
-    int initialized;
-    MPI_Initialized(&initialized);
-    if (!initialized) MPI_Init(nullptr, nullptr);
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
     MPI_Comm_rank(MPI_COMM_WORLD, &proc_id);
     n_threads = omp_get_max_threads();
-  }
-
-  ~Parallel() {
-    int finalized;
-    MPI_Finalized(&finalized);
-    if (!finalized) MPI_Finalize();
   }
 
   int n_procs;

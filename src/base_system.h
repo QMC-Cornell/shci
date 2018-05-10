@@ -18,13 +18,11 @@ class BaseSystem {
 
   double energy_var;
 
-  std::vector<std::string> det_strs;
+  std::vector<Det> dets;
 
   std::vector<double> coefs;
 
-  Det get_det(const size_t i) const { return hps::from_string<Det>(det_strs[i]); }
-
-  size_t get_n_dets() const { return det_strs.size(); }
+  size_t get_n_dets() const { return dets.size(); }
 
   virtual void setup() = 0;
 
@@ -39,11 +37,11 @@ class BaseSystem {
 
   template <class B>
   void serialize(B& buf) const {
-    buf << n_up << n_dn << det_strs << coefs << energy_hf << energy_var;
+    buf << n_up << n_dn << dets << coefs << energy_hf << energy_var;
   }
 
   template <class B>
   void parse(B& buf) {
-    buf >> n_up >> n_dn >> det_strs >> coefs >> energy_hf >> energy_var;
+    buf >> n_up >> n_dn >> dets >> coefs >> energy_hf >> energy_var;
   }
 };

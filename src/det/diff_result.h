@@ -1,10 +1,11 @@
 #pragma once
 
-#include <vector>
+#include <array>
 
 class DiffResult {
  public:
-  std::vector<unsigned> leftOnly;
-  std::vector<unsigned> rightOnly;
+  std::array<unsigned, 2> left_only;
+  std::array<unsigned, 2> right_only;
+  unsigned n_diffs = 0;
   int permutation_factor = 1;
 };

@@ -20,9 +20,7 @@ class SparseVector {
 
   void sort() { Util::sort_by_first<size_t, double>(indices, values); }
 
-#ifndef DEBUG
  private:
-#endif
   std::vector<size_t> indices;
 
   std::vector<T> values;

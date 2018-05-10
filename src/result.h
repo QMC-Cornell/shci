@@ -30,7 +30,7 @@ class Result {
       }
       return node_ref.get().get<T>();
     } catch (...) {
-      throw std::runtime_error(Util::str_printf("Cannot find '%s' in config.json", key.c_str()));
+      throw std::runtime_error(Util::str_printf("Cannot find '%s' in result.json", key.c_str()));
     }
   }
 

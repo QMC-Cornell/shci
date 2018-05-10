@@ -21,9 +21,7 @@ class SparseMatrix {
 
   void sort_row(const size_t i);
 
-#ifndef DEBUG
  private:
-#endif
   std::vector<SparseVector<T>> rows;
 };
 

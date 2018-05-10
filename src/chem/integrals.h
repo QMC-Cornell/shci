@@ -1,5 +1,6 @@
 #pragma once
 
+#include <fgpl/src/hash_map.h>
 #include <unordered_map>
 #include <vector>
 #include "../det/det.h"
@@ -31,13 +32,9 @@ class Integrals {
   static size_t combine4(const size_t a, const size_t b, const size_t c, const size_t d);
 
  private:
-  std::unordered_map<size_t, double> integrals_1b;
+  fgpl::HashMap<size_t, double> integrals_1b;
 
-#ifndef MEM_OPT
-  std::vector<double> integrals_2b;
-#else
-  std::unordered_map<size_t, double> integrals_2b;
-#endif
+  fgpl::HashMap<size_t, double> integrals_2b;
 
   std::vector<std::tuple<unsigned, unsigned, unsigned, unsigned, double>> raw_integrals;
 
