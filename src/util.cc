@@ -49,6 +49,11 @@ double Util::stdev(const std::vector<double>& vec) {
   return sqrt((sq_sum - sum * sum / n) / (n - 1));
 }
 
-int Util::ctz(const unsigned long long num) { return __builtin_ctzll(num); }
+int Util::ctz(unsigned long long x) { return __builtin_ctzll(x); }
 
-int Util::popcnt(const unsigned long long num) { return __builtin_popcountll(num); }
+int Util::popcnt(unsigned long long x) {
+  x = (x & 0x5555555555555555ull) + ((x >> 1) & 0x5555555555555555ull);
+  x = (x & 0x3333333333333333ull) + ((x >> 2) & 0x3333333333333333ull);
+  x = (x & 0x0F0F0F0F0F0F0F0Full) + ((x >> 4) & 0x0F0F0F0F0F0F0F0Full);
+  return (x * 0x0101010101010101ull) >> 56;
+}

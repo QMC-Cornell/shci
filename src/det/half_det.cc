@@ -102,31 +102,43 @@ DiffResult HalfDet::diff(const HalfDet& rhs) const {
       n_elecs_right += n_elecs;
       continue;
     }
-    uint64_t chunk_diff = chunk_left ^ chunk_right;
-    while (chunk_diff != 0) {
-      const auto tz = Util::ctz(chunk_diff);
+
+    uint64_t chunk_left_only = chunk_left & (~chunk_right);
+    while (chunk_left_only != 0) {
+      if (n_left_only >= 2) {
+        res.n_diffs = 3;
+        return res;
+      }
+      const auto tz = Util::ctz(chunk_left_only);
       const uint64_t bit = 1ull << tz;
-      
+      chunk_left_only &= ~bit;
+      res.left_only[n_left_only] = tz + (chunk_id << 6);
+      n_left_only++;
+      permutation_factor_helper += n_elecs_left + Util::popcnt(chunk_left & (bit - 1));
     }
-    // tz_left = chunk_left == 0 ? -1 : Util::ctz(chunk_left);
-    // tz_right = chunk_right == 0 ? -1 : Util::ctz(chunk_right);
-    // while (tz_left != -1 && tz_right != -1) {
-    //   if (tz_left < tf_right) {
-    //     if (n_left_only >= 2) {
-    //       res.n_diffs = 3;
-    //       return res;
-    //     }
-    //     const unsigned orb = tz_left + (chunk_id << 6);
-    //     res.left_only[n_left_only] = orb;
-    //     n_left_only++;
-    //     permutation_factor_helper += n_elecs_left;
-    //     n_elecs_left++;
-    //     chunk_left &= ~(1ull << tz_left);
-    //     tz_left = chunk_left == 0 ? -1 : Util::ctz(chunk_left);
-    //   } else if (tz_left > tz_right) {
-    //   } else {
-    //   }
-    // }
+
+    uint64_t chunk_right_only = chunk_right & (~chunk_left);
+    while (chunk_right_only != 0) {
+      if (n_right_only >= 2) {
+        res.n_diffs = 3;
+        return res;
+      }
+      const auto tz = Util::ctz(chunk_right_only);
+      const uint64_t bit = 1ull << tz;
+      chunk_right_only &= ~bit;
+      res.right_only[n_right_only] = tz + (chunk_id << 6);
+      n_right_only++;
+      permutation_factor_helper += n_elecs_right + Util::popcnt(chunk_right & (bit - 1));
+    }
+
+    if (chunk_id != N_CHUNKS - 1) {
+      n_elecs_left += Util::popcnt(chunk_left);
+      n_elecs_right += Util::popcnt(chunk_right);
+    }
+  }
+  res.n_diffs = n_left_only;
+  if (permutation_factor_helper & 1 != 0) {
+    res.permutation_factor = -1;
   }
   return res;
 }
