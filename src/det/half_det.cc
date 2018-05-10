@@ -38,51 +38,13 @@ std::vector<unsigned> HalfDet::get_occupied_orbs() const {
   return res;
 }
 
-// DiffResult HalfDet::diff(const HalfDet& det) const {
-//   // assert(n_elecs_hf == det.n_elecs_hf);
-//   DiffResult res;
-//   unsigned n_elecs_left = 0;
-//   unsigned n_elecs_right = 0;
-// #ifndef LARGE_BASIS
-//   const auto& occ_orbs = get_occupied_orbs();
-// #endif
-//   const auto& det_occ_orbs = det.get_occupied_orbs();
-//   auto orbs_it_left = occ_orbs.begin();
-//   auto orbs_it_right = det_occ_orbs.begin();
-//   unsigned permutation_factor_helper = 0;
-//   while (orbs_it_left != occ_orbs.end() && orbs_it_right != det_occ_orbs.end()) {
-//     if (*orbs_it_left < *orbs_it_right) {
-//       res.leftOnly.push_back(*orbs_it_left);
-//       permutation_factor_helper += n_elecs_left;
-//       orbs_it_left++;
-//       n_elecs_left++;
-//     } else if (*orbs_it_left > *orbs_it_right) {
-//       res.rightOnly.push_back(*orbs_it_right);
-//       permutation_factor_helper += n_elecs_right;
-//       orbs_it_right++;
-//       n_elecs_right++;
-//     } else {
-//       orbs_it_left++;
-//       orbs_it_right++;
-//       n_elecs_left++;
-//       n_elecs_right++;
-//     }
-//   }
-//   while (orbs_it_left != occ_orbs.end()) {
-//     res.leftOnly.push_back(*orbs_it_left);
-//     permutation_factor_helper += n_elecs_left;
-//     orbs_it_left++;
-//     n_elecs_left++;
-//   }
-//   while (orbs_it_right != det_occ_orbs.end()) {
-//     res.rightOnly.push_back(*orbs_it_right);
-//     permutation_factor_helper += n_elecs_right;
-//     orbs_it_right++;
-//     n_elecs_right++;
-//   }
-//   res.permutation_factor = (permutation_factor_helper & 1) == 1 ? -1 : 1;
-//   return res;
-// }
+size_t HalfDet::get_hash_value() const {
+  size_t seed = chunks[0];
+  for (int chunk_id = 1; chunk_id < N_CHUNKS; chunk_id++) {
+    seed ^= chunks[chunk_id] + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+  }
+  return seed;
+}
 
 DiffResult HalfDet::diff(const HalfDet& rhs) const {
   DiffResult res;
@@ -90,8 +52,6 @@ DiffResult HalfDet::diff(const HalfDet& rhs) const {
   unsigned n_right_only = 0;
   unsigned n_elecs_left = 0;
   unsigned n_elecs_right = 0;
-  int tz_left;
-  int tz_right;
   unsigned permutation_factor_helper = 0;
   for (int chunk_id = 0; chunk_id < N_CHUNKS; chunk_id++) {
     uint64_t chunk_left = chunks[chunk_id];
@@ -137,7 +97,7 @@ DiffResult HalfDet::diff(const HalfDet& rhs) const {
     }
   }
   res.n_diffs = n_left_only;
-  if (permutation_factor_helper & 1 != 0) {
+  if ((permutation_factor_helper & 1) != 0) {
     res.permutation_factor = -1;
   }
   return res;

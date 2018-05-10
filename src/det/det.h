@@ -31,3 +31,12 @@ class Det {
     buf >> up >> dn;
   }
 };
+
+class DetHasher {
+ public:
+  size_t operator()(const Det& det) const {
+    size_t seed = det.up.get_hash_value();
+    seed ^= det.dn.get_hash_value() + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+    return seed;
+  }
+};

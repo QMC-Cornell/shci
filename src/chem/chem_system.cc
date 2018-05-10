@@ -121,18 +121,18 @@ double ChemSystem::get_hci_queue_elem(
   if (p < n_orbs && q < n_orbs) {
     assert(r < n_orbs);
     assert(s < n_orbs);
-    diff_up.leftOnly[0] = p;
-    diff_up.leftOnly[1] = q;
-    diff_up.rightOnly[0] = r;
-    diff_up.rightOnly[1] = s;
+    diff_up.left_only[0] = p;
+    diff_up.left_only[1] = q;
+    diff_up.right_only[0] = r;
+    diff_up.right_only[1] = s;
     diff_up.n_diffs = 2;
   } else if (p < n_orbs && q >= n_orbs) {
     assert(r < n_orbs);
     assert(s >= n_orbs);
-    diff_up.leftOnly[0] = p;
-    diff_dn.leftOnly[0] = q - n_orbs;
-    diff_up.rightOnly[0] = r;
-    diff_dn.rightOnly[0] = s - n_orbs;
+    diff_up.left_only[0] = p;
+    diff_dn.left_only[0] = q - n_orbs;
+    diff_up.right_only[0] = r;
+    diff_dn.right_only[0] = s - n_orbs;
     diff_up.n_diffs = 1;
     diff_dn.n_diffs = 1;
   } else {
@@ -255,7 +255,7 @@ double ChemSystem::get_hamiltonian_elem_no_time_sym(
     if (n_excite > 2) return 0.0;
   } else {
     diff_up = det_i.up.diff(det_j.up);
-    if (diff_up.n_diffs < n_excite) {
+    if (diff_up.n_diffs < static_cast<unsigned>(n_excite)) {
       diff_dn = det_i.dn.diff(det_j.dn);
     }
   }
@@ -332,8 +332,8 @@ double ChemSystem::get_two_body_diag(const Det& det) const {
 double ChemSystem::get_one_body_single(const DiffResult& diff_up, const DiffResult& diff_dn) const {
   const bool is_up_single = diff_up.n_diffs == 1;
   const auto& diff = is_up_single ? diff_up : diff_dn;
-  const unsigned orb_i = diff.leftOnly[0];
-  const unsigned orb_j = diff.rightOnly[0];
+  const unsigned orb_i = diff.left_only[0];
+  const unsigned orb_j = diff.right_only[0];
   return diff.permutation_factor * integrals.get_1b(orb_i, orb_j);
 }
 
@@ -341,8 +341,8 @@ double ChemSystem::get_two_body_single(
     const Det& det_i, const DiffResult& diff_up, const DiffResult& diff_dn) const {
   const bool is_up_single = diff_up.n_diffs == 1;
   const auto& diff = is_up_single ? diff_up : diff_dn;
-  const unsigned orb_i = diff.leftOnly[0];
-  const unsigned orb_j = diff.rightOnly[0];
+  const unsigned orb_i = diff.left_only[0];
+  const unsigned orb_j = diff.right_only[0];
   const auto& same_spin_half_det = is_up_single ? det_i.up : det_i.dn;
   const auto& oppo_spin_half_det = is_up_single ? det_i.dn : det_i.up;
   double energy = 0.0;
@@ -362,28 +362,28 @@ double ChemSystem::get_two_body_double(const DiffResult& diff_up, const DiffResu
   double energy = 0.0;
   if (diff_up.n_diffs == 0) {
     if (diff_dn.n_diffs != 2) return 0.0;
-    const unsigned orb_i1 = diff_dn.leftOnly[0];
-    const unsigned orb_i2 = diff_dn.leftOnly[1];
-    const unsigned orb_j1 = diff_dn.rightOnly[0];
-    const unsigned orb_j2 = diff_dn.rightOnly[1];
+    const unsigned orb_i1 = diff_dn.left_only[0];
+    const unsigned orb_i2 = diff_dn.left_only[1];
+    const unsigned orb_j1 = diff_dn.right_only[0];
+    const unsigned orb_j2 = diff_dn.right_only[1];
     energy = integrals.get_2b(orb_i1, orb_j1, orb_i2, orb_j2) -
              integrals.get_2b(orb_i1, orb_j2, orb_i2, orb_j1);
     energy *= diff_dn.permutation_factor;
   } else if (diff_dn.n_diffs == 0) {
     if (diff_up.n_diffs != 2) return 0.0;
-    const unsigned orb_i1 = diff_up.leftOnly[0];
-    const unsigned orb_i2 = diff_up.leftOnly[1];
-    const unsigned orb_j1 = diff_up.rightOnly[0];
-    const unsigned orb_j2 = diff_up.rightOnly[1];
+    const unsigned orb_i1 = diff_up.left_only[0];
+    const unsigned orb_i2 = diff_up.left_only[1];
+    const unsigned orb_j1 = diff_up.right_only[0];
+    const unsigned orb_j2 = diff_up.right_only[1];
     energy = integrals.get_2b(orb_i1, orb_j1, orb_i2, orb_j2) -
              integrals.get_2b(orb_i1, orb_j2, orb_i2, orb_j1);
     energy *= diff_up.permutation_factor;
   } else {
     if (diff_up.n_diffs != 1 || diff_dn.n_diffs != 1) return 0.0;
-    const unsigned orb_i1 = diff_up.leftOnly[0];
-    const unsigned orb_i2 = diff_dn.leftOnly[0];
-    const unsigned orb_j1 = diff_up.rightOnly[0];
-    const unsigned orb_j2 = diff_dn.rightOnly[0];
+    const unsigned orb_i1 = diff_up.left_only[0];
+    const unsigned orb_i2 = diff_dn.left_only[0];
+    const unsigned orb_j1 = diff_up.right_only[0];
+    const unsigned orb_j2 = diff_dn.right_only[0];
     energy = integrals.get_2b(orb_i1, orb_j1, orb_i2, orb_j2);
     energy *= diff_up.permutation_factor * diff_dn.permutation_factor;
   }

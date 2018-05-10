@@ -28,7 +28,7 @@ class Solver {
 
   std::vector<double> eps_prev;
 
-  std::unordered_set<std::string> var_det_strs;
+  std::unordered_set<Det, DetHasher> var_dets;
 
   void run_all_variations();
 
@@ -54,13 +54,13 @@ void Solver<S>::run() {
   Timer::start("setup");
   std::setlocale(LC_ALL, "en_US.UTF-8");
   system.setup();
-  // Result::put("energy_hf", system.energy_hf);
-  // Timer::end();
+  Result::put("energy_hf", system.energy_hf);
+  Timer::end();
 
-  // Timer::start("variation");
-  // run_all_variations();
+  Timer::start("variation");
+  run_all_variations();
   // hamiltonian.clear();
-  // Timer::end();
+  Timer::end();
 
   // if (Config::get<bool>("var_only", false)) return;
 
@@ -71,40 +71,40 @@ void Solver<S>::run() {
   // Result::dump();
 }
 
-// template <class S>
-// void Solver<S>::run_all_variations() {
-//   const auto& eps_vars = Config::get<std::vector<double>>("eps_vars");
-//   const auto& eps_vars_schedule = Config::get<std::vector<double>>("eps_vars_schedule");
-//   double eps_var_prev = Util::INF;
-//   for (const auto& det_str : system.det_strs) var_det_strs.insert(det_str);
-//   auto it_schedule = eps_vars_schedule.begin();
-//   for (const double eps_var : eps_vars) {
-//     Timer::start(Util::str_printf("eps_var %#.4g", eps_var));
-//     const auto& filename = Util::str_printf("var_%#.4g.dat", eps_var);
-//     if (!load_variation_result(filename)) {
-//       // Perform extra scheduled eps.
-//       while (it_schedule != eps_vars_schedule.end() && *it_schedule > eps_var_prev)
-//       it_schedule++; while (it_schedule != eps_vars_schedule.end() && *it_schedule > eps_var) {
-//         const double eps_var_extra = *it_schedule;
-//         Timer::start(Util::str_printf("extra %#.4g", eps_var_extra));
-//         run_variation(eps_var_extra, false);
-//         Timer::end();
-//         it_schedule++;
-//       }
+template <class S>
+void Solver<S>::run_all_variations() {
+  const auto& eps_vars = Config::get<std::vector<double>>("eps_vars");
+  const auto& eps_vars_schedule = Config::get<std::vector<double>>("eps_vars_schedule");
+  double eps_var_prev = Util::INF;
+  for (const auto& det : system.dets) var_dets.insert(det);
+  //   auto it_schedule = eps_vars_schedule.begin();
+  //   for (const double eps_var : eps_vars) {
+  //     Timer::start(Util::str_printf("eps_var %#.4g", eps_var));
+  //     const auto& filename = Util::str_printf("var_%#.4g.dat", eps_var);
+  //     if (!load_variation_result(filename)) {
+  //       // Perform extra scheduled eps.
+  //       while (it_schedule != eps_vars_schedule.end() && *it_schedule > eps_var_prev)
+  //       it_schedule++; while (it_schedule != eps_vars_schedule.end() && *it_schedule > eps_var) {
+  //         const double eps_var_extra = *it_schedule;
+  //         Timer::start(Util::str_printf("extra %#.4g", eps_var_extra));
+  //         run_variation(eps_var_extra, false);
+  //         Timer::end();
+  //         it_schedule++;
+  //       }
 
-//       Timer::start("main");
-//       run_variation(eps_var);
-//       Result::put<double>(Util::str_printf("energy_var/%#.4g", eps_var), system.energy_var);
-//       Timer::end();
+  //       Timer::start("main");
+  //       run_variation(eps_var);
+  //       Result::put<double>(Util::str_printf("energy_var/%#.4g", eps_var), system.energy_var);
+  //       Timer::end();
 
-//       save_variation_result(filename);
-//     } else {
-//       hamiltonian.clear();
-//     }
-//     eps_var_prev = eps_var;
-//     Timer::end();
-//   }
-// }
+  //       save_variation_result(filename);
+  //     } else {
+  //       hamiltonian.clear();
+  //     }
+  //     eps_var_prev = eps_var;
+  //     Timer::end();
+  //   }
+}
 
 // template <class S>
 // void Solver<S>::run_all_perturbations() {
