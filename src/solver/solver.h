@@ -125,34 +125,37 @@ void Solver<S>::run_all_variations() {
 template <class S>
 void Solver<S>::run_variation(const double eps_var, const bool until_converged) {
   Davidson davidson;
-  std::vector<Det> new_dets;
+  fgpl::DistHashSet<Det> dist_new_dets;
   const auto& connected_det_handler = [&](const Det& connected_det, const int) {
-    if (var_dets.count(connected_det) == 0) {
-      var_dets.insert(connected_det);
-      new_dets.push_back(connected_det);
-    }
+    if (var_dets.count(connected_det) == 1) return;
+    dist_new_dets.async_set(connected_det);
   };
   size_t n_dets = system.get_n_dets();
   double energy_var_prev = 0.0;
   bool converged = false;
   size_t iteration = 0;
+
   while (!converged) {
     eps_tried_prev.resize(n_dets, Util::INF);
     Timer::start(Util::str_printf("#%zu", iteration));
-    for (size_t i = 0; i < n_dets; i++) {
+
+    // Random execution and broadcast.
+    fgpl::DistRange<size_t>(0, n_dets).for_each([&](const size_t i) {
       const double coef = system.coefs[i];
       const double eps_min = eps_var / std::abs(coef);
-      if (eps_min >= eps_tried_prev[i]) continue;
+      if (eps_min >= eps_tried_prev[i]) return;
       const auto& det = system.dets[i];
       system.find_connected_dets(det, eps_tried_prev[i], eps_min, connected_det_handler);
       eps_tried_prev[i] = eps_min;
-    }
+    });
 
-    for (const Det& det : new_dets) {
-      system.dets.push_back(det);
+    dist_new_dets.sync();
+    dist_new_dets.to_serial().for_each([&](const Det& connected_det, const size_t) {
+      var_dets.insert(connected_det);
+      system.dets.push_back(connected_det);
       system.coefs.push_back(0.0);
-    }
-    new_dets.clear();
+    });
+    dist_new_dets.clear();
 
     // const size_t n_dets_new = system.get_n_dets();
     const size_t n_dets_new = system.coefs.size();
