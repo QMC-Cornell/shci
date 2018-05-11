@@ -9,8 +9,9 @@ TEST(HalfDetTest, SetAndGetOrbitals) {
   EXPECT_TRUE(half_det.has(0));
   const auto& orbs = half_det.get_occupied_orbs();
   EXPECT_EQ(orbs[0], 0);
+  half_det.set(3);
   const auto& orbs_2 = half_det.get_occupied_orbs();
-  EXPECT_EQ(orbs_2.size(), 1);
+  EXPECT_EQ(orbs_2.size(), 2);
 }
 
 TEST(HalfDetTest, Diff) {

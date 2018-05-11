@@ -22,7 +22,7 @@ HalfDet& HalfDet::unset(unsigned orb) {
 
 bool HalfDet::has(unsigned orb) const {
   const auto chunk_id = orb >> 6;  // orb / 64;
-  return chunks[chunk_id] & (1ull << orb & 0x3full);
+  return chunks[chunk_id] & (1ull << (orb & 0x3full));
 }
 
 std::vector<unsigned> HalfDet::get_occupied_orbs() const {
@@ -44,6 +44,13 @@ size_t HalfDet::get_hash_value() const {
     seed ^= chunks[chunk_id] + 0x9e3779b9 + (seed << 6) + (seed >> 2);
   }
   return seed;
+}
+
+void HalfDet::print() const {
+  for (int chunk_id = N_CHUNKS - 1; chunk_id >= 0; chunk_id--) {
+    printf("%#010lx ", chunks[chunk_id]);
+  }
+  printf("\n");
 }
 
 DiffResult HalfDet::diff(const HalfDet& rhs) const {

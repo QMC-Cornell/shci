@@ -4,7 +4,7 @@
 #include <eigen/Eigen/Dense>
 
 void Davidson::diagonalize(
-    const SparseMatrix<double>& matrix,
+    const SparseMatrix& matrix,
     const std::vector<double>& initial_vector,
     const bool verbose) {
   const double TOLERANCE = 1.0e-10;

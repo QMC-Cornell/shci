@@ -4,10 +4,9 @@
 #include <vector>
 #include "../util.h"
 
-template <class T>
 class SparseVector {
  public:
-  void append(const size_t index, const T value) {
+  void append(const size_t index, const double value) {
     indices.push_back(index);
     values.push_back(value);
   }
@@ -16,12 +15,12 @@ class SparseVector {
 
   size_t get_index(const size_t i) const { return indices.at(i); }
 
-  T get_value(const size_t i) const { return values.at(i); }
+  double get_value(const size_t i) const { return values.at(i); }
 
   void sort() { Util::sort_by_first<size_t, double>(indices, values); }
 
  private:
   std::vector<size_t> indices;
 
-  std::vector<T> values;
+  std::vector<double> values;
 };

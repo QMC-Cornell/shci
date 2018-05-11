@@ -24,6 +24,8 @@ class HalfDet {
 
   size_t get_hash_value() const;
 
+  void print() const;
+
   template <class B>
   void serialize(B& buf) const;
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <fgpl/src/hash_set.h>
 #include <hps/src/hps.h>
 #include <omp_hash_map/src/omp_hash_map.h>
 #include <omp_hash_map/src/omp_hash_set.h>
@@ -26,9 +27,11 @@ class Solver {
 
   Hamiltonian<S> hamiltonian;
 
-  std::vector<double> eps_prev;
+  std::vector<double> eps_tried_prev;
 
   std::unordered_set<Det, DetHasher> var_dets;
+
+  size_t var_iteration_global;
 
   void run_all_variations();
 
@@ -55,14 +58,16 @@ void Solver<S>::run() {
   std::setlocale(LC_ALL, "en_US.UTF-8");
   system.setup();
   Result::put("energy_hf", system.energy_hf);
+  system.dets[0].up.print();
+  system.dets[0].dn.print();
   Timer::end();
 
   Timer::start("variation");
   run_all_variations();
-  // hamiltonian.clear();
+  hamiltonian.clear();
   Timer::end();
 
-  // if (Config::get<bool>("var_only", false)) return;
+  if (Config::get<bool>("var_only", false)) return;
 
   // Timer::start("perturbation");
   // run_all_perturbations();
@@ -77,33 +82,34 @@ void Solver<S>::run_all_variations() {
   const auto& eps_vars_schedule = Config::get<std::vector<double>>("eps_vars_schedule");
   double eps_var_prev = Util::INF;
   for (const auto& det : system.dets) var_dets.insert(det);
-  //   auto it_schedule = eps_vars_schedule.begin();
-  //   for (const double eps_var : eps_vars) {
-  //     Timer::start(Util::str_printf("eps_var %#.4g", eps_var));
-  //     const auto& filename = Util::str_printf("var_%#.4g.dat", eps_var);
-  //     if (!load_variation_result(filename)) {
-  //       // Perform extra scheduled eps.
-  //       while (it_schedule != eps_vars_schedule.end() && *it_schedule > eps_var_prev)
-  //       it_schedule++; while (it_schedule != eps_vars_schedule.end() && *it_schedule > eps_var) {
-  //         const double eps_var_extra = *it_schedule;
-  //         Timer::start(Util::str_printf("extra %#.4g", eps_var_extra));
-  //         run_variation(eps_var_extra, false);
-  //         Timer::end();
-  //         it_schedule++;
-  //       }
+  auto it_schedule = eps_vars_schedule.begin();
+  var_iteration_global = 0;
+  for (const double eps_var : eps_vars) {
+    Timer::start(Util::str_printf("eps_var %#.4g", eps_var));
+    const auto& filename = Util::str_printf("var_%#.4g.dat", eps_var);
+    if (!load_variation_result(filename)) {
+      // Perform extra scheduled eps.
+      while (it_schedule != eps_vars_schedule.end() && *it_schedule > eps_var_prev) it_schedule++;
+      while (it_schedule != eps_vars_schedule.end() && *it_schedule > eps_var) {
+        const double eps_var_extra = *it_schedule;
+        Timer::start(Util::str_printf("extra %#.4g", eps_var_extra));
+        run_variation(eps_var_extra, false);
+        Timer::end();
+        it_schedule++;
+      }
 
-  //       Timer::start("main");
-  //       run_variation(eps_var);
-  //       Result::put<double>(Util::str_printf("energy_var/%#.4g", eps_var), system.energy_var);
-  //       Timer::end();
+      Timer::start("main");
+      run_variation(eps_var);
+      Result::put<double>(Util::str_printf("energy_var/%#.4g", eps_var), system.energy_var);
+      Timer::end();
 
-  //       save_variation_result(filename);
-  //     } else {
-  //       hamiltonian.clear();
-  //     }
-  //     eps_var_prev = eps_var;
-  //     Timer::end();
-  //   }
+      save_variation_result(filename);
+    } else {
+      hamiltonian.clear();
+    }
+    eps_var_prev = eps_var;
+    Timer::end();
+  }
 }
 
 // template <class S>
@@ -116,77 +122,78 @@ void Solver<S>::run_all_variations() {
 //   }
 // }
 
-// template <class S>
-// void Solver<S>::run_variation(const double eps_var, const bool until_converged) {
-//   Davidson davidson;
-//   omp_lock_t lock;
-//   omp_init_lock(&lock);
-//   std::set<std::string> new_det_strs;
-//   const auto& connected_det_handler = [&](const Det& connected_det, const int) {
-//     const auto& det_str = hps::to_string(connected_det);
-//     omp_set_lock(&lock);
-//     if (var_det_strs.count(det_str) == 0) {
-//       var_det_strs.insert(det_str);
-//       new_det_strs.insert(det_str);
-//     }
-//     omp_unset_lock(&lock);
-//   };
-//   size_t n_dets = system.get_n_dets();
-//   double energy_var_prev = 0.0;
-//   bool converged = false;
-//   size_t iteration = 0;
-//   while (!converged) {
-//     eps_prev.resize(n_dets, Util::INF);
-//     Timer::start(Util::str_printf("#%zu", iteration));
-// #pragma omp parallel for schedule(dynamic, 3)
-//     for (size_t i = 0; i < n_dets; i++) {
-//       const double coef = system.coefs[i];
-//       const double eps_min = eps_var / std::abs(coef);
-//       if (eps_min >= eps_prev[i]) continue;
-//       const auto& det = system.get_det(i);
-//       system.find_connected_dets(det, eps_prev[i], eps_min, connected_det_handler);
-//       eps_prev[i] = eps_min;
-//     }
+template <class S>
+void Solver<S>::run_variation(const double eps_var, const bool until_converged) {
+  Davidson davidson;
+  std::vector<Det> new_dets;
+  const auto& connected_det_handler = [&](const Det& connected_det, const int) {
+    if (var_dets.count(connected_det) == 0) {
+      var_dets.insert(connected_det);
+      new_dets.push_back(connected_det);
+    }
+  };
+  size_t n_dets = system.get_n_dets();
+  double energy_var_prev = 0.0;
+  bool converged = false;
+  size_t iteration = 0;
+  while (!converged) {
+    eps_tried_prev.resize(n_dets, Util::INF);
+    Timer::start(Util::str_printf("#%zu", iteration));
+    for (size_t i = 0; i < n_dets; i++) {
+      const double coef = system.coefs[i];
+      const double eps_min = eps_var / std::abs(coef);
+      if (eps_min >= eps_tried_prev[i]) continue;
+      const auto& det = system.dets[i];
+      system.find_connected_dets(det, eps_tried_prev[i], eps_min, connected_det_handler);
+      eps_tried_prev[i] = eps_min;
+    }
 
-//     for (const auto& det_str : new_det_strs) {
-//       system.det_strs.push_back(det_str);
-//       system.coefs.push_back(0.0);
-//     }
-//     new_det_strs.clear();
+    for (const Det& det : new_dets) {
+      system.dets.push_back(det);
+      system.coefs.push_back(0.0);
+    }
+    new_dets.clear();
 
-//     const size_t n_dets_new = system.get_n_dets();
-//     if (Parallel::is_master()) {
-//       printf("Number of dets / new dets: %'zu / %'zu\n", n_dets_new, n_dets_new - n_dets);
-//     }
-//     hamiltonian.update(system);
-//     davidson.diagonalize(hamiltonian.matrix, system.coefs, Parallel::is_master());
-//     const double energy_var_new = davidson.get_lowest_eigenvalue();
-//     system.coefs = davidson.get_lowest_eigenvector();
-//     Timer::checkpoint("hamiltonian diagonalized");
-//     if (Parallel::is_master()) {
-//       printf("Current variational energy: " ENERGY_FORMAT "\n", energy_var_new);
-//     }
-//     if (std::abs(energy_var_new - energy_var_prev) < 1.0e-6) {
-//       converged = true;
-//     }
-//     n_dets = n_dets_new;
-//     energy_var_prev = energy_var_new;
-//     Timer::end();
-//     if (!until_converged) break;
-//     iteration++;
-//   }
-//   omp_destroy_lock(&lock);
-//   system.energy_var = energy_var_prev;
-// }
+    // const size_t n_dets_new = system.get_n_dets();
+    const size_t n_dets_new = system.coefs.size();
+    if (Parallel::is_master()) {
+      printf("Number of dets / new dets: %'zu / %'zu\n", n_dets_new, n_dets_new - n_dets);
+    }
+
+    hamiltonian.update(system);
+    davidson.diagonalize(hamiltonian.matrix, system.coefs, Parallel::is_master());
+    const double energy_var_new = davidson.get_lowest_eigenvalue();
+    system.coefs = davidson.get_lowest_eigenvector();
+    Timer::checkpoint("hamiltonian diagonalized");
+    var_iteration_global++;
+    if (Parallel::is_master()) {
+      printf("Current variational energy: " ENERGY_FORMAT "\n", energy_var_new);
+      printf(
+          "Summary: Iteration %zu eps1= %#.2e ndets= %zu energy= %.8f\n",
+          var_iteration_global,
+          eps_var,
+          n_dets_new,
+          energy_var_new);
+    }
+    if (std::abs(energy_var_new - energy_var_prev) < 1.0e-6) {
+      converged = true;
+    }
+    n_dets = n_dets_new;
+    energy_var_prev = energy_var_new;
+    Timer::end();
+    if (!until_converged) break;
+    iteration++;
+  }
+  system.energy_var = energy_var_prev;
+}
 
 // template <class S>
 // void Solver<S>::run_perturbation(const double eps_var) {
 //   // If result already exists, return.
 //   const double eps_pt = Config::get<double>("eps_pt");
 //   const auto& value_entry = Util::str_printf("energy_pt/%#.4g/%#.4g/value", eps_var, eps_pt);
-//   const auto& uncert_entry = Util::str_printf("energy_pt/%#.4g/%#.4g/uncert", eps_var, eps_pt);
-//   UncertResult res(Result::get<double>(value_entry, 0.0));
-//   if (res.value != 0.0) {
+//   const auto& uncert_entry = Util::str_printf("energy_pt/%#.4g/%#.4g/uncert", eps_var,
+//   eps_pt); UncertResult res(Result::get<double>(value_entry, 0.0)); if (res.value != 0.0) {
 //     if (Parallel::is_master()) {
 //       res.uncert = Result::get<double>(uncert_entry, 0.0);
 //       printf("PT energy: %s (loaded from result file)\n", res.to_string().c_str());
@@ -325,7 +332,8 @@ void Solver<S>::run_all_variations() {
 //     if (Parallel::is_master()) {
 //       printf("PT dtm correction batch: " ENERGY_FORMAT "\n", energy_pt_dtm_batch);
 //       printf("PT dtm correction: %s Ha\n", energy_pt_dtm.to_string().c_str());
-//       printf("PT dtm energy: %s Ha\n", (energy_pt_dtm + energy_pt_pre_dtm).to_string().c_str());
+//       printf("PT dtm energy: %s Ha\n", (energy_pt_dtm +
+//       energy_pt_pre_dtm).to_string().c_str());
 //     }
 //     Timer::end();  // accumulate
 
@@ -333,7 +341,8 @@ void Solver<S>::run_all_variations() {
 //     hc_sums.clear();
 //     Timer::end();  // batch
 
-//     if (batch_id >= 3 && batch_id < n_batches * 0.8 && energy_pt_dtm.uncert < target_error * 0.2)
+//     if (batch_id >= 3 && batch_id < n_batches * 0.8 && energy_pt_dtm.uncert < target_error *
+//     0.2)
 //     {
 //       break;
 //     }
@@ -424,7 +433,8 @@ void Solver<S>::run_all_variations() {
 //           hc_sums_dtm.set(det_a_code, [&](double& value) { value += contrib_1; }, 0.0);
 //         }
 //       };
-//       system.find_connected_dets(var_det, Util::INF, eps_pt / std::abs(coef), pt_det_handler);
+//       system.find_connected_dets(var_det, Util::INF, eps_pt / std::abs(coef),
+//       pt_det_handler);
 //     }
 //     if (Parallel::is_master()) {
 //       printf("Number of sto pt dets: %'zu\n", hc_sums.get_n_keys());
