@@ -145,7 +145,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
     fgpl::DistRange<size_t>(0, n_dets).for_each([&](const size_t i) {
       const double coef = system.coefs[i];
       const double eps_min = eps_var / std::abs(coef);
-      if (eps_min >= eps_tried_prev[i]) return;
+      if (eps_min >= eps_tried_prev[i] * 0.9) return;
       const auto& det = system.dets[i];
       system.find_connected_dets(det, eps_tried_prev[i], eps_min, connected_det_handler);
       eps_tried_prev[i] = eps_min;
@@ -164,12 +164,15 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
     if (Parallel::is_master()) {
       printf("Number of dets / new dets: %'zu / %'zu\n", n_dets_new, n_dets_new - n_dets);
     }
+    Timer::checkpoint("get next det list");
 
     hamiltonian.update(system);
-    davidson.diagonalize(hamiltonian.matrix, system.coefs, Parallel::is_master());
+    const double inc = static_cast<double>(n_dets_new) / n_dets;
+    davidson.diagonalize(
+        hamiltonian.matrix, system.coefs, Parallel::is_master(), until_converged && inc < 1.01);
     const double energy_var_new = davidson.get_lowest_eigenvalue();
     system.coefs = davidson.get_lowest_eigenvector();
-    Timer::checkpoint("hamiltonian diagonalized");
+    Timer::checkpoint("diagonalize sparse hamiltonian");
     var_iteration_global++;
     if (Parallel::is_master()) {
       printf("Current variational energy: " ENERGY_FORMAT "\n", energy_var_new);

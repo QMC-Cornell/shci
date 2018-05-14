@@ -8,7 +8,8 @@ class Davidson {
   void diagonalize(
       const SparseMatrix& matrix,
       const std::vector<double>& initial_vector,
-      const bool verbose = false);
+      const bool verbose = false,
+      const bool until_converged = true);
 
   double get_lowest_eigenvalue() { return lowest_eigenvalue; }
 

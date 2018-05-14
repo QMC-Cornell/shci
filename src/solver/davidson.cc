@@ -6,10 +6,11 @@
 void Davidson::diagonalize(
     const SparseMatrix& matrix,
     const std::vector<double>& initial_vector,
-    const bool verbose) {
-  const double TOLERANCE = 1.0e-10;
+    const bool verbose,
+    const bool until_converged) {
+  const double TOLERANCE = until_converged ? 1.0e-8 : 1.0e-5;
+  const size_t MAX_N_INTERATIONS = until_converged ? 12 : 6;
   const double EPSILON = 1.0e-8;
-  const size_t MAX_N_INTERATIONS = 12;
 
   const size_t dim = initial_vector.size();
 

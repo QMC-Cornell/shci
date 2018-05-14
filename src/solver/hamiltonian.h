@@ -84,16 +84,16 @@ void Hamiltonian<S>::update(const S& system) {
   if (n_dets_prev == n_dets) return;
 
   update_abdet(system);
-  Timer::checkpoint("updated unique ab");
+  Timer::checkpoint("update unique ab");
   update_abm1(system);
-  Timer::checkpoint("updated abm1");
+  Timer::checkpoint("create abm1");
   update_absingles(system);
   abm1_to_ab_ids.clear();
-  Timer::checkpoint("updated absingles");
+  Timer::checkpoint("create absingles");
   update_matrix(system);
   alpha_id_to_single_ids.clear();
   beta_id_to_single_ids.clear();
-  Timer::checkpoint("updated hamiltonian matrix");
+  Timer::checkpoint("generate sparse hamiltonian");
 }
 
 template <class S>
