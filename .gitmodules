@@ -10,9 +10,6 @@
 [submodule "lib/hps"]
 	path = lib/hps
 	url = https://github.com/jl2922/hps
-[submodule "lib/hpmr"]
-	path = lib/hpmr
-	url = https://github.com/jl2922/hpmr.git
 [submodule "lib/omp_hash_map"]
 	path = lib/omp_hash_map
 	url = https://github.com/jl2922/omp_hash_map.git
