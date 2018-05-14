@@ -25,5 +25,7 @@ class SparseMatrix {
  private:
   std::vector<SparseVector> rows;
 
+  std::vector<double> diag_local;
+
   std::vector<double> diag;
 };

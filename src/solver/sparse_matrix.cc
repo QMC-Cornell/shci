@@ -2,7 +2,7 @@
 
 void SparseMatrix::append_elem(const size_t i, const size_t j, const double& elem) {
   rows[i].append(j, elem);
-  if (i == j) diag[i] = elem;
+  if (i == j) diag_local[i] = elem;
 }
 
 std::vector<double> SparseMatrix::mul(const std::vector<double>& vec) const {
@@ -41,6 +41,7 @@ std::vector<double> SparseMatrix::mul(const std::vector<double>& vec) const {
 
 void SparseMatrix::set_dim(const size_t dim) {
   rows.resize(dim);
+  diag_local.resize(dim, 0.0);
   diag.resize(dim, 0.0);
 }
 
@@ -49,6 +50,12 @@ void SparseMatrix::clear() { rows.clear(); }
 void SparseMatrix::sort_row(const size_t i) { rows[i].sort(); }
 
 void SparseMatrix::cache_diag() {
-  std::vector<double> diag_local = diag;
   MPI_Allreduce(diag_local.data(), diag.data(), diag.size(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  if (Parallel::is_master()) {
+    printf("diag: ");
+    for (int i = 0; i < 10; i++) {
+      printf("%.4f ", diag[i]);
+    }
+    printf("\n");
+  }
 }

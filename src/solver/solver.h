@@ -145,7 +145,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
     fgpl::DistRange<size_t>(0, n_dets).for_each([&](const size_t i) {
       const double coef = system.coefs[i];
       const double eps_min = eps_var / std::abs(coef);
-      if (eps_min >= eps_tried_prev[i] * 0.999) return;
+      if (eps_min >= eps_tried_prev[i] * 0.99) return;
       const auto& det = system.dets[i];
       system.find_connected_dets(det, eps_tried_prev[i], eps_min, connected_det_handler);
       eps_tried_prev[i] = eps_min;
