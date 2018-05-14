@@ -1,5 +1,7 @@
 #pragma once
 
+#include <fgpl/src/dist_hash_set.h>
+#include <fgpl/src/dist_range.h>
 #include <fgpl/src/hash_set.h>
 #include <hps/src/hps.h>
 #include <omp_hash_map/src/omp_hash_map.h>
@@ -125,7 +127,7 @@ void Solver<S>::run_all_variations() {
 template <class S>
 void Solver<S>::run_variation(const double eps_var, const bool until_converged) {
   Davidson davidson;
-  fgpl::DistHashSet<Det> dist_new_dets;
+  fgpl::DistHashSet<Det, DetHasher> dist_new_dets;
   const auto& connected_det_handler = [&](const Det& connected_det, const int) {
     if (var_dets.count(connected_det) == 1) return;
     dist_new_dets.async_set(connected_det);
@@ -150,7 +152,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
     });
 
     dist_new_dets.sync();
-    dist_new_dets.to_serial().for_each([&](const Det& connected_det, const size_t) {
+    dist_new_dets.for_each_serial([&](const Det& connected_det, const size_t) {
       var_dets.insert(connected_det);
       system.dets.push_back(connected_det);
       system.coefs.push_back(0.0);
