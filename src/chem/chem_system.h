@@ -10,23 +10,27 @@
 
 class ChemSystem : public BaseSystem {
  public:
-  void setup();
+  void setup() override;
 
   void find_connected_dets(
       const Det& det,
-      const double eps,
-      const std::function<void(const Det&)>& connected_det_handler);
+      const double eps_max,
+      const double eps_min,
+      const std::function<void(const Det&, const int)>& connected_det_handler) const override;
 
-  double get_hamiltonian_elem(const Det& det_i, const Det& det_j);
+  double get_hamiltonian_elem(
+      const Det& det_i, const Det& det_j, const int n_excite) const override;
 
  private:
   unsigned n_orbs;
 
+  bool time_sym;
+
+  int z;  // reflection (parity).
+
   std::vector<unsigned> orb_sym;
 
   double max_hci_queue_elem;
-
-  //   std::vector<unsigned> sym_n_orbs;
 
   std::vector<std::vector<unsigned>> sym_orbs;
 
@@ -36,7 +40,7 @@ class ChemSystem : public BaseSystem {
 
   ProductTable product_table;
 
-  std::vector<std::vector<HRS>> hci_queue;
+  std::vector<std::vector<Hrs>> hci_queue;
 
   void setup_hci_queue();
 
@@ -44,5 +48,16 @@ class ChemSystem : public BaseSystem {
 
   double get_hci_queue_elem(const unsigned p, const unsigned q, const unsigned r, const unsigned s);
 
-  double get_two_body_double(const Det& det_i, const Det& det_j, const bool no_sign = false);
+  double get_hamiltonian_elem_no_time_sym(const Det& det_i, const Det& det_j, int n_excite) const;
+
+  double get_one_body_diag(const Det& det) const;
+
+  double get_two_body_diag(const Det& det) const;
+
+  double get_one_body_single(const DiffResult& diff_up, const DiffResult& diff_dn) const;
+
+  double get_two_body_single(
+      const Det& det_i, const DiffResult& diff_up, const DiffResult& diff_dn) const;
+
+  double get_two_body_double(const DiffResult& diff_up, const DiffResult& diff_dn) const;
 };

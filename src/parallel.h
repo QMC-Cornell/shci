@@ -10,6 +10,8 @@ class Parallel {
     return instance;
   }
 
+  static bool is_master() { return get_proc_id() == 0; }
+
   static int get_n_procs() { return get_instance().n_procs; }
 
   static int get_proc_id() { return get_instance().proc_id; }
@@ -20,13 +22,10 @@ class Parallel {
 
  private:
   Parallel() {
-    MPI_Init(nullptr, nullptr);
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
     MPI_Comm_rank(MPI_COMM_WORLD, &proc_id);
     n_threads = omp_get_max_threads();
   }
-
-  ~Parallel() { MPI_Finalize(); }
 
   int n_procs;
 

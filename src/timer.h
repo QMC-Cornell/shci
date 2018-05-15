@@ -13,12 +13,16 @@ class Timer {
 
   static void start(const std::string& event);
 
+  static void checkpoint(const std::string& event);
+
   static void end();
 
  private:
   Timer();
 
   void print_status() const;
+  
+  void print_time() const;
 
   double get_duration(
       const std::chrono::high_resolution_clock::time_point start,

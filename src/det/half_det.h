@@ -1,60 +1,64 @@
 #pragma once
 
 #include <hps/src/hps.h>
+#include <array>
 #include <set>
+#include <vector>
+#include "diff_result.h"
+
+#define N_CHUNKS 2
 
 class HalfDet {
  public:
-  HalfDet(const unsigned n_elecs_hf = 0) : n_elecs_hf(n_elecs_hf) {}
+  HalfDet();
+
+  HalfDet& set(unsigned orb);
+
+  HalfDet& unset(unsigned orb);
+
+  bool has(unsigned orb) const;
 
   std::vector<unsigned> get_occupied_orbs() const;
 
-  void set(const unsigned orb);
+  DiffResult diff(const HalfDet& rhs) const;
 
-  void unset(const unsigned orb);
+  size_t get_hash_value() const;
 
-  bool has(const unsigned orb) const;
-
-  std::pair<std::vector<unsigned>, std::vector<unsigned>> diff(const HalfDet& det) const;
+  void print() const;
 
   template <class B>
-  void serialize(hps::OutputBuffer<B>& buf) const;
+  void serialize(B& buf) const;
 
   template <class B>
-  void parse(hps::InputBuffer<B>& buf);
+  void parse(B& buf);
 
  private:
-  unsigned n_elecs_hf;
-
-  std::set<unsigned> orbs_from;
-
-  std::set<unsigned> orbs_to;
-
-  std::pair<std::vector<unsigned>, std::vector<unsigned>> diff_set(
-      const std::set<unsigned>& a, const std::set<unsigned>& b) const;
+  std::array<uint64_t, N_CHUNKS> chunks;
 
   friend bool operator==(const HalfDet& a, const HalfDet& b);
+
+  friend bool operator!=(const HalfDet& a, const HalfDet& b);
+
+  friend bool operator<(const HalfDet& a, const HalfDet& b);
+
+  friend bool operator>(const HalfDet& a, const HalfDet& b);
 };
 
 template <class B>
-void HalfDet::serialize(hps::OutputBuffer<B>& buf) const {
-  hps::Serializer<unsigned, B>::serialize(n_elecs_hf, buf);
-  hps::Serializer<std::set<unsigned>, B>::serialize(orbs_from, buf);
-  hps::Serializer<std::set<unsigned>, B>::serialize(orbs_to, buf);
+void HalfDet::serialize(B& buf) const {
+  for (int chunk_id = 0; chunk_id < N_CHUNKS; chunk_id++) {
+    buf << chunks[chunk_id];
+  }
 }
 
 template <class B>
-void HalfDet::parse(hps::InputBuffer<B>& buf) {
-  hps::Serializer<unsigned, B>::parse(n_elecs_hf, buf);
-  hps::Serializer<std::set<unsigned>, B>::parse(orbs_from, buf);
-  hps::Serializer<std::set<unsigned>, B>::parse(orbs_to, buf);
+void HalfDet::parse(B& buf) {
+  for (int chunk_id = 0; chunk_id < N_CHUNKS; chunk_id++) {
+    buf >> chunks[chunk_id];
+  }
 }
 
-namespace hps {
-template <class B>
-class Serializer<HalfDet, B> {
+class HalfDetHasher {
  public:
-  static void serialize(const HalfDet& det, OutputBuffer<B>& buf) { det.serialize(buf); }
-  static void parse(HalfDet& det, InputBuffer<B>& buf) { det.parse(buf); }
+  size_t operator()(const HalfDet& half_det) const { return half_det.get_hash_value(); }
 };
-}  // namespace hps
