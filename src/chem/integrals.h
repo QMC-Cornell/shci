@@ -4,7 +4,8 @@
 #include <unordered_map>
 #include <vector>
 #include "../det/det.h"
-#include "square_hasher.h"
+#include "hpqrs.h"
+#include "integrals_hasher.h"
 
 class Integrals {
  public:
@@ -39,11 +40,11 @@ class Integrals {
   void parse(B& buf);
 
  private:
-  fgpl::HashMap<size_t, double, SquareHasher> integrals_1b;
+  fgpl::HashMap<size_t, double, IntegralsHasher> integrals_1b;
 
-  fgpl::HashMap<size_t, double, SquareHasher> integrals_2b;
+  fgpl::HashMap<size_t, double, IntegralsHasher> integrals_2b;
 
-  std::vector<std::tuple<unsigned, unsigned, unsigned, unsigned, double>> raw_integrals;
+  std::vector<Hpqrs> raw_integrals;
 
   void read_fcidump();
 

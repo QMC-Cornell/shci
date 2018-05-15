@@ -6,7 +6,7 @@
 #include <vector>
 #include "diff_result.h"
 
-#define N_CHUNKS 10
+#define N_CHUNKS 9
 
 class HalfDet {
  public:

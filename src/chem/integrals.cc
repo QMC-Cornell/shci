@@ -81,7 +81,7 @@ void Integrals::read_fcidump() {
     } else {
       integrals_2b.set(combine4(p - 1, q - 1, r - 1, s - 1), integral);
     }
-    raw_integrals.push_back(std::make_tuple(p, q, r, s, integral));
+    raw_integrals.push_back(Hpqrs(integral, p, q, r, s));
   }
 
   fcidump.close();
@@ -220,11 +220,11 @@ void Integrals::reorder_orbs(const std::vector<double>& orb_energies) {
   integrals_1b.clear();
   integrals_2b.clear();
   for (const auto& item : raw_integrals) {
-    const unsigned p = std::get<0>(item);
-    const unsigned q = std::get<1>(item);
-    const unsigned r = std::get<2>(item);
-    const unsigned s = std::get<3>(item);
-    const double integral = std::get<4>(item);
+    const unsigned p = item.p;
+    const unsigned q = item.q;
+    const unsigned r = item.r;
+    const unsigned s = item.s;
+    const double integral = item.H;
     if (p == q && q == r && r == s && s == 0) {
       continue;
     } else if (r == s && s == 0) {
