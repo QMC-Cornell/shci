@@ -72,6 +72,7 @@ void Integrals::read_fcidump() {
   while (true) {
     fcidump >> integral >> p >> q >> r >> s;
     if (fcidump.eof()) break;
+    if (std::abs(integral) < 1.0e-9) continue;
     raw_integrals.push_back(Hpqrs(integral, p, q, r, s));
   }
   fcidump.close();
