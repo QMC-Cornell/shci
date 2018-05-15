@@ -8,7 +8,7 @@ void Davidson::diagonalize(
     const std::vector<double>& initial_vector,
     const bool verbose,
     const bool until_converged) {
-  const double TOLERANCE = until_converged ? 1.0e-8 : 1.0e-6;
+  const double TOLERANCE = until_converged ? 1.0e-7 : 1.0e-6;
   const size_t MAX_N_INTERATIONS = until_converged ? 10 : 6;
 
   const size_t dim = initial_vector.size();
@@ -22,6 +22,7 @@ void Davidson::diagonalize(
 
   const size_t max_n_iterations = std::min(dim, MAX_N_INTERATIONS);
   double lowest_eigenvalue_prev = 0.0;
+  double lowest_eigenvalue_prev2 = 0.0;
 
   Eigen::MatrixXd v = Eigen::MatrixXd::Zero(dim, max_n_iterations);
   for (size_t i = 0; i < dim; i++) v(i, 0) = initial_vector[i];
@@ -91,9 +92,10 @@ void Davidson::diagonalize(
     Hw = Hv.leftCols(it) * eigenvectors.col(0).topRows(it);
 
     if (verbose) printf("Davidson #%zu: %.10f\n", it, lowest_eigenvalue);
-    if (std::abs(lowest_eigenvalue - lowest_eigenvalue_prev) < TOLERANCE) {
+    if (std::abs(lowest_eigenvalue - lowest_eigenvalue_prev2) < TOLERANCE) {
       converged = true;
     } else {
+      lowest_eigenvalue_prev2 = lowest_eigenvalue_prev;
       lowest_eigenvalue_prev = lowest_eigenvalue;
     }
 

@@ -241,7 +241,7 @@ double ChemSystem::get_hamiltonian_elem_no_time_sym(
     diff_dn = det_i.dn.diff(det_j.dn);
     n_excite = diff_up.n_diffs + diff_dn.n_diffs;
     if (n_excite > 2) return 0.0;
-  } else {
+  } else if (n_excite > 0) {
     diff_up = det_i.up.diff(det_j.up);
     if (diff_up.n_diffs < static_cast<unsigned>(n_excite)) {
       diff_dn = det_i.dn.diff(det_j.dn);

@@ -374,7 +374,6 @@ void Hamiltonian<S>::update_matrix(const S& system) {
         }
       }
     }
-    matrix.sort_row(det_id);
   }
 
   matrix.cache_diag();
