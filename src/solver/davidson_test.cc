@@ -13,6 +13,7 @@ class HilbertSystem {
         matrix.append_elem(i, j, get_hamiltonian(i, j));
       }
     }
+    matrix.cache_diag();
   }
 
   double get_hamiltonian(int i, int j) {

@@ -54,8 +54,8 @@ void Davidson::diagonalize(
     // Compute residual.
     for (size_t j = 0; j < dim; j++) {
       const double diff_to_diag = lowest_eigenvalue - diag_elems[j];
-      if (std::abs(diff_to_diag) < 1.0e-12) {
-        v(j, it) = (Hw(j, 0) - lowest_eigenvalue * w(j, 0)) / -1.0e-12;
+      if (std::abs(diff_to_diag) < 1.0e-10) {
+        v(j, it) = (Hw(j, 0) - lowest_eigenvalue * w(j, 0)) / -1.0e-10;
       } else {
         v(j, it) = (Hw(j, 0) - lowest_eigenvalue * w(j, 0)) / diff_to_diag;
       }
@@ -85,7 +85,7 @@ void Davidson::diagonalize(
         h_krylov.leftCols(it + 1).topRows(it + 1));
     const auto& eigenvalues = eigenSolver.eigenvalues();
     auto eigenvectors = eigenSolver.eigenvectors();
-    lowest_eigenvalue = eigenvalues[0];
+    lowest_eigenvalue = eigenvalues(0);
     if (eigenvectors(0, 0) < 0) eigenvectors.col(0) *= -1;
     w = v.leftCols(it) * eigenvectors.col(0).topRows(it);
     Hw = Hv.leftCols(it) * eigenvectors.col(0).topRows(it);
