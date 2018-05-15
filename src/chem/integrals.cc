@@ -74,6 +74,16 @@ void Integrals::read_fcidump() {
   while (true) {
     fcidump >> integral >> p >> q >> r >> s;
     if (fcidump.eof()) break;
+    raw_integrals.push_back(Hpqrs(integral, p, q, r, s));
+  }
+  fcidump.close();
+
+  for (const auto& item : raw_integrals) {
+    const unsigned p = item.p;
+    const unsigned q = item.q;
+    const unsigned r = item.r;
+    const unsigned s = item.s;
+    const double integral = item.H;
     if (p == q && q == r && r == s && s == 0) {
       energy_core = integral;
     } else if (r == s && s == 0) {
@@ -81,10 +91,8 @@ void Integrals::read_fcidump() {
     } else {
       integrals_2b.set(combine4(p - 1, q - 1, r - 1, s - 1), integral);
     }
-    raw_integrals.push_back(Hpqrs(integral, p, q, r, s));
   }
 
-  fcidump.close();
 }
 
 std::vector<unsigned> Integrals::get_adams_syms(const std::vector<int>& orb_syms_raw) const {
