@@ -91,7 +91,6 @@ void Integrals::read_fcidump() {
       integrals_2b.set(combine4(p - 1, q - 1, r - 1, s - 1), integral);
     }
   }
-
 }
 
 std::vector<unsigned> Integrals::get_adams_syms(const std::vector<int>& orb_syms_raw) const {

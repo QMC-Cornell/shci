@@ -8,8 +8,8 @@ void Davidson::diagonalize(
     const std::vector<double>& initial_vector,
     const bool verbose,
     const bool until_converged) {
-  const double TOLERANCE = until_converged ? 3.0e-7 : 1.0e-6;
-  const size_t MAX_N_INTERATIONS = until_converged ? 10 : 6;
+  const double TOLERANCE = until_converged ? 2.0e-7 : 2.0e-6;
+  const size_t MAX_N_INTERATIONS = 10;
 
   const size_t dim = initial_vector.size();
 

@@ -343,12 +343,18 @@ double ChemSystem::get_two_body_single(
   const unsigned orb_i = diff.left_only[0];
   const unsigned orb_j = diff.right_only[0];
   const auto& same_spin_half_det = is_up_single ? det_i.up : det_i.dn;
-  const auto& oppo_spin_half_det = is_up_single ? det_i.dn : det_i.up;
+  auto oppo_spin_half_det = is_up_single ? det_i.dn : det_i.up;
   double energy = 0.0;
   for (const unsigned orb : same_spin_half_det.get_occupied_orbs()) {
     if (orb == orb_i || orb == orb_j) continue;
     energy -= integrals.get_2b(orb_i, orb, orb, orb_j);  // Exchange.
-    energy += integrals.get_2b(orb_i, orb_j, orb, orb);  // Direct.
+    const double direct = integrals.get_2b(orb_i, orb_j, orb, orb);  // Direct.
+    if (oppo_spin_half_det.has(orb)) {
+      oppo_spin_half_det.unset(orb);
+      energy += 2 * direct;
+    } else {
+      energy += direct;
+    }
   }
   for (const unsigned orb : oppo_spin_half_det.get_occupied_orbs()) {
     energy += integrals.get_2b(orb_i, orb_j, orb, orb);  // Direct.
