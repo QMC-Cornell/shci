@@ -49,7 +49,7 @@ void Timer::end() {
   const auto& now = std::chrono::high_resolution_clock::now();
   auto& instance = get_instance();
   if (instance.is_master) {
-    printf("END OF " ANSI_COLOR_RESET);
+    printf("END OF ");
     instance.print_status();
     instance.print_time();
   }

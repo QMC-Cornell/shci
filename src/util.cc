@@ -51,4 +51,6 @@ double Util::stdev(const std::vector<double>& vec) {
 
 int Util::ctz(unsigned long long x) { return __builtin_ctzll(x); }
 
-int Util::popcnt(unsigned long long x) { return __builtin_popcountll(x); }
+int Util::popcnt(unsigned long long x) {
+  return __builtin_popcountll(x);
+}

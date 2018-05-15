@@ -4,7 +4,7 @@
 // Test with a Hilbert matrix.
 class HilbertSystem {
  public:
-  SparseMatrix<double> matrix;
+  SparseMatrix matrix;
 
   HilbertSystem(int n) {
     matrix.set_dim(n);
@@ -39,7 +39,7 @@ TEST(DavidsonTest, HilbertSystem) {
   // Check eigenvalue and eigenvector with reference values from exact diagonalization.
   std::vector<double> initial_vector(N, 0.0);
   initial_vector[0] = 1.0;
-  davidson.diagonalize(hilbert_system.matrix, initial_vector);
+  davidson.diagonalize(hilbert_system.matrix, initial_vector, true);
   const double lowest_eigenvalue = davidson.get_lowest_eigenvalue();
   EXPECT_NEAR(lowest_eigenvalue, expected_eigenvalues[0], 1.0e-6);
   const std::vector<double> lowest_eigenvector = davidson.get_lowest_eigenvector();

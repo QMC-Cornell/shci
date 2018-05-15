@@ -9,8 +9,7 @@ void Davidson::diagonalize(
     const bool verbose,
     const bool until_converged) {
   const double TOLERANCE = until_converged ? 1.0e-8 : 1.0e-6;
-  const size_t MAX_N_INTERATIONS = until_converged ? 12 : 6;
-  const double EPSILON = 1.0e-8;
+  const size_t MAX_N_INTERATIONS = until_converged ? 10 : 6;
 
   const size_t dim = initial_vector.size();
 
@@ -49,15 +48,14 @@ void Davidson::diagonalize(
   h_krylov(0, 0) = lowest_eigenvalue;
   w = v.col(0);
   Hw = Hv.col(0);
-  const double initial_eigenvalue = lowest_eigenvalue;
   if (verbose) printf("Davidson #0: %.10f\n", lowest_eigenvalue);
 
   for (size_t it = 1; it < max_n_iterations; it++) {
     // Compute residual.
     for (size_t j = 0; j < dim; j++) {
       const double diff_to_diag = lowest_eigenvalue - diag_elems[j];
-      if (std::abs(diff_to_diag) < EPSILON) {
-        v(j, it) = -1.0;
+      if (std::abs(diff_to_diag) < 1.0e-12) {
+        v(j, it) = (Hw(j, 0) - lowest_eigenvalue * w(j, 0)) / -1.0e-12;
       } else {
         v(j, it) = (Hw(j, 0) - lowest_eigenvalue * w(j, 0)) / diff_to_diag;
       }
@@ -87,17 +85,10 @@ void Davidson::diagonalize(
         h_krylov.leftCols(it + 1).topRows(it + 1));
     const auto& eigenvalues = eigenSolver.eigenvalues();
     auto eigenvectors = eigenSolver.eigenvectors();
-    if (eigenvectors(0, 0) < 0) eigenvectors = -eigenvectors;
     lowest_eigenvalue = eigenvalues[0];
-    size_t lowest_id = 0;
-    for (size_t i = 1; i <= it; i++) {
-      if (eigenvalues[i] < lowest_eigenvalue) {
-        lowest_eigenvalue = eigenvalues[i];
-        lowest_id = i;
-      }
-    }
-    w = v.leftCols(it) * eigenvectors.col(lowest_id).topRows(it);
-    Hw = Hv.leftCols(it) * eigenvectors.col(lowest_id).topRows(it);
+    if (eigenvectors(0, 0) < 0) eigenvectors.col(0) *= -1;
+    w = v.leftCols(it) * eigenvectors.col(0).topRows(it);
+    Hw = Hv.leftCols(it) * eigenvectors.col(0).topRows(it);
 
     if (verbose) printf("Davidson #%zu: %.10f\n", it, lowest_eigenvalue);
     if (std::abs(lowest_eigenvalue - lowest_eigenvalue_prev) < TOLERANCE) {
@@ -107,9 +98,6 @@ void Davidson::diagonalize(
     }
 
     if (converged) break;
-    if (std::abs(lowest_eigenvalue - initial_eigenvalue) > 1.0e-3 && it >= 5) {
-      break;
-    }
   }
 
   lowest_eigenvector.resize(dim);
