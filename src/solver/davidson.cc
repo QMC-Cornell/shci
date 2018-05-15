@@ -8,7 +8,7 @@ void Davidson::diagonalize(
     const std::vector<double>& initial_vector,
     const bool verbose,
     const bool until_converged) {
-  const double TOLERANCE = until_converged ? 1.0e-8 : 1.0e-5;
+  const double TOLERANCE = until_converged ? 1.0e-8 : 1.0e-6;
   const size_t MAX_N_INTERATIONS = until_converged ? 12 : 6;
   const double EPSILON = 1.0e-8;
 
@@ -23,7 +23,6 @@ void Davidson::diagonalize(
 
   const size_t max_n_iterations = std::min(dim, MAX_N_INTERATIONS);
   double lowest_eigenvalue_prev = 0.0;
-  double residual_norm = 0.0;
 
   Eigen::MatrixXd v = Eigen::MatrixXd::Zero(dim, max_n_iterations);
   for (size_t i = 0; i < dim; i++) v(i, 0) = initial_vector[i];
@@ -50,6 +49,7 @@ void Davidson::diagonalize(
   h_krylov(0, 0) = lowest_eigenvalue;
   w = v.col(0);
   Hw = Hv.col(0);
+  const double initial_eigenvalue = lowest_eigenvalue;
   if (verbose) printf("Davidson #0: %.10f\n", lowest_eigenvalue);
 
   for (size_t it = 1; it < max_n_iterations; it++) {
@@ -62,10 +62,6 @@ void Davidson::diagonalize(
         v(j, it) = (Hw(j, 0) - lowest_eigenvalue * w(j, 0)) / diff_to_diag;
       }
     }
-
-    // If residual is small, converge.
-    residual_norm = v.col(it).norm();
-    if (residual_norm < TOLERANCE) converged = true;
 
     // Orthogonalize and normalize.
     for (size_t i = 0; i < it; i++) {
@@ -111,6 +107,9 @@ void Davidson::diagonalize(
     }
 
     if (converged) break;
+    if (std::abs(lowest_eigenvalue - initial_eigenvalue) > 1.0e-3 && it >= 5) {
+      break;
+    }
   }
 
   lowest_eigenvector.resize(dim);
