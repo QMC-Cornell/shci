@@ -69,8 +69,6 @@ void Integrals::read_fcidump() {
   // Read integrals.
   double integral;
   unsigned p, q, r, s;
-  integrals_1b.max_load_factor = 0.5;
-  integrals_2b.max_load_factor = 0.5;
   while (true) {
     fcidump >> integral >> p >> q >> r >> s;
     if (fcidump.eof()) break;
