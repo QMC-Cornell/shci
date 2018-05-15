@@ -11,10 +11,13 @@
 #include "../util.h"
 
 void Integrals::load() {
+  const std::string& cache_filename = "integrals_cache.dat";
+  if (load_from_cache(cache_filename)) return;
   read_fcidump();
   generate_det_hf();
   const auto& orb_energies = get_orb_energies();
   reorder_orbs(orb_energies);
+  save_to_cache(cache_filename);
 }
 
 void Integrals::read_fcidump() {
@@ -55,7 +58,7 @@ void Integrals::read_fcidump() {
           state = State::NONE;
           if (Parallel::is_master()) printf("\n");
         }
-      } else if (match == "&END") {
+      } else if (match == "&END" || match == "/") {
         state = State::END;
       }
     }
@@ -263,4 +266,22 @@ size_t Integrals::combine4(const size_t a, const size_t b, const size_t c, const
   const size_t ab = combine2(a, b);
   const size_t cd = combine2(c, d);
   return combine2(ab, cd);
+}
+
+bool Integrals::load_from_cache(const std::string& filename) {
+  std::ifstream file(filename, std::ifstream::binary);
+  if (!file) return false;
+  hps::from_stream<Integrals>(file, *this);
+  if (Parallel::get_proc_id() == 0) {
+    printf("Loaded FCIDUMP cache from: %s\n", filename.c_str());
+  }
+  return true;
+}
+
+void Integrals::save_to_cache(const std::string& filename) const {
+  if (Parallel::get_proc_id() == 0) {
+    std::ofstream file(filename, std::ofstream::binary);
+    hps::to_stream(*this, file);
+    printf("FCIDUMP cache saved to: %s\n", filename.c_str());
+  }
 }
