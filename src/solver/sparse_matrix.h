@@ -1,6 +1,7 @@
 #pragma once
 
 #include <climits>
+#include <vector>
 #include "../parallel.h"
 #include "../timer.h"
 #include "../util.h"
@@ -28,4 +29,6 @@ class SparseMatrix {
   std::vector<double> diag_local;
 
   std::vector<double> diag;
+
+  std::vector<double> reduce_sum(const std::vector<double>& vec) const;
 };

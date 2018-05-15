@@ -60,8 +60,6 @@ void Solver<S>::run() {
   std::setlocale(LC_ALL, "en_US.UTF-8");
   system.setup();
   Result::put("energy_hf", system.energy_hf);
-  system.dets[0].up.print();
-  system.dets[0].dn.print();
   Timer::end();
 
   Timer::start("variation");
@@ -167,9 +165,8 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
     Timer::checkpoint("get next det list");
 
     hamiltonian.update(system);
-    const double inc = static_cast<double>(n_dets_new) / n_dets;
     davidson.diagonalize(
-        hamiltonian.matrix, system.coefs, Parallel::is_master(), until_converged && inc < 1.01);
+        hamiltonian.matrix, system.coefs, Parallel::is_master(), until_converged);
     const double energy_var_new = davidson.get_lowest_eigenvalue();
     system.coefs = davidson.get_lowest_eigenvector();
     Timer::checkpoint("diagonalize sparse hamiltonian");

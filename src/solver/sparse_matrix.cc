@@ -12,7 +12,6 @@ std::vector<double> SparseMatrix::mul(const std::vector<double>& vec) const {
   const int n_threads = Parallel::get_n_threads();
   const size_t dim = rows.size();
   std::vector<std::vector<double>> res_local(n_threads);
-  std::vector<double> res(dim);
   for (int i = 0; i < n_threads; i++) res_local[i].assign(dim, 0.0);
 
 #pragma omp parallel for schedule(static, 1)
@@ -33,8 +32,7 @@ std::vector<double> SparseMatrix::mul(const std::vector<double>& vec) const {
       res_local[0][j] += res_local[i][j];
     }
   }
-
-  MPI_Allreduce(res_local[0].data(), res.data(), dim, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  const auto& res = reduce_sum(res_local[0]);
 
   return res;
 }
@@ -50,12 +48,22 @@ void SparseMatrix::clear() { rows.clear(); }
 void SparseMatrix::sort_row(const size_t i) { rows[i].sort(); }
 
 void SparseMatrix::cache_diag() {
-  MPI_Allreduce(diag_local.data(), diag.data(), diag.size(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-  if (Parallel::is_master()) {
-    printf("diag: ");
-    for (int i = 0; i < 10; i++) {
-      printf("%.4f ", diag[i]);
-    }
-    printf("\n");
+  diag = reduce_sum(diag_local);
+}
+
+std::vector<double> SparseMatrix::reduce_sum(const std::vector<double>& vec) const {
+  const size_t dim = vec.size();
+  std::vector<double> res(dim, 0.0);
+  const size_t TRUNK_SIZE = 1 << 24;
+  double* src_ptr = const_cast<double*>(vec.data());
+  double* dest_ptr = res.data();
+  size_t n_elems_left = dim;
+  while (n_elems_left > TRUNK_SIZE) {
+    MPI_Allreduce(src_ptr, dest_ptr, TRUNK_SIZE, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    n_elems_left -= TRUNK_SIZE;
+    src_ptr += TRUNK_SIZE;
+    dest_ptr += TRUNK_SIZE;
   }
+  MPI_Allreduce(src_ptr, dest_ptr, n_elems_left, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  return res;
 }
