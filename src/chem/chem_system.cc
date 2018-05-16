@@ -39,10 +39,15 @@ void ChemSystem::setup_hci_queue() {
   for (unsigned orb = 0; orb < n_orbs; orb++) sym_orbs[orb_sym[orb]].push_back(orb);
   size_t n_entries = 0;
   max_hci_queue_elem = 0.0;
+  const int n_threads = Parallel::get_n_threads();
+  std::vector<size_t> n_entries_local(n_threads, 0);
+  std::vector<double> max_hci_queue_elem_local(n_threads, 0.0);
 
   // Same spin.
   hci_queue.resize(Integrals::combine2(n_orbs, 2 * n_orbs));
+#pragma omp parallel for schedule(dynamic, 5)
   for (unsigned p = 0; p < n_orbs; p++) {
+    const int thread_id = omp_get_thread_num();
     const unsigned sym_p = orb_sym[p];
     for (unsigned q = p + 1; q < n_orbs; q++) {
       const size_t pq = Integrals::combine2(p, q);
@@ -62,15 +67,17 @@ void ChemSystem::setup_hci_queue() {
         std::sort(hci_queue.at(pq).begin(), hci_queue.at(pq).end(), [](const Hrs& a, const Hrs& b) {
           return a.H > b.H;
         });
-        n_entries += hci_queue.at(pq).size();
-        max_hci_queue_elem = std::max(max_hci_queue_elem, hci_queue.at(pq).front().H);
+        n_entries_local[thread_id] += hci_queue.at(pq).size();
+        max_hci_queue_elem_local[thread_id] =
+            std::max(max_hci_queue_elem_local[thread_id], hci_queue.at(pq).front().H);
       }
     }
   }
 
-  // Opposite spin.
-  unsigned cnt = 0;
+// Opposite spin.
+#pragma omp parallel for schedule(dynamic, 5)
   for (unsigned p = 0; p < n_orbs; p++) {
+    const int thread_id = omp_get_thread_num();
     const unsigned sym_p = orb_sym[p];
     for (unsigned q = n_orbs + p; q < n_orbs * 2; q++) {
       const size_t pq = Integrals::combine2(p, q);
@@ -83,18 +90,22 @@ void ChemSystem::setup_hci_queue() {
           const double H = get_hci_queue_elem(p, q, r, s + n_orbs);
           if (H == 0.0) continue;
           hci_queue.at(pq).push_back(Hrs(H, r, s + n_orbs));
-          max_hci_queue_elem = std::max(max_hci_queue_elem, H);
         }
       }
       if (hci_queue.at(pq).size() > 0) {
         std::sort(hci_queue.at(pq).begin(), hci_queue.at(pq).end(), [](const Hrs& a, const Hrs& b) {
           return a.H > b.H;
         });
-        n_entries += hci_queue.at(pq).size();
-        max_hci_queue_elem = std::max(max_hci_queue_elem, hci_queue.at(pq).front().H);
+        n_entries_local[thread_id] += hci_queue.at(pq).size();
+        max_hci_queue_elem_local[thread_id] =
+            std::max(max_hci_queue_elem_local[thread_id], hci_queue.at(pq).front().H);
       }
-      cnt += hci_queue.at(pq).size();
     }
+  }
+
+  for (int i = 0; i < n_threads; i++) {
+    n_entries += n_entries_local[i];
+    max_hci_queue_elem = std::max(max_hci_queue_elem, max_hci_queue_elem_local[i]);
   }
 
   const int proc_id = Parallel::get_proc_id();
@@ -332,12 +343,18 @@ double ChemSystem::get_two_body_single(
   const unsigned orb_i = diff.left_only[0];
   const unsigned orb_j = diff.right_only[0];
   const auto& same_spin_half_det = is_up_single ? det_i.up : det_i.dn;
-  const auto& oppo_spin_half_det = is_up_single ? det_i.dn : det_i.up;
+  auto oppo_spin_half_det = is_up_single ? det_i.dn : det_i.up;
   double energy = 0.0;
   for (const unsigned orb : same_spin_half_det.get_occupied_orbs()) {
     if (orb == orb_i || orb == orb_j) continue;
     energy -= integrals.get_2b(orb_i, orb, orb, orb_j);  // Exchange.
-    energy += integrals.get_2b(orb_i, orb_j, orb, orb);  // Direct.
+    const double direct = integrals.get_2b(orb_i, orb_j, orb, orb);  // Direct.
+    if (oppo_spin_half_det.has(orb)) {
+      oppo_spin_half_det.unset(orb);
+      energy += 2 * direct;
+    } else {
+      energy += direct;
+    }
   }
   for (const unsigned orb : oppo_spin_half_det.get_occupied_orbs()) {
     energy += integrals.get_2b(orb_i, orb_j, orb, orb);  // Direct.

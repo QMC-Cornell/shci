@@ -4,6 +4,8 @@
 #include <unordered_map>
 #include <vector>
 #include "../det/det.h"
+#include "hpqrs.h"
+#include "integrals_hasher.h"
 
 class Integrals {
  public:
@@ -31,12 +33,18 @@ class Integrals {
 
   static size_t combine4(const size_t a, const size_t b, const size_t c, const size_t d);
 
+  template <class B>
+  void serialize(B& buf) const;
+
+  template <class B>
+  void parse(B& buf);
+
  private:
-  fgpl::HashMap<size_t, double> integrals_1b;
+  fgpl::HashMap<size_t, double, IntegralsHasher> integrals_1b;
 
-  fgpl::HashMap<size_t, double> integrals_2b;
+  fgpl::HashMap<size_t, double, IntegralsHasher> integrals_2b;
 
-  std::vector<std::tuple<unsigned, unsigned, unsigned, unsigned, double>> raw_integrals;
+  std::vector<Hpqrs> raw_integrals;
 
   void read_fcidump();
 
@@ -47,4 +55,20 @@ class Integrals {
   std::vector<double> get_orb_energies() const;
 
   void reorder_orbs(const std::vector<double>& orb_energies);
+
+  bool load_from_cache(const std::string& filename);
+
+  void save_to_cache(const std::string& filename) const;
 };
+
+template <class B>
+void Integrals::serialize(B& buf) const {
+  buf << energy_core << n_orbs << n_elecs << n_up << n_dn << orb_sym << det_hf;
+  buf << integrals_1b << integrals_2b;
+}
+
+template <class B>
+void Integrals::parse(B& buf) {
+  buf >> energy_core >> n_orbs >> n_elecs >> n_up >> n_dn >> orb_sym >> det_hf;
+  buf >> integrals_1b >> integrals_2b;
+}

@@ -11,10 +11,13 @@
 #include "../util.h"
 
 void Integrals::load() {
+  const std::string& cache_filename = "integrals_cache.dat";
+  if (load_from_cache(cache_filename)) return;
   read_fcidump();
   generate_det_hf();
   const auto& orb_energies = get_orb_energies();
   reorder_orbs(orb_energies);
+  save_to_cache(cache_filename);
 }
 
 void Integrals::read_fcidump() {
@@ -55,7 +58,7 @@ void Integrals::read_fcidump() {
           state = State::NONE;
           if (Parallel::is_master()) printf("\n");
         }
-      } else if (match == "&END") {
+      } else if (match == "&END" || match == "/") {
         state = State::END;
       }
     }
@@ -66,11 +69,20 @@ void Integrals::read_fcidump() {
   // Read integrals.
   double integral;
   unsigned p, q, r, s;
-  integrals_1b.max_load_factor = 0.5;
-  integrals_2b.max_load_factor = 0.5;
   while (true) {
     fcidump >> integral >> p >> q >> r >> s;
     if (fcidump.eof()) break;
+    if (std::abs(integral) < 1.0e-9) continue;
+    raw_integrals.push_back(Hpqrs(integral, p, q, r, s));
+  }
+  fcidump.close();
+
+  for (const auto& item : raw_integrals) {
+    const unsigned p = item.p;
+    const unsigned q = item.q;
+    const unsigned r = item.r;
+    const unsigned s = item.s;
+    const double integral = item.H;
     if (p == q && q == r && r == s && s == 0) {
       energy_core = integral;
     } else if (r == s && s == 0) {
@@ -78,10 +90,7 @@ void Integrals::read_fcidump() {
     } else {
       integrals_2b.set(combine4(p - 1, q - 1, r - 1, s - 1), integral);
     }
-    raw_integrals.push_back(std::make_tuple(p, q, r, s, integral));
   }
-
-  fcidump.close();
 }
 
 std::vector<unsigned> Integrals::get_adams_syms(const std::vector<int>& orb_syms_raw) const {
@@ -217,11 +226,11 @@ void Integrals::reorder_orbs(const std::vector<double>& orb_energies) {
   integrals_1b.clear();
   integrals_2b.clear();
   for (const auto& item : raw_integrals) {
-    const unsigned p = std::get<0>(item);
-    const unsigned q = std::get<1>(item);
-    const unsigned r = std::get<2>(item);
-    const unsigned s = std::get<3>(item);
-    const double integral = std::get<4>(item);
+    const unsigned p = item.p;
+    const unsigned q = item.q;
+    const unsigned r = item.r;
+    const unsigned s = item.s;
+    const double integral = item.H;
     if (p == q && q == r && r == s && s == 0) {
       continue;
     } else if (r == s && s == 0) {
@@ -263,4 +272,22 @@ size_t Integrals::combine4(const size_t a, const size_t b, const size_t c, const
   const size_t ab = combine2(a, b);
   const size_t cd = combine2(c, d);
   return combine2(ab, cd);
+}
+
+bool Integrals::load_from_cache(const std::string& filename) {
+  std::ifstream file(filename, std::ifstream::binary);
+  if (!file) return false;
+  hps::from_stream<Integrals>(file, *this);
+  if (Parallel::get_proc_id() == 0) {
+    printf("Loaded FCIDUMP cache from: %s\n", filename.c_str());
+  }
+  return true;
+}
+
+void Integrals::save_to_cache(const std::string& filename) const {
+  if (Parallel::get_proc_id() == 0) {
+    std::ofstream file(filename, std::ofstream::binary);
+    hps::to_stream(*this, file);
+    printf("FCIDUMP cache saved to: %s\n", filename.c_str());
+  }
 }

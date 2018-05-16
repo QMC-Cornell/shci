@@ -85,14 +85,14 @@ void Solver<S>::run_all_variations() {
   auto it_schedule = eps_vars_schedule.begin();
   var_iteration_global = 0;
   for (const double eps_var : eps_vars) {
-    Timer::start(Util::str_printf("eps_var %#.4g", eps_var));
-    const auto& filename = Util::str_printf("var_%#.4g.dat", eps_var);
+    Timer::start(Util::str_printf("eps_var %#.2e", eps_var));
+    const auto& filename = Util::str_printf("wf_eps1_%#.2e.dat", eps_var);
     if (!load_variation_result(filename)) {
       // Perform extra scheduled eps.
       while (it_schedule != eps_vars_schedule.end() && *it_schedule > eps_var_prev) it_schedule++;
       while (it_schedule != eps_vars_schedule.end() && *it_schedule > eps_var) {
         const double eps_var_extra = *it_schedule;
-        Timer::start(Util::str_printf("extra %#.4g", eps_var_extra));
+        Timer::start(Util::str_printf("extra %#.2e", eps_var_extra));
         run_variation(eps_var_extra, false);
         Timer::end();
         it_schedule++;
@@ -100,7 +100,7 @@ void Solver<S>::run_all_variations() {
 
       Timer::start("main");
       run_variation(eps_var);
-      Result::put<double>(Util::str_printf("energy_var/%#.4g", eps_var), system.energy_var);
+      Result::put<double>(Util::str_printf("energy_var/%#.2e", eps_var), system.energy_var);
       Timer::end();
 
       save_variation_result(filename);
