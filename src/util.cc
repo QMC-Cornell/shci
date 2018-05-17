@@ -49,8 +49,12 @@ double Util::stdev(const std::vector<double>& vec) {
   return sqrt((sq_sum - sum * sum / n) / (n - 1));
 }
 
+size_t Util::combine_hash(const size_t a, const size_t b) {
+  size_t res = a;
+  res ^= b + 0x9e3779b9 + (res << 6) + (res >> 2);
+  return res;
+}
+
 int Util::ctz(unsigned long long x) { return __builtin_ctzll(x); }
 
-int Util::popcnt(unsigned long long x) {
-  return __builtin_popcountll(x);
-}
+int Util::popcnt(unsigned long long x) { return __builtin_popcountll(x); }
