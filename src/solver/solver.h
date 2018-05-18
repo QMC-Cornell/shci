@@ -258,7 +258,7 @@ double Solver<S>::get_energy_pt_pre_dtm() {
   if (Parallel::is_master()) {
     printf("Number of pre dtm pt dets: %'zu\n", n_pt_dets);
   }
-  Timer::checkpoint("find connected dets");
+  Timer::checkpoint("create hc sums");
 
   double energy_pt_pre_dtm = hc_sums.mapreduce<double>(
       [&](const Det& det_a, const double& hc_sum) {
@@ -317,7 +317,7 @@ UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
     if (Parallel::is_master()) {
       printf("Number of dtm pt dets: %'zu\n", n_pt_dets);
     }
-    Timer::checkpoint("find connected dets");
+    Timer::checkpoint("create hc sums");
 
     const double energy_pt_dtm_batch = hc_sums.mapreduce<double>(
         [&](const Det& det_a, const double& hc_sum) {
