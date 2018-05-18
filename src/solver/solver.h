@@ -300,7 +300,7 @@ UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
       const auto& pt_det_handler = [&](const Det& det_a, const int n_excite) {
         if (var_dets.count(det_a) == 1) return;
         const size_t det_a_hash = det_hasher(det_a);
-        const size_t batch_hash = Util::combine_hash(det_a_hash, 15487399);
+        const size_t batch_hash = Util::rehash(det_a_hash);
         if (batch_hash % n_batches != batch_id) return;
         const double h_ai = system.get_hamiltonian_elem(det, det_a, n_excite);
         const double hc = h_ai * coef;
@@ -417,7 +417,7 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
       const auto& pt_det_handler = [&](const Det& det_a, const int n_excite) {
         if (var_dets.count(det_a) == 1) return;
         const size_t det_a_hash = det_hasher(det_a);
-        const size_t batch_hash = Util::combine_hash(det_a_hash, 15487399);
+        const size_t batch_hash = Util::rehash(det_a_hash);
         if (batch_hash % n_batches != batch_id) return;
         const double h_ai = system.get_hamiltonian_elem(det, det_a, n_excite);
         const double hc = h_ai * coef;

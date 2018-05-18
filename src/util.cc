@@ -49,11 +49,11 @@ double Util::stdev(const std::vector<double>& vec) {
   return sqrt((sq_sum - sum * sum / n) / (n - 1));
 }
 
-size_t Util::combine_hash(const size_t a, const size_t b) {
+size_t Util::rehash(const size_t a) {
   size_t hash = a;
   hash += (hash << 10);
   hash ^= (hash >> 6);
-  hash += b;
+  hash += 982451653ull;  // 50M-th prime.
   hash += (hash << 10);
   hash ^= (hash >> 6);
   hash += (hash << 3);

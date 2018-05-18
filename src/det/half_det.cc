@@ -39,11 +39,16 @@ std::vector<unsigned> HalfDet::get_occupied_orbs() const {
 }
 
 size_t HalfDet::get_hash_value() const {
-  size_t seed = chunks[0];
-  for (int chunk_id = 1; chunk_id < N_CHUNKS; chunk_id++) {
-    seed ^= chunks[chunk_id] + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+  size_t hash = 0;
+  for (int chunk_id = 0; chunk_id < N_CHUNKS; chunk_id++) {
+    hash += chunks[chunk_id];
+    hash += (hash << 10);
+    hash ^= (hash >> 6);
   }
-  return seed;
+  hash += (hash << 3);
+  hash ^= (hash >> 11);
+  hash += (hash << 15);
+  return hash;
 }
 
 void HalfDet::print() const {
