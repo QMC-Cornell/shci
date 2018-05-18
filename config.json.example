@@ -18,10 +18,10 @@
   "eps_pt_pre_dtm": 1e-3,
   "eps_pt_dtm": 1e-3,
   "n_batches_pt_dtm": 1,
-  "n_batches_pt_sto": 4,
-  "n_samples_pt_sto": 2000,
-  "target_error": 0.0001,
-  "max_pt_iterations": 4,
+  "n_batches_pt_sto": 2,
+  "n_samples_pt_sto": 10000,
+  "target_error": 0.00001,
+  "max_pt_iterations": 10,
   "chem": {
     "point_group": "d2h",
     "irreps": [

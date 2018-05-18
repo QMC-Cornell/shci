@@ -10,6 +10,7 @@
 #include <omp_hash_map/src/omp_hash_map.h>
 #include <omp_hash_map/src/omp_hash_set.h>
 #include <cmath>
+#include <cstdlib>
 #include <functional>
 #include <unordered_set>
 #include "../config.h"
@@ -314,10 +315,10 @@ UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
 
     const double energy_pt_dtm_batch = hc_sums.mapreduce<double>(
         [&](const Det& det_a, const double& hc_sum) {
-          const double H_aa = system.get_hamiltonian_elem(det_a, det_a, 0);
           const double hc_sum_pre = hc_sums_pre.get_local(det_a, 0.0);
-          const double hc_sum_sq_diff = hc_sum * hc_sum - hc_sum_pre * hc_sum_pre;
           // TODO: 0.1 ~ 1% difference whether accumulating separately or not.
+          const double hc_sum_sq_diff = hc_sum * hc_sum - hc_sum_pre * hc_sum_pre;
+          const double H_aa = system.get_hamiltonian_elem(det_a, det_a, 0);
           const double contribution = hc_sum_sq_diff / (system.energy_var - H_aa);
           return contribution;
         },
@@ -379,14 +380,14 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
     if (i > 0) cum_probs[i] += cum_probs[i - 1];
   }
 
+  srand(time(nullptr));
   Timer::start(Util::str_printf("sto %#.2e", eps_pt));
-  srand(time(NULL));
   while (iteration < max_pt_iterations) {
     Timer::start(Util::str_printf("#%zu", iteration));
 
     // Generate random sample
     for (size_t i = 0; i < n_samples; i++) {
-      const double rand_01 = ((double)rand() / (RAND_MAX));
+      const double rand_01 = (static_cast<double>(rand()) / (RAND_MAX));
       const int sample_det_id =
           std::lower_bound(cum_probs.begin(), cum_probs.end(), rand_01) - cum_probs.begin();
       if (sample_dets.count(sample_det_id) == 0) sample_dets_list.push_back(sample_det_id);
