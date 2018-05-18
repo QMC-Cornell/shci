@@ -406,6 +406,16 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
     size_t batch_id = rand() % n_batches;
     fgpl::broadcast(batch_id);
     const size_t n_unique_samples = sample_dets_list.size();
+    if (Parallel::is_master()) {
+      printf("Batch id: %zu\n", batch_id);
+      for (size_t sample_id = 0; sample_id < n_unique_samples; sample_id++) {
+        const size_t i = sample_dets_list[sample_id];
+        const size_t count = static_cast<double>(sample_dets[i]);
+        if (count > 10) {
+          printf("det %zu: %'zu\n", i, count);
+        }
+      }
+    }
     double energy_pt_sto_loop_local = 0.0;
 
     fgpl::DistRange<size_t>(0, n_unique_samples).for_each([&](const size_t sample_id) {
