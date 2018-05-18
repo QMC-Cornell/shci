@@ -236,7 +236,6 @@ double Solver<S>::get_energy_pt_pre_dtm() {
   const size_t n_var_dets = system.get_n_dets();
   fgpl::DistHashMap<Det, double, DetHasher> hc_sums;
 
-  Timer::start("search");
   fgpl::DistRange<size_t>(0, n_var_dets).for_each([&](const size_t i) {
     const Det& det = system.dets[i];
     const double coef = system.coefs[i];
@@ -248,14 +247,13 @@ double Solver<S>::get_energy_pt_pre_dtm() {
     };
     system.find_connected_dets(det, Util::INF, eps_pt_pre_dtm / std::abs(coef), pt_det_handler);
   });
+  hc_sums.sync(fgpl::Reducer<double>::sum);
   const size_t n_pt_dets = hc_sums.get_n_keys();
   if (Parallel::is_master()) {
     printf("Number of pre dtm pt dets: %'zu\n", n_pt_dets);
   }
-  Timer::end();  // search
+  Timer::checkpoint("find connected dets");
 
-  Timer::start("accumulate");
-  hc_sums.sync(fgpl::Reducer<double>::sum);
   double energy_pt_pre_dtm = hc_sums.mapreduce<double>(
       [&](const Det& det_a, const double& hc_sum) {
         const double H_aa = system.get_hamiltonian_elem(det_a, det_a, 0);
@@ -268,7 +266,6 @@ double Solver<S>::get_energy_pt_pre_dtm() {
     printf("PT pre dtm correction: " ENERGY_FORMAT "\n", energy_pt_pre_dtm);
     printf("PT pre dtm energy: " ENERGY_FORMAT "\n", energy_pt_pre_dtm + system.energy_var);
   }
-  Timer::end();  // accumulate
 
   Timer::end();  // pre dtm
   return energy_pt_pre_dtm + system.energy_var;
@@ -291,7 +288,6 @@ UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
   for (size_t batch_id = 0; batch_id < n_batches; batch_id++) {
     Timer::start(Util::str_printf("#%zu", batch_id));
 
-    Timer::start("search");
     fgpl::DistRange<size_t>(0, n_var_dets).for_each([&](const size_t i) {
       const Det& det = system.dets[i];
       const double coef = system.coefs[i];
@@ -308,20 +304,20 @@ UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
       };
       system.find_connected_dets(det, Util::INF, eps_pt_dtm / std::abs(coef), pt_det_handler);
     });
+    hc_sums.sync(fgpl::Reducer<double>::sum);
+    hc_sums_pre.sync(fgpl::Reducer<double>::sum);
     const size_t n_pt_dets = hc_sums.get_n_keys();
     if (Parallel::is_master()) {
       printf("Number of dtm pt dets: %'zu\n", n_pt_dets);
     }
-    Timer::end();  // search
+    Timer::checkpoint("find connected dets");
 
-    Timer::start("accumulate");
-    hc_sums.sync(fgpl::Reducer<double>::sum);
-    hc_sums_pre.sync(fgpl::Reducer<double>::sum);
-    double energy_pt_dtm_batch = hc_sums.mapreduce<double>(
+    const double energy_pt_dtm_batch = hc_sums.mapreduce<double>(
         [&](const Det& det_a, const double& hc_sum) {
           const double H_aa = system.get_hamiltonian_elem(det_a, det_a, 0);
           const double hc_sum_pre = hc_sums_pre.get_local(det_a, 0.0);
           const double hc_sum_sq_diff = hc_sum * hc_sum - hc_sum_pre * hc_sum_pre;
+          // TODO: 0.1 ~ 1% difference whether accumulating separately or not.
           const double contribution = hc_sum_sq_diff / (system.energy_var - H_aa);
           return contribution;
         },
@@ -334,12 +330,12 @@ UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
     } else {
       energy_pt_dtm.uncert = Util::stdev(energy_pt_dtm_batches) * n_batches / sqrt(batch_id + 1.0);
     }
+
     if (Parallel::is_master()) {
       printf("PT dtm correction batch: " ENERGY_FORMAT "\n", energy_pt_dtm_batch);
       printf("PT dtm correction: %s Ha\n", energy_pt_dtm.to_string().c_str());
       printf("PT dtm energy: %s Ha\n", (energy_pt_dtm + energy_pt_pre_dtm).to_string().c_str());
     }
-    Timer::end();  // accumulate
 
     hc_sums_pre.clear();
     hc_sums.clear();
@@ -405,7 +401,6 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
     const size_t n_unique_samples = sample_dets_list.size();
     double energy_pt_sto_loop_local = 0.0;
 
-    Timer::start("search");
     fgpl::DistRange<size_t>(0, n_unique_samples).for_each([&](const size_t sample_id) {
       const size_t i = sample_dets_list[sample_id];
       const double count = static_cast<double>(sample_dets[i]);
@@ -435,14 +430,15 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
       };
       system.find_connected_dets(det, Util::INF, eps_pt / std::abs(coef), pt_det_handler);
     });
+    hc_sums.sync(fgpl::Reducer<double>::sum);
+    hc_sums_dtm.sync(fgpl::Reducer<double>::sum);
+    const size_t n_pt_dets = hc_sums.get_n_keys();
     if (Parallel::is_master()) {
-      printf("Number of dtm pt dets: %'zu\n", hc_sums.get_n_keys());
+      printf("Number of dtm pt dets: %'zu\n", n_pt_dets);
     }
-    Timer::end();  // search.
     sample_dets.clear();
     sample_dets_list.clear();
 
-    Timer::start("accumulate");
     double energy_pt_sto_loop = 0.0;
     MPI_Allreduce(
         &energy_pt_sto_loop_local, &energy_pt_sto_loop, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
@@ -463,7 +459,6 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
       printf("PT sto correction: %s Ha\n", energy_pt_sto.to_string().c_str());
       printf("PT sto energy: %s Ha\n", (energy_pt_sto + energy_pt_dtm).to_string().c_str());
     }
-    Timer::end();
 
     hc_sums_dtm.clear();
     hc_sums.clear();
