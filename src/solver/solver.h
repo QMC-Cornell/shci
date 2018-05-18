@@ -132,10 +132,6 @@ template <class S>
 void Solver<S>::run_variation(const double eps_var, const bool until_converged) {
   Davidson davidson;
   fgpl::DistHashSet<Det, DetHasher> dist_new_dets;
-  const auto& connected_det_handler = [&](const Det& connected_det, const int) {
-    if (var_dets.count(connected_det) == 1) return;
-    dist_new_dets.async_set(connected_det);
-  };
   size_t n_dets = system.get_n_dets();
   double energy_var_prev = 0.0;
   bool converged = false;
@@ -151,6 +147,14 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
       const double eps_min = eps_var / std::abs(coef);
       if (eps_min >= eps_tried_prev[i] * 0.99) return;
       const auto& det = system.dets[i];
+      const auto& connected_det_handler = [&](const Det& connected_det, const int n_excite) {
+        if (var_dets.count(connected_det) == 1) return;
+        if (n_excite == 1) {
+          const double h_ai = system.get_hamiltonian_elem(det, connected_det, n_excite);
+          if (std::abs(h_ai) < eps_min) return;  // Filter out small single excitation.
+        }
+        dist_new_dets.async_set(connected_det);
+      };
       system.find_connected_dets(det, eps_tried_prev[i], eps_min, connected_det_handler);
       eps_tried_prev[i] = eps_min;
     });
@@ -244,6 +248,7 @@ double Solver<S>::get_energy_pt_pre_dtm() {
       if (var_dets.count(det_a) == 1) return;
       const double h_ai = system.get_hamiltonian_elem(det, det_a, n_excite);
       const double hc = h_ai * coef;
+      if (std::abs(hc) < eps_pt_pre_dtm) return;  // Filter out small single excitation.
       hc_sums.async_set(det_a, hc, fgpl::Reducer<double>::sum);
     };
     system.find_connected_dets(det, Util::INF, eps_pt_pre_dtm / std::abs(coef), pt_det_handler);
@@ -299,6 +304,7 @@ UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
         if (batch_hash % n_batches != batch_id) return;
         const double h_ai = system.get_hamiltonian_elem(det, det_a, n_excite);
         const double hc = h_ai * coef;
+        if (std::abs(hc) < eps_pt_dtm) return;  // Filter out small single excitation.
         hc_sums.async_set(det_a, hc, fgpl::Reducer<double>::sum);
         if (std::abs(hc) < eps_pt_pre_dtm) return;
         hc_sums_pre.async_set(det_a, hc, fgpl::Reducer<double>::sum);
@@ -415,6 +421,7 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
         if (batch_hash % n_batches != batch_id) return;
         const double h_ai = system.get_hamiltonian_elem(det, det_a, n_excite);
         const double hc = h_ai * coef;
+        if (std::abs(hc) < eps_pt) return;  // Filter out small single excitation.
         const double h_aa = system.get_hamiltonian_elem(det_a, det_a, 0);
         const double factor =
             n_batches / ((system.energy_var - h_aa) * n_samples * (n_samples - 1));

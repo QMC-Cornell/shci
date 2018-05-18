@@ -156,19 +156,11 @@ void ChemSystem::find_connected_dets(
     const Det& det,
     const double eps_max,
     const double eps_min,
-    const std::function<void(const Det&, const int)>& connected_det_handler) const {
+    const std::function<void(const Det&, const int n_excite)>& handler) const {
   if (eps_max < eps_min) return;
 
   auto occ_orbs_up = det.up.get_occupied_orbs();
   auto occ_orbs_dn = det.dn.get_occupied_orbs();
-
-  const auto& prospective_det_handler = [&](Det& connected_det, const int n_excite) {
-    if (n_excite == 1) {
-      const double matrix_elem = get_hamiltonian_elem(det, connected_det, n_excite);
-      if (std::abs(matrix_elem) >= eps_max || std::abs(matrix_elem) < eps_min) return;
-    }
-    connected_det_handler(connected_det, n_excite);
-  };
 
   // Add single excitations.
   for (unsigned p_id = 0; p_id < n_elecs; p_id++) {
@@ -184,10 +176,10 @@ void ChemSystem::find_connected_dets(
       Det connected_det(det);
       if (p_id < n_up) {
         connected_det.up.unset(p).set(r);
-        prospective_det_handler(connected_det, 1);
+        handler(connected_det, 1);
       } else {
         connected_det.dn.unset(p).set(r);
-        prospective_det_handler(connected_det, 1);
+        handler(connected_det, 1);
       }
     }
   }
@@ -231,7 +223,7 @@ void ChemSystem::find_connected_dets(
         q < n_orbs ? connected_det.up.unset(q) : connected_det.dn.unset(q - n_orbs);
         r < n_orbs ? connected_det.up.set(r) : connected_det.dn.set(r - n_orbs);
         s < n_orbs ? connected_det.up.set(s) : connected_det.dn.set(s - n_orbs);
-        prospective_det_handler(connected_det, 2);
+        handler(connected_det, 2);
       }
     }
   }

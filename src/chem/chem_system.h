@@ -16,7 +16,7 @@ class ChemSystem : public BaseSystem {
       const Det& det,
       const double eps_max,
       const double eps_min,
-      const std::function<void(const Det&, const int)>& connected_det_handler) const override;
+      const std::function<void(const Det&, const int n_excite)>& handler) const override;
 
   double get_hamiltonian_elem(
       const Det& det_i, const Det& det_j, const int n_excite) const override;
