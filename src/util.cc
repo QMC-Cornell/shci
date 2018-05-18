@@ -50,9 +50,16 @@ double Util::stdev(const std::vector<double>& vec) {
 }
 
 size_t Util::combine_hash(const size_t a, const size_t b) {
-  size_t res = a;
-  res ^= b + 0x9e3779b9 + (res << 6) + (res >> 2);
-  return res;
+  size_t hash = a;
+  hash += (hash << 10);
+  hash ^= (hash >> 6);
+  hash += b;
+  hash += (hash << 10);
+  hash ^= (hash >> 6);
+  hash += (hash << 3);
+  hash ^= (hash >> 11);
+  hash += (hash << 15);
+  return hash;
 }
 
 int Util::ctz(unsigned long long x) { return __builtin_ctzll(x); }
