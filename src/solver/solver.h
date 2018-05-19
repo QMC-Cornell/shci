@@ -58,6 +58,10 @@ class Solver {
   void save_variation_result(const std::string& filename);
 
   std::string get_wf_filename(const double eps) const;
+
+  double mapreduce_sum(
+      fgpl::DistHashMap<Det, double, DetHasher> map,
+      const std::function<double(const Det& det, const double hc_sum)>& mapper) const;
 };
 
 template <class S>
@@ -407,14 +411,7 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
     fgpl::broadcast(batch_id);
     const size_t n_unique_samples = sample_dets_list.size();
     if (Parallel::is_master()) {
-      printf("Batch id: %zu\n", batch_id);
-      for (size_t sample_id = 0; sample_id < n_unique_samples; sample_id++) {
-        const size_t i = sample_dets_list[sample_id];
-        const size_t count = static_cast<double>(sample_dets[i]);
-        if (count > 20) {
-          printf("det %zu: %'zu\n", i, count);
-        }
-      }
+      printf("Batch id: %zu / %zu\n", batch_id, n_batches);
     }
     double energy_pt_sto_loop_local = 0.0;
 
@@ -463,14 +460,11 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
     MPI_Allreduce(
         &energy_pt_sto_loop_local, &energy_pt_sto_loop, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
-    const double sq_diff = hc_sums.mapreduce<double>(
-        [&](const Det& det_a, const double& hc_sum) {
-          const double hc_sum_dtm = hc_sums_dtm.get_local(det_a, 0.0);
-          const double hc_sum_sq_diff = hc_sum * hc_sum - hc_sum_dtm * hc_sum_dtm;
-          return hc_sum_sq_diff;
-        },
-        fgpl::Reducer<double>::sum,
-        0.0);
+    const double sq_diff = mapreduce_sum(hc_sums, [&](const Det& det_a, const double& hc_sum) {
+      const double hc_sum_dtm = hc_sums_dtm.get_local(det_a, 0.0);
+      const double hc_sum_sq_diff = hc_sum * hc_sum - hc_sum_dtm * hc_sum_dtm;
+      return hc_sum_sq_diff;
+    });
     if (Parallel::is_master()) {
       printf("Parts %.10f %.10f %.10f\n", energy_pt_sto_loop_local, energy_pt_sto_loop, sq_diff);
     }
@@ -495,6 +489,24 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
   }
   Timer::end();
   return energy_pt_sto + energy_pt_dtm;
+}
+
+template <class S>
+double Solver<S>::mapreduce_sum(
+    fgpl::DistHashMap<Det, double, DetHasher> map,
+    const std::function<double(const Det& det, const double hc_sum)>& mapper) const {
+  const int n_threads = omp_get_max_threads();
+  std::vector<double> res_thread(n_threads, 0.0);
+  map.for_each([&](const Det& key, const size_t, const double value) {
+    const int thread_id = omp_get_thread_num();
+    res_thread[thread_id] += mapper(key, value);
+  });
+  double res_local;
+  double res;
+  res_local = res_thread[0];
+  for (int i = 1; i < n_threads; i++) res_local += res_thread[i];
+  MPI_Allreduce(&res_local, &res, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  return res;
 }
 
 template <class S>

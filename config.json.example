@@ -19,9 +19,9 @@
   "eps_pt_dtm": 1e-3,
   "n_batches_pt_dtm": 2,
   "n_batches_pt_sto": 2,
-  "n_samples_pt_sto": 1000000,
-  "target_error": 0.00001,
-  "max_pt_iterations": 10,
+  "n_samples_pt_sto": 4000,
+  "target_error": 0.000001,
+  "max_pt_iterations": 100,
   "chem": {
     "point_group": "d2h",
     "irreps": [
