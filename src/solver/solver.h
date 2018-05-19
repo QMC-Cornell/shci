@@ -264,14 +264,11 @@ double Solver<S>::get_energy_pt_pre_dtm() {
   }
   Timer::checkpoint("create hc sums");
 
-  double energy_pt_pre_dtm = hc_sums.mapreduce<double>(
-      [&](const Det& det_a, const double& hc_sum) {
-        const double H_aa = system.get_hamiltonian_elem(det_a, det_a, 0);
-        const double contribution = hc_sum * hc_sum / (system.energy_var - H_aa);
-        return contribution;
-      },
-      fgpl::Reducer<double>::sum,
-      0.0);
+  double energy_pt_pre_dtm = mapreduce_sum(hc_sums, [&](const Det& det_a, const double& hc_sum) {
+    const double H_aa = system.get_hamiltonian_elem(det_a, det_a, 0);
+    const double contribution = hc_sum * hc_sum / (system.energy_var - H_aa);
+    return contribution;
+  });
   if (Parallel::is_master()) {
     printf("PT pre dtm correction: " ENERGY_FORMAT "\n", energy_pt_pre_dtm);
     printf("PT pre dtm energy: " ENERGY_FORMAT "\n", energy_pt_pre_dtm + system.energy_var);
@@ -323,17 +320,15 @@ UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
     }
     Timer::checkpoint("create hc sums");
 
-    const double energy_pt_dtm_batch = hc_sums.mapreduce<double>(
-        [&](const Det& det_a, const double& hc_sum) {
+    const double energy_pt_dtm_batch =
+        mapreduce_sum(hc_sums, [&](const Det& det_a, const double& hc_sum) {
           const double hc_sum_pre = hc_sums_pre.get_local(det_a, 0.0);
           // TODO: 0.1 ~ 1% difference whether accumulating separately or not.
           const double hc_sum_sq_diff = hc_sum * hc_sum - hc_sum_pre * hc_sum_pre;
           const double H_aa = system.get_hamiltonian_elem(det_a, det_a, 0);
           const double contribution = hc_sum_sq_diff / (system.energy_var - H_aa);
           return contribution;
-        },
-        fgpl::Reducer<double>::sum,
-        0.0);
+        });
     energy_pt_dtm_batches.push_back(energy_pt_dtm_batch);
     energy_pt_dtm.value = Util::avg(energy_pt_dtm_batches) * n_batches;
     if (batch_id == n_batches - 1) {
@@ -392,6 +387,7 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
 
   srand(time(nullptr));
   Timer::start(Util::str_printf("sto %#.2e", eps_pt));
+  const int n_threads = omp_get_max_threads();
   while (iteration < max_pt_iterations) {
     Timer::start(Util::str_printf("#%zu", iteration));
 
@@ -414,6 +410,7 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
       printf("Batch id: %zu / %zu\n", batch_id, n_batches);
     }
     double energy_pt_sto_loop_local = 0.0;
+    std::vector<double> energy_pt_sto_loop_thread(n_threads, 0.0);
 
     fgpl::DistRange<size_t>(0, n_unique_samples).for_each([&](const size_t sample_id) {
       const size_t i = sample_dets_list[sample_id];
@@ -437,8 +434,8 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
         if (std::abs(hc) < eps_pt_dtm) {
           const double contrib_2 =
               (count * (n_samples - 1) / prob - (count * count) / (prob * prob)) * hc * hc * factor;
-#pragma omp atomic
-          energy_pt_sto_loop_local += contrib_2;
+          const int thread_id = omp_get_thread_num();
+          energy_pt_sto_loop_thread[thread_id] += contrib_2;
         } else {
           hc_sums_dtm.async_set(det_a, contrib_1, fgpl::Reducer<double>::sum);
         }
@@ -451,12 +448,14 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
     const size_t n_dtm_pt_dets = hc_sums_dtm.get_n_keys();
     if (Parallel::is_master()) {
       printf("Number of sto pt dets: %'zu\n", n_pt_dets);
-      printf("Number of sto dtm pt dets: %'zu\n", n_dtm_pt_dets);
+      printf("Number of sto pt dets within eps_pt_dtm: %'zu\n", n_dtm_pt_dets);
     }
     sample_dets.clear();
     sample_dets_list.clear();
+    Timer::checkpoint("create hc sums");
 
     double energy_pt_sto_loop = 0.0;
+    for (int i = 0; i < n_threads; i++) energy_pt_sto_loop_local += energy_pt_sto_loop_thread[i];
     MPI_Allreduce(
         &energy_pt_sto_loop_local, &energy_pt_sto_loop, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
@@ -465,9 +464,6 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
       const double hc_sum_sq_diff = hc_sum * hc_sum - hc_sum_dtm * hc_sum_dtm;
       return hc_sum_sq_diff;
     });
-    if (Parallel::is_master()) {
-      printf("Parts %.10f %.10f %.10f\n", energy_pt_sto_loop_local, energy_pt_sto_loop, sq_diff);
-    }
     energy_pt_sto_loop -= sq_diff;
 
     energy_pt_sto_loops.push_back(energy_pt_sto_loop);
