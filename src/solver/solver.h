@@ -411,7 +411,7 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
       for (size_t sample_id = 0; sample_id < n_unique_samples; sample_id++) {
         const size_t i = sample_dets_list[sample_id];
         const size_t count = static_cast<double>(sample_dets[i]);
-        if (count > 10) {
+        if (count > 20) {
           printf("det %zu: %'zu\n", i, count);
         }
       }
@@ -451,8 +451,10 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
     hc_sums.sync(fgpl::Reducer<double>::sum);
     hc_sums_dtm.sync(fgpl::Reducer<double>::sum);
     const size_t n_pt_dets = hc_sums.get_n_keys();
+    const size_t n_dtm_pt_dets = hc_sums_dtm.get_n_keys();
     if (Parallel::is_master()) {
       printf("Number of sto pt dets: %'zu\n", n_pt_dets);
+      printf("Number of sto dtm pt dets: %'zu\n", n_dtm_pt_dets);
     }
     sample_dets.clear();
     sample_dets_list.clear();
@@ -461,10 +463,7 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
     MPI_Allreduce(
         &energy_pt_sto_loop_local, &energy_pt_sto_loop, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
-    if (Parallel::is_master()) {
-      printf("energy_pt_sto_loop %.10f %.10f\n", energy_pt_sto_loop_local, energy_pt_sto_loop);
-    }
-    energy_pt_sto_loop -= hc_sums.mapreduce<double>(
+    const double sq_diff = hc_sums.mapreduce<double>(
         [&](const Det& det_a, const double& hc_sum) {
           const double hc_sum_dtm = hc_sums_dtm.get_local(det_a, 0.0);
           const double hc_sum_sq_diff = hc_sum * hc_sum - hc_sum_dtm * hc_sum_dtm;
@@ -472,6 +471,10 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
         },
         fgpl::Reducer<double>::sum,
         0.0);
+    if (Parallel::is_master()) {
+      printf("Parts %.10f %.10f %.10f\n", energy_pt_sto_loop_local, energy_pt_sto_loop, sq_diff);
+    }
+    energy_pt_sto_loop -= sq_diff;
 
     energy_pt_sto_loops.push_back(energy_pt_sto_loop);
     energy_pt_sto.value = Util::avg(energy_pt_sto_loops);
