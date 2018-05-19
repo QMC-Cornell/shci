@@ -460,6 +460,10 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
     double energy_pt_sto_loop = 0.0;
     MPI_Allreduce(
         &energy_pt_sto_loop_local, &energy_pt_sto_loop, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+    if (Parallel::is_master()) {
+      printf("energy_pt_sto_loop %.10f %.10f\n", energy_pt_sto_loop_local, energy_pt_sto_loop);
+    }
     energy_pt_sto_loop -= hc_sums.mapreduce<double>(
         [&](const Det& det_a, const double& hc_sum) {
           const double hc_sum_dtm = hc_sums_dtm.get_local(det_a, 0.0);
