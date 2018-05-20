@@ -483,7 +483,7 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
         hc_sums, [&](const Det& det_a, const MathVector<double, 3>& hc_sum) {
           const double h_aa = system.get_hamiltonian_elem(det_a, det_a, 0);
           const double factor = 1.0 / (system.energy_var - h_aa);
-          return (hc_sum[0] * hc_sum[0] - hc_sum[1] * hc_sum[1] - hc_sum[2]) * factor;
+          return (hc_sum[0] * hc_sum[0] - hc_sum[1] * hc_sum[1] + hc_sum[2]) * factor;
           // const double hc_sum_dtm = hc_sums_dtm.get_local(det_a, 0.0);
           // const double hc_sum_sq_diff = hc_sum * hc_sum - hc_sum_dtm * hc_sum_dtm;
           // return hc_sum_sq_diff;
