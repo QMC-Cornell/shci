@@ -21,6 +21,8 @@ class ChemSystem : public BaseSystem {
   double get_hamiltonian_elem(
       const Det& det_i, const Det& det_j, const int n_excite) const override;
 
+  void update_diag_helper() override;
+
  private:
   unsigned n_orbs;
 

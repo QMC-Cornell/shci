@@ -1,5 +1,6 @@
 #pragma once
 
+#include <fgpl/src/hash_map.h>
 #include <hps/src/hps.h>
 #include <functional>
 #include <string>
@@ -22,6 +23,8 @@ class BaseSystem {
 
   std::vector<double> coefs;
 
+  fgpl::HashMap<HalfDet, double, HalfDetHasher> diag_helper;
+
   size_t get_n_dets() const { return dets.size(); }
 
   virtual void setup() = 0;
@@ -34,6 +37,8 @@ class BaseSystem {
 
   virtual double get_hamiltonian_elem(
       const Det& det_i, const Det& det_j, const int n_excite) const = 0;
+
+  virtual void update_diag_helper() = 0;
 
   template <class B>
   void serialize(B& buf) const {
