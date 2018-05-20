@@ -36,7 +36,8 @@ class Solver {
 
   std::vector<double> eps_tried_prev;
 
-  std::unordered_set<Det, DetHasher> var_dets;
+  // std::unordered_set<Det, DetHasher> var_dets;
+  fgpl::HashSet<Det, DetHasher> var_dets;
 
   size_t var_iteration_global;
 
@@ -93,7 +94,8 @@ void Solver<S>::run_all_variations() {
   const auto& eps_vars = Config::get<std::vector<double>>("eps_vars");
   const auto& eps_vars_schedule = Config::get<std::vector<double>>("eps_vars_schedule");
   double eps_var_prev = Util::INF;
-  for (const auto& det : system.dets) var_dets.insert(det);
+  // for (const auto& det : system.dets) var_dets.insert(det);
+  for (const auto& det : system.dets) var_dets.set(det);
   auto it_schedule = eps_vars_schedule.begin();
   var_iteration_global = 0;
   for (const double eps_var : eps_vars) {
@@ -154,7 +156,8 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
       if (eps_min >= eps_tried_prev[i] * 0.99) return;
       const auto& det = system.dets[i];
       const auto& connected_det_handler = [&](const Det& connected_det, const int n_excite) {
-        if (var_dets.count(connected_det) == 1) return;
+        // if (var_dets.count(connected_det) == 1) return;
+        if (var_dets.has(connected_det)) return;
         if (n_excite == 1) {
           const double h_ai = system.get_hamiltonian_elem(det, connected_det, n_excite);
           if (std::abs(h_ai) < eps_min) return;  // Filter out small single excitation.
@@ -167,7 +170,8 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
 
     dist_new_dets.sync();
     dist_new_dets.for_each_serial([&](const Det& connected_det, const size_t) {
-      var_dets.insert(connected_det);
+      // var_dets.insert(connected_det);
+      var_dets.set(connected_det);
       system.dets.push_back(connected_det);
       system.coefs.push_back(0.0);
     });
@@ -229,7 +233,8 @@ void Solver<S>::run_perturbation(const double eps_var) {
 
   // Perform multi stage PT.
   var_dets.clear();
-  for (const auto& det : system.dets) var_dets.insert(det);
+  // for (const auto& det : system.dets) var_dets.insert(det);
+  for (const auto& det : system.dets) var_dets.set(det);
   const double energy_pt_pre_dtm = get_energy_pt_pre_dtm();
   const UncertResult energy_pt_dtm = get_energy_pt_dtm(energy_pt_pre_dtm);
   const UncertResult energy_pt = get_energy_pt_sto(energy_pt_dtm);
@@ -251,7 +256,8 @@ double Solver<S>::get_energy_pt_pre_dtm() {
     const Det& det = system.dets[i];
     const double coef = system.coefs[i];
     const auto& pt_det_handler = [&](const Det& det_a, const int n_excite) {
-      if (var_dets.count(det_a) == 1) return;
+      // if (var_dets.count(det_a) == 1) return;
+      if (var_dets.has(det_a)) return;
       const double h_ai = system.get_hamiltonian_elem(det, det_a, n_excite);
       const double hc = h_ai * coef;
       if (std::abs(hc) < eps_pt_pre_dtm) return;  // Filter out small single excitation.
@@ -303,7 +309,8 @@ UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
       const Det& det = system.dets[i];
       const double coef = system.coefs[i];
       const auto& pt_det_handler = [&](const Det& det_a, const int n_excite) {
-        if (var_dets.count(det_a) == 1) return;
+        // if (var_dets.count(det_a) == 1) return;
+        if (var_dets.has(det_a)) return;
         const size_t det_a_hash = det_hasher(det_a);
         const size_t batch_hash = Util::rehash(det_a_hash);
         if (batch_hash % n_batches != batch_id) return;
@@ -424,7 +431,8 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
       const double coef = system.coefs[i];
       const double prob = probs[i];
       const auto& pt_det_handler = [&](const Det& det_a, const int n_excite) {
-        if (var_dets.count(det_a) == 1) return;
+        // if (var_dets.count(det_a) == 1) return;
+        if (var_dets.has(det_a)) return;
         const size_t det_a_hash = det_hasher(det_a);
         const size_t batch_hash = Util::rehash(det_a_hash);
         if (batch_hash % n_batches != batch_id) return;
