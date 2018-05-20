@@ -15,6 +15,7 @@
 #include <unordered_set>
 #include "../config.h"
 #include "../det/det.h"
+#include "../math_vector.h"
 #include "../parallel.h"
 #include "../result.h"
 #include "../timer.h"
@@ -59,9 +60,10 @@ class Solver {
 
   std::string get_wf_filename(const double eps) const;
 
+  template <class C>
   double mapreduce_sum(
-      fgpl::DistHashMap<Det, double, DetHasher> map,
-      const std::function<double(const Det& det, const double hc_sum)>& mapper) const;
+      const fgpl::DistHashMap<Det, C, DetHasher>& map,
+      const std::function<double(const Det& det, const C& hc_sum)>& mapper) const;
 };
 
 template <class S>
@@ -243,7 +245,7 @@ double Solver<S>::get_energy_pt_pre_dtm() {
   const double eps_pt_pre_dtm = Config::get<double>("eps_pt_pre_dtm");
   Timer::start(Util::str_printf("pre dtm %#.2e", eps_pt_pre_dtm));
   const size_t n_var_dets = system.get_n_dets();
-  fgpl::DistHashMap<Det, double, DetHasher> hc_sums;
+  fgpl::DistHashMap<Det, MathVector<double, 1>, DetHasher> hc_sums;
 
   fgpl::DistRange<size_t>(0, n_var_dets).for_each([&](const size_t i) {
     const Det& det = system.dets[i];
@@ -253,22 +255,24 @@ double Solver<S>::get_energy_pt_pre_dtm() {
       const double h_ai = system.get_hamiltonian_elem(det, det_a, n_excite);
       const double hc = h_ai * coef;
       if (std::abs(hc) < eps_pt_pre_dtm) return;  // Filter out small single excitation.
-      hc_sums.async_set(det_a, hc, fgpl::Reducer<double>::sum);
+      const MathVector<double, 1> contrib(hc);
+      hc_sums.async_set(det_a, contrib, fgpl::Reducer<MathVector<double, 1>>::sum);
     };
     system.find_connected_dets(det, Util::INF, eps_pt_pre_dtm / std::abs(coef), pt_det_handler);
   });
-  hc_sums.sync(fgpl::Reducer<double>::sum);
+  hc_sums.sync(fgpl::Reducer<MathVector<double, 1>>::sum);
   const size_t n_pt_dets = hc_sums.get_n_keys();
   if (Parallel::is_master()) {
     printf("Number of pre dtm pt dets: %'zu\n", n_pt_dets);
   }
   Timer::checkpoint("create hc sums");
 
-  double energy_pt_pre_dtm = mapreduce_sum(hc_sums, [&](const Det& det_a, const double& hc_sum) {
-    const double H_aa = system.get_hamiltonian_elem(det_a, det_a, 0);
-    const double contribution = hc_sum * hc_sum / (system.energy_var - H_aa);
-    return contribution;
-  });
+  double energy_pt_pre_dtm = mapreduce_sum<MathVector<double, 1>>(
+      hc_sums, [&](const Det& det_a, const MathVector<double, 1>& hc_sum) {
+        const double H_aa = system.get_hamiltonian_elem(det_a, det_a, 0);
+        const double contrib = hc_sum[0] * hc_sum[0] / (system.energy_var - H_aa);
+        return contrib;
+      });
   if (Parallel::is_master()) {
     printf("PT pre dtm correction: " ENERGY_FORMAT "\n", energy_pt_pre_dtm);
     printf("PT pre dtm energy: " ENERGY_FORMAT "\n", energy_pt_pre_dtm + system.energy_var);
@@ -285,8 +289,8 @@ UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
   Timer::start(Util::str_printf("dtm %#.2e", eps_pt_dtm));
   const size_t n_var_dets = system.get_n_dets();
   const size_t n_batches = Config::get<size_t>("n_batches_pt_dtm", 5);
-  fgpl::DistHashMap<Det, double, DetHasher> hc_sums_pre;
-  fgpl::DistHashMap<Det, double, DetHasher> hc_sums;
+  // fgpl::DistHashMap<Det, double, DetHasher> hc_sums_pre;
+  fgpl::DistHashMap<Det, MathVector<double, 2>, DetHasher> hc_sums;
   std::vector<double> energy_pt_dtm_batches;
   UncertResult energy_pt_dtm;
   const DetHasher det_hasher;
@@ -306,28 +310,30 @@ UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
         const double h_ai = system.get_hamiltonian_elem(det, det_a, n_excite);
         const double hc = h_ai * coef;
         if (std::abs(hc) < eps_pt_dtm) return;  // Filter out small single excitation.
-        hc_sums.async_set(det_a, hc, fgpl::Reducer<double>::sum);
-        if (std::abs(hc) < eps_pt_pre_dtm) return;
-        hc_sums_pre.async_set(det_a, hc, fgpl::Reducer<double>::sum);
+        MathVector<double, 2> contrib;
+        contrib[0] = hc;
+        if (std::abs(hc) >= eps_pt_pre_dtm) contrib[1] = hc;
+        hc_sums.async_set(det_a, contrib, fgpl::Reducer<MathVector<double, 2>>::sum);
+        // hc_sums_pre.async_set(det_a, hc, fgpl::Reducer<double>::sum);
       };
       system.find_connected_dets(det, Util::INF, eps_pt_dtm / std::abs(coef), pt_det_handler);
     });
-    hc_sums.sync(fgpl::Reducer<double>::sum);
-    hc_sums_pre.sync(fgpl::Reducer<double>::sum);
+    hc_sums.sync(fgpl::Reducer<MathVector<double, 2>>::sum);
+    // hc_sums_pre.sync(fgpl::Reducer<double>::sum);
     const size_t n_pt_dets = hc_sums.get_n_keys();
     if (Parallel::is_master()) {
       printf("Number of dtm pt dets: %'zu\n", n_pt_dets);
     }
     Timer::checkpoint("create hc sums");
 
-    const double energy_pt_dtm_batch =
-        mapreduce_sum(hc_sums, [&](const Det& det_a, const double& hc_sum) {
-          const double hc_sum_pre = hc_sums_pre.get_local(det_a, 0.0);
+    const double energy_pt_dtm_batch = mapreduce_sum<MathVector<double, 2>>(
+        hc_sums, [&](const Det& det_a, const MathVector<double, 2>& hc_sum) {
+          // const double hc_sum_pre = hc_sums_pre.get_local(det_a, 0.0);
           // TODO: 0.1 ~ 1% difference whether accumulating separately or not.
-          const double hc_sum_sq_diff = hc_sum * hc_sum - hc_sum_pre * hc_sum_pre;
+          const double hc_sum_sq_diff = hc_sum[0] * hc_sum[0] - hc_sum[1] * hc_sum[1];
           const double H_aa = system.get_hamiltonian_elem(det_a, det_a, 0);
-          const double contribution = hc_sum_sq_diff / (system.energy_var - H_aa);
-          return contribution;
+          const double contrib = hc_sum_sq_diff / (system.energy_var - H_aa);
+          return contrib;
         });
     energy_pt_dtm_batches.push_back(energy_pt_dtm_batch);
     energy_pt_dtm.value = Util::avg(energy_pt_dtm_batches) * n_batches;
@@ -343,7 +349,7 @@ UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
       printf("PT dtm energy: %s Ha\n", (energy_pt_dtm + energy_pt_pre_dtm).to_string().c_str());
     }
 
-    hc_sums_pre.clear();
+    // hc_sums_pre.clear();
     hc_sums.clear();
     Timer::end();  // batch
 
@@ -361,8 +367,8 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
   const double eps_pt_dtm = Config::get<double>("eps_pt_dtm");
   const double eps_pt = Config::get<double>("eps_pt");
   const size_t max_pt_iterations = Config::get<size_t>("max_pt_iterations", 50);
-  fgpl::DistHashMap<Det, double, DetHasher> hc_sums_dtm;
-  fgpl::DistHashMap<Det, double, DetHasher> hc_sums;
+  // fgpl::DistHashMap<Det, double, DetHasher> hc_sums_dtm;
+  fgpl::DistHashMap<Det, MathVector<double, 3>, DetHasher> hc_sums;
   const size_t n_var_dets = system.get_n_dets();
   const size_t n_batches = Config::get<size_t>("n_batches_pt_sto", 5);
   const size_t n_samples = Config::get<size_t>("n_samples_pt_sto", 1000);
@@ -387,7 +393,6 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
 
   srand(time(nullptr));
   Timer::start(Util::str_printf("sto %#.2e", eps_pt));
-  const int n_threads = omp_get_max_threads();
   while (iteration < max_pt_iterations) {
     Timer::start(Util::str_printf("#%zu", iteration));
 
@@ -409,8 +414,8 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
     if (Parallel::is_master()) {
       printf("Batch id: %zu / %zu\n", batch_id, n_batches);
     }
-    double energy_pt_sto_loop_local = 0.0;
-    std::vector<double> energy_pt_sto_loop_thread(n_threads, 0.0);
+    // double energy_pt_sto_loop_local = 0.0;
+    // std::vector<double> energy_pt_sto_loop_thread(n_threads, 0.0);
 
     fgpl::DistRange<size_t>(0, n_unique_samples).for_each([&](const size_t sample_id) {
       const size_t i = sample_dets_list[sample_id];
@@ -426,45 +431,56 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
         const double h_ai = system.get_hamiltonian_elem(det, det_a, n_excite);
         const double hc = h_ai * coef;
         if (std::abs(hc) < eps_pt) return;  // Filter out small single excitation.
-        const double h_aa = system.get_hamiltonian_elem(det_a, det_a, 0);
-        const double factor =
-            n_batches / ((system.energy_var - h_aa) * n_samples * (n_samples - 1));
-        const double contrib_1 = count * hc / prob * sqrt(-factor);
-        hc_sums.async_set(det_a, contrib_1, fgpl::Reducer<double>::sum);
+        // const double h_aa = system.get_hamiltonian_elem(det_a, det_a, 0);
+        // const double factor =
+        //     n_batches / ((system.energy_var - h_aa) * n_samples * (n_samples - 1));
+        const double factor = static_cast<double>(n_batches) / (n_samples * (n_samples - 1));
+        // const double contrib_1 = count * hc / prob * sqrt(-factor);
+        MathVector<double, 3> contrib;
+        contrib[0] = count * hc / prob * sqrt(factor);
         if (std::abs(hc) < eps_pt_dtm) {
-          const double contrib_2 =
+          // const double contrib_2 =
+          //     (count * (n_samples - 1) / prob - (count * count) / (prob * prob)) * hc * hc *
+          //     factor;
+          // const int thread_id = omp_get_thread_num();
+          // energy_pt_sto_loop_thread[thread_id] += contrib_2;
+          contrib[2] =
               (count * (n_samples - 1) / prob - (count * count) / (prob * prob)) * hc * hc * factor;
-          const int thread_id = omp_get_thread_num();
-          energy_pt_sto_loop_thread[thread_id] += contrib_2;
         } else {
-          hc_sums_dtm.async_set(det_a, contrib_1, fgpl::Reducer<double>::sum);
+          contrib[1] = contrib[0];
+          // hc_sums_dtm.async_set(det_a, contrib_1, fgpl::Reducer<double>::sum);
         }
+        hc_sums.async_set(det_a, contrib, fgpl::Reducer<MathVector<double, 3>>::sum);
       };
       system.find_connected_dets(det, Util::INF, eps_pt / std::abs(coef), pt_det_handler);
     });
-    hc_sums.sync(fgpl::Reducer<double>::sum);
-    hc_sums_dtm.sync(fgpl::Reducer<double>::sum);
+    hc_sums.sync(fgpl::Reducer<MathVector<double, 3>>::sum);
+    // hc_sums_dtm.sync(fgpl::Reducer<double>::sum);
     const size_t n_pt_dets = hc_sums.get_n_keys();
-    const size_t n_dtm_pt_dets = hc_sums_dtm.get_n_keys();
+    // const size_t n_dtm_pt_dets = hc_sums_dtm.get_n_keys();
     if (Parallel::is_master()) {
       printf("Number of sto pt dets: %'zu\n", n_pt_dets);
-      printf("Number of sto pt dets within eps_pt_dtm: %'zu\n", n_dtm_pt_dets);
+      // printf("Number of sto pt dets within eps_pt_dtm: %'zu\n", n_dtm_pt_dets);
     }
     sample_dets.clear();
     sample_dets_list.clear();
     Timer::checkpoint("create hc sums");
 
-    double energy_pt_sto_loop = 0.0;
-    for (int i = 0; i < n_threads; i++) energy_pt_sto_loop_local += energy_pt_sto_loop_thread[i];
-    MPI_Allreduce(
-        &energy_pt_sto_loop_local, &energy_pt_sto_loop, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    // double energy_pt_sto_loop = 0.0;
+    // for (int i = 0; i < n_threads; i++) energy_pt_sto_loop_local += energy_pt_sto_loop_thread[i];
+    // MPI_Allreduce(
+    //     &energy_pt_sto_loop_local, &energy_pt_sto_loop, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
-    const double sq_diff = mapreduce_sum(hc_sums, [&](const Det& det_a, const double& hc_sum) {
-      const double hc_sum_dtm = hc_sums_dtm.get_local(det_a, 0.0);
-      const double hc_sum_sq_diff = hc_sum * hc_sum - hc_sum_dtm * hc_sum_dtm;
-      return hc_sum_sq_diff;
-    });
-    energy_pt_sto_loop -= sq_diff;
+    const double energy_pt_sto_loop = mapreduce_sum<MathVector<double, 3>>(
+        hc_sums, [&](const Det& det_a, const MathVector<double, 3>& hc_sum) {
+          const double h_aa = system.get_hamiltonian_elem(det_a, det_a, 0);
+          const double factor = 1.0 / (system.energy_var - h_aa);
+          return (hc_sum[0] * hc_sum[0] - hc_sum[1] * hc_sum[1] - hc_sum[2]) * factor;
+          // const double hc_sum_dtm = hc_sums_dtm.get_local(det_a, 0.0);
+          // const double hc_sum_sq_diff = hc_sum * hc_sum - hc_sum_dtm * hc_sum_dtm;
+          // return hc_sum_sq_diff;
+        });
+    // energy_pt_sto_loop -= sq_diff;
 
     energy_pt_sto_loops.push_back(energy_pt_sto_loop);
     energy_pt_sto.value = Util::avg(energy_pt_sto_loops);
@@ -475,7 +491,7 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
       printf("PT sto energy: %s Ha\n", (energy_pt_sto + energy_pt_dtm).to_string().c_str());
     }
 
-    hc_sums_dtm.clear();
+    // hc_sums_dtm.clear();
     hc_sums.clear();
     Timer::end();
     iteration++;
@@ -488,12 +504,13 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
 }
 
 template <class S>
+template <class C>
 double Solver<S>::mapreduce_sum(
-    fgpl::DistHashMap<Det, double, DetHasher> map,
-    const std::function<double(const Det& det, const double hc_sum)>& mapper) const {
+    const fgpl::DistHashMap<Det, C, DetHasher>& map,
+    const std::function<double(const Det& det, const C& hc_sum)>& mapper) const {
   const int n_threads = omp_get_max_threads();
   std::vector<double> res_thread(n_threads, 0.0);
-  map.for_each([&](const Det& key, const size_t, const double value) {
+  map.for_each([&](const Det& key, const size_t, const C& value) {
     const int thread_id = omp_get_thread_num();
     res_thread[thread_id] += mapper(key, value);
   });
