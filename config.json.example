@@ -3,7 +3,7 @@
   "n_up": 4,
   "n_dn": 2,
   "eps_vars": [
-    1e-3
+    1e-4
   ],
   "eps_vars_schedule": [
     2e-3,
@@ -12,16 +12,15 @@
     2e-4,
     1e-4
   ],
-  "var_only": false,
-  "force_pt": true,
-  "eps_pt": 1e-4,
-  "eps_pt_pre_dtm": 1e-2,
-  "eps_pt_dtm": 1e-4,
-  "n_batches_pt_dtm": 1,
-  "n_batches_pt_sto": 1,
-  "n_samples_pt_sto": 4000,
-  "target_error": 0.000001,
-  "max_pt_iterations": 1,
+  "var_only": true,
+  "eps_pt": 1e-5,
+  "eps_pt_pre_dtm": 1e-4,
+  "eps_pt_dtm": 2e-5,
+  "n_batches_pt_dtm": 8,
+  "n_batches_pt_sto": 4,
+  "n_samples_pt_sto": 10000,
+  "target_error": 0.0001,
+  "max_pt_iterations": 10,
   "chem": {
     "point_group": "d2h",
     "irreps": [
