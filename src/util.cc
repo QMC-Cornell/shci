@@ -49,8 +49,19 @@ double Util::stdev(const std::vector<double>& vec) {
   return sqrt((sq_sum - sum * sum / n) / (n - 1));
 }
 
+size_t Util::rehash(const size_t a) {
+  size_t hash = a;
+  hash += (hash << 10);
+  hash ^= (hash >> 6);
+  hash += 982451653ull;  // 50M-th prime.
+  hash += (hash << 10);
+  hash ^= (hash >> 6);
+  hash += (hash << 3);
+  hash ^= (hash >> 11);
+  hash += (hash << 15);
+  return hash;
+}
+
 int Util::ctz(unsigned long long x) { return __builtin_ctzll(x); }
 
-int Util::popcnt(unsigned long long x) {
-  return __builtin_popcountll(x);
-}
+int Util::popcnt(unsigned long long x) { return __builtin_popcountll(x); }

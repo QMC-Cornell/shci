@@ -1,5 +1,6 @@
 #include "chem_system.h"
 
+#include <fgpl/src/concurrent_hash_map.h>
 #include <cfloat>
 #include <cmath>
 #include "../parallel.h"
@@ -156,19 +157,11 @@ void ChemSystem::find_connected_dets(
     const Det& det,
     const double eps_max,
     const double eps_min,
-    const std::function<void(const Det&, const int)>& connected_det_handler) const {
+    const std::function<void(const Det&, const int n_excite)>& handler) const {
   if (eps_max < eps_min) return;
 
   auto occ_orbs_up = det.up.get_occupied_orbs();
   auto occ_orbs_dn = det.dn.get_occupied_orbs();
-
-  const auto& prospective_det_handler = [&](Det& connected_det, const int n_excite) {
-    if (n_excite == 1) {
-      const double matrix_elem = get_hamiltonian_elem(det, connected_det, n_excite);
-      if (std::abs(matrix_elem) >= eps_max || std::abs(matrix_elem) < eps_min) return;
-    }
-    connected_det_handler(connected_det, n_excite);
-  };
 
   // Add single excitations.
   for (unsigned p_id = 0; p_id < n_elecs; p_id++) {
@@ -184,10 +177,10 @@ void ChemSystem::find_connected_dets(
       Det connected_det(det);
       if (p_id < n_up) {
         connected_det.up.unset(p).set(r);
-        prospective_det_handler(connected_det, 1);
+        handler(connected_det, 1);
       } else {
         connected_det.dn.unset(p).set(r);
-        prospective_det_handler(connected_det, 1);
+        handler(connected_det, 1);
       }
     }
   }
@@ -231,7 +224,7 @@ void ChemSystem::find_connected_dets(
         q < n_orbs ? connected_det.up.unset(q) : connected_det.dn.unset(q - n_orbs);
         r < n_orbs ? connected_det.up.set(r) : connected_det.dn.set(r - n_orbs);
         s < n_orbs ? connected_det.up.set(s) : connected_det.dn.set(s - n_orbs);
-        prospective_det_handler(connected_det, 2);
+        handler(connected_det, 2);
       }
     }
   }
@@ -289,18 +282,59 @@ double ChemSystem::get_one_body_diag(const Det& det) const {
   return energy;
 }
 
+void ChemSystem::update_diag_helper() {
+  const size_t n_dets = get_n_dets();
+  const auto& get_two_body = [&](const HalfDet& half_det) {
+    const auto& occ_orbs_up = half_det.get_occupied_orbs();
+    double direct_energy = 0.0;
+    double exchange_energy = 0.0;
+    for (unsigned i = 0; i < occ_orbs_up.size(); i++) {
+      const unsigned orb_i = occ_orbs_up[i];
+      for (unsigned j = i + 1; j < occ_orbs_up.size(); j++) {
+        const unsigned orb_j = occ_orbs_up[j];
+        direct_energy += integrals.get_2b(orb_i, orb_i, orb_j, orb_j);
+        exchange_energy -= integrals.get_2b(orb_i, orb_j, orb_j, orb_i);
+      }
+    }
+    return direct_energy + exchange_energy;
+  };
+
+  fgpl::ConcurrentHashMap<HalfDet, double, HalfDetHasher> parallel_helper;
+#pragma omp parallel for schedule(dynamic, 5)
+  for (size_t i = 0; i < n_dets; i++) {
+    const Det& det = dets[i];
+    if (!parallel_helper.has(det.up)) {
+      const double two_body = get_two_body(det.up);
+      parallel_helper.set(det.up, two_body);
+    }
+    if (!parallel_helper.has(det.dn)) {
+      const double two_body = get_two_body(det.dn);
+      parallel_helper.set(det.dn, two_body);
+    }
+  }
+
+  parallel_helper.for_each_serial([&](const HalfDet& half_det, const size_t, const double value) {
+    diag_helper.set(half_det, value);
+  });
+}
+
 double ChemSystem::get_two_body_diag(const Det& det) const {
   const auto& occ_orbs_up = det.up.get_occupied_orbs();
   const auto& occ_orbs_dn = det.dn.get_occupied_orbs();
   double direct_energy = 0.0;
   double exchange_energy = 0.0;
   // up to up.
-  for (unsigned i = 0; i < occ_orbs_up.size(); i++) {
-    const unsigned orb_i = occ_orbs_up[i];
-    for (unsigned j = i + 1; j < occ_orbs_up.size(); j++) {
-      const unsigned orb_j = occ_orbs_up[j];
-      direct_energy += integrals.get_2b(orb_i, orb_i, orb_j, orb_j);
-      exchange_energy -= integrals.get_2b(orb_i, orb_j, orb_j, orb_i);
+  if (diag_helper.has(det.up)) {
+    direct_energy += diag_helper.get(det.up);
+    // printf("from cache\n");
+  } else {
+    for (unsigned i = 0; i < occ_orbs_up.size(); i++) {
+      const unsigned orb_i = occ_orbs_up[i];
+      for (unsigned j = i + 1; j < occ_orbs_up.size(); j++) {
+        const unsigned orb_j = occ_orbs_up[j];
+        direct_energy += integrals.get_2b(orb_i, orb_i, orb_j, orb_j);
+        exchange_energy -= integrals.get_2b(orb_i, orb_j, orb_j, orb_i);
+      }
     }
   }
   if (det.up == det.dn) {
@@ -308,12 +342,16 @@ double ChemSystem::get_two_body_diag(const Det& det) const {
     exchange_energy *= 2;
   } else {
     // dn to dn.
-    for (unsigned i = 0; i < occ_orbs_dn.size(); i++) {
-      const unsigned orb_i = occ_orbs_dn[i];
-      for (unsigned j = i + 1; j < occ_orbs_dn.size(); j++) {
-        const unsigned orb_j = occ_orbs_dn[j];
-        direct_energy += integrals.get_2b(orb_i, orb_i, orb_j, orb_j);
-        exchange_energy -= integrals.get_2b(orb_i, orb_j, orb_j, orb_i);
+    if (diag_helper.has(det.dn)) {
+      direct_energy += diag_helper.get(det.dn);
+    } else {
+      for (unsigned i = 0; i < occ_orbs_dn.size(); i++) {
+        const unsigned orb_i = occ_orbs_dn[i];
+        for (unsigned j = i + 1; j < occ_orbs_dn.size(); j++) {
+          const unsigned orb_j = occ_orbs_dn[j];
+          direct_energy += integrals.get_2b(orb_i, orb_i, orb_j, orb_j);
+          exchange_energy -= integrals.get_2b(orb_i, orb_j, orb_j, orb_i);
+        }
       }
     }
   }

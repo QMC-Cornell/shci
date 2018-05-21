@@ -13,4 +13,6 @@ class HegSystem : public BaseSystem {
       const std::function<void(const Det&, const int)>&) const override {}
 
   double get_hamiltonian_elem(const Det&, const Det&, const int) const override { return 0.0; }
+
+  void update_diag_helper() override {}
 };

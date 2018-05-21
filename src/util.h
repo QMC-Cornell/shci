@@ -23,6 +23,8 @@ class Util {
 
   static double stdev(const std::vector<double>& vec);
 
+  static size_t rehash(const size_t a);
+
   static int ctz(unsigned long long x);
 
   static int popcnt(unsigned long long x);

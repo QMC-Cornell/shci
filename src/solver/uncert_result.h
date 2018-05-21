@@ -19,5 +19,5 @@ class UncertResult {
     return res;
   }
 
-  std::string to_string() const { return Util::str_printf("%.8f +- %.8f", value, uncert); }
+  std::string to_string() const { return Util::str_printf("%.10f +- %.10f", value, uncert); }
 };
