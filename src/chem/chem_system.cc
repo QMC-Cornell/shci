@@ -62,6 +62,7 @@ void ChemSystem::setup_hci_queue() {
         unsigned sym_r = orb_sym[r];
         if (point_group == PointGroup::Dooh) sym_r = DoohUtil::get_inverse(sym_r);
         sym_r = product_table.get_product(sym_q, sym_r);
+        if (sym_r >= sym_orbs.size()) continue;
         for (const unsigned s : sym_orbs[sym_r]) {
           if (s < r) continue;
           const double H = get_hci_queue_elem(p, q, r, s);
@@ -92,6 +93,7 @@ void ChemSystem::setup_hci_queue() {
         unsigned sym_r = orb_sym[r];
         if (point_group == PointGroup::Dooh) sym_r = DoohUtil::get_inverse(sym_r);
         sym_r = product_table.get_product(sym_q, sym_r);
+        if (sym_r >= sym_orbs.size()) continue;
         for (const unsigned s : sym_orbs[sym_r]) {
           const double H = get_hci_queue_elem(p, q, r, s + n_orbs);
           if (H == 0.0) continue;
