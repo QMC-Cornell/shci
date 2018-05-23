@@ -1,5 +1,6 @@
 #include "integrals.h"
 
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -9,6 +10,7 @@
 #include "../config.h"
 #include "../parallel.h"
 #include "../util.h"
+#include "dooh_util.h"
 
 void Integrals::load() {
   const std::string& cache_filename = "integrals_cache.dat";
@@ -38,7 +40,7 @@ void Integrals::read_fcidump() {
     const auto& words_end = std::sregex_iterator();
     for (auto it = words_begin; it != words_end; it++) {
       const std::string match = it->str();
-      if (match == "NORB") {
+      if (match == "NORB" || match == "NORBS") {
         it++;
         n_orbs = std::stoul(it->str());
         if (Parallel::is_master()) printf("n_orbs: %u\n", n_orbs);
@@ -51,9 +53,9 @@ void Integrals::read_fcidump() {
         state = State::ORBSYM;
         if (Parallel::is_master()) printf("orb_sym: ");
       } else if (state == State::ORBSYM) {
-        const unsigned orb_sym = std::stoul(match);
-        orb_syms_raw.push_back(orb_sym);
-        if (Parallel::is_master()) printf("%u ", orb_sym);
+        const int orb_sym_raw = std::stoi(match);
+        orb_syms_raw.push_back(orb_sym_raw);
+        if (Parallel::is_master()) printf("%d ", orb_sym_raw);
         if (orb_syms_raw.size() == n_orbs) {
           state = State::NONE;
           if (Parallel::is_master()) printf("\n");
@@ -95,13 +97,40 @@ void Integrals::read_fcidump() {
 
 std::vector<unsigned> Integrals::get_adams_syms(const std::vector<int>& orb_syms_raw) const {
   std::vector<unsigned> adams_syms;
-  const auto& point_group = Config::get<std::string>("chem/point_group");
-  if (point_group != "dih") {
+  bool has_negative = false;
+  for (const auto& orb : orb_syms_raw) {
+    if (orb < 0) {
+      has_negative = true;
+      break;
+    }
+  }
+  if (!has_negative) {
     adams_syms.assign(orb_syms_raw.begin(), orb_syms_raw.end());
     return adams_syms;
   }
 
   // Convert to Adam's notation from Sandeep's notation.
+  adams_syms.resize(orb_syms_raw.size());
+  for (size_t i = 0; i < orb_syms_raw.size(); i++) {
+    const int orb_sym = orb_syms_raw[i];
+    if (orb_sym == 1 || orb_sym == 2) {
+      adams_syms[i] = orb_sym;
+      continue;
+    }
+    const unsigned a = std::abs(orb_sym) >> 1;
+    const unsigned b = (std::abs(orb_sym) + 1) >> 1;
+    unsigned orb_sym_new = a + 3 * b - 8;
+    if (orb_sym < 0) orb_sym_new += 2;
+    adams_syms[i] = orb_sym_new;
+  }
+  if (Parallel::is_master()) {
+    printf("Convert to Adam's notation:\n");
+    for (size_t i = 0; i < adams_syms.size(); i++) {
+      printf("%u ", adams_syms[i]);
+    }
+    printf("\n");
+  }
+
   return adams_syms;
 }
 
@@ -135,6 +164,9 @@ void Integrals::generate_det_hf() {
         det_hf.dn.unset(j);
       }
       if (irrep_occ_up == 0 && irrep_occ_dn == 0 && j >= n_up && j >= n_dn) break;
+    }
+    if (irrep_occ_up > 0 || irrep_occ_dn > 0) {
+      throw std::runtime_error("unable to construct hf with given irrep");
     }
   }
   if (Parallel::is_master()) {

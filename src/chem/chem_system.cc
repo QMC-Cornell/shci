@@ -7,6 +7,7 @@
 #include "../result.h"
 #include "../timer.h"
 #include "../util.h"
+#include "dooh_util.h"
 
 void ChemSystem::setup() {
   n_up = Config::get<unsigned>("n_up");
@@ -37,7 +38,11 @@ void ChemSystem::setup() {
 
 void ChemSystem::setup_hci_queue() {
   sym_orbs.resize(product_table.get_n_syms() + 1);  // Symmetry starts from 1.
-  for (unsigned orb = 0; orb < n_orbs; orb++) sym_orbs[orb_sym[orb]].push_back(orb);
+  for (unsigned orb = 0; orb < n_orbs; orb++) {
+    unsigned sym = orb_sym[orb];
+    if (sym >= sym_orbs.size()) sym_orbs.resize(sym + 1);  // For Dooh.
+    sym_orbs[sym].push_back(orb);
+  }
   size_t n_entries = 0;
   max_hci_queue_elem = 0.0;
   const int n_threads = Parallel::get_n_threads();
@@ -55,7 +60,7 @@ void ChemSystem::setup_hci_queue() {
       const unsigned sym_q = product_table.get_product(sym_p, orb_sym[q]);
       for (unsigned r = 0; r < n_orbs; r++) {
         unsigned sym_r = orb_sym[r];
-        if (point_group == PointGroup::Dooh) exit(0);  // TODO: dih inv.
+        if (point_group == PointGroup::Dooh) sym_r = DoohUtil::get_inverse(sym_r);
         sym_r = product_table.get_product(sym_q, sym_r);
         for (const unsigned s : sym_orbs[sym_r]) {
           if (s < r) continue;
@@ -85,7 +90,7 @@ void ChemSystem::setup_hci_queue() {
       const unsigned sym_q = product_table.get_product(sym_p, orb_sym[q - n_orbs]);
       for (unsigned r = 0; r < n_orbs; r++) {
         unsigned sym_r = orb_sym[r];
-        if (point_group == PointGroup::Dooh) exit(0);  // TODO: dih inv.
+        if (point_group == PointGroup::Dooh) sym_r = DoohUtil::get_inverse(sym_r);
         sym_r = product_table.get_product(sym_q, sym_r);
         for (const unsigned s : sym_orbs[sym_r]) {
           const double H = get_hci_queue_elem(p, q, r, s + n_orbs);
@@ -119,6 +124,8 @@ void ChemSystem::setup_hci_queue() {
 PointGroup ChemSystem::get_point_group(const std::string& str) const {
   if (Util::str_equals_ci("D2h", str)) {
     return PointGroup::D2h;
+  } else if (Util::str_equals_ci("C2v", str)) {
+    return PointGroup::C2v;
   } else if (Util::str_equals_ci("Dooh", str) || Util::str_equals_ci("Dih", str)) {
     return PointGroup::Dooh;
   }

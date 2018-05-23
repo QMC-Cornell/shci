@@ -286,8 +286,9 @@ double Solver<S>::get_energy_pt_pre_dtm() {
 
 template <class S>
 UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
-  const double eps_pt_dtm = Config::get<double>("eps_pt_dtm");
   const double eps_pt_pre_dtm = Config::get<double>("eps_pt_pre_dtm");
+  const double eps_pt_dtm = Config::get<double>("eps_pt_dtm");
+  const double eps_pt = Config::get<double>("eps_pt");
   if (eps_pt_dtm >= eps_pt_pre_dtm) return UncertResult(energy_pt_pre_dtm, 0.0);
   Timer::start(Util::str_printf("dtm %#.2e", eps_pt_dtm));
   const size_t n_var_dets = system.get_n_dets();
@@ -301,7 +302,7 @@ UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
   const double target_error = Config::get<double>("target_error", 1.0e-5);
 
   for (size_t batch_id = 0; batch_id < n_batches; batch_id++) {
-    Timer::start(Util::str_printf("#%zu", batch_id));
+    Timer::start(Util::str_printf("#%zu/%zu", batch_id, n_batches));
 
     fgpl::DistRange<size_t>(0, n_var_dets).for_each([&](const size_t i) {
       const Det& det = system.dets[i];
@@ -344,7 +345,7 @@ UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
     } else {
       const double energy_avg = energy_sum / n_pt_dets_sum;
       const double sample_stdev = sqrt(energy_sq_sum / n_pt_dets_sum - energy_avg * energy_avg);
-      energy_pt_dtm.uncert = sample_stdev * sqrt(n_pt_dets_sum * n_batches) / (batch_id + 1);
+      energy_pt_dtm.uncert = sample_stdev * sqrt(n_pt_dets_sum) / (batch_id + 1) * n_batches;
     }
 
     if (Parallel::is_master()) {
@@ -357,9 +358,8 @@ UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
     hc_sums.clear();
     Timer::end();  // batch
 
-    if (batch_id >= 3 && batch_id < n_batches * 0.8 && energy_pt_dtm.uncert < target_error * 0.2) {
-      break;
-    }
+    if (energy_pt_dtm.uncert < target_error * 0.2) break;
+    if (eps_pt_dtm <= eps_pt && energy_pt_dtm.uncert < target_error) break;
   }
 
   Timer::end();  // dtm
