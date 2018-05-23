@@ -345,7 +345,7 @@ UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
     } else {
       const double energy_avg = energy_sum / n_pt_dets_sum;
       const double sample_stdev = sqrt(energy_sq_sum / n_pt_dets_sum - energy_avg * energy_avg);
-      energy_pt_dtm.uncert = sample_stdev * sqrt(n_pt_dets_sum * n_batches) / (batch_id + 1);
+      energy_pt_dtm.uncert = sample_stdev * sqrt(n_pt_dets_sum) / (batch_id + 1) * n_batches;
     }
 
     if (Parallel::is_master()) {
