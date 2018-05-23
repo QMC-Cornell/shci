@@ -6,7 +6,7 @@
 	url = https://github.com/nlohmann/json.git
 [submodule "eigen"]
 	path = lib/eigen
-	url = https://github.com/RLovelett/eigen.git
+	url = https://github.com/eigenteam/eigen-git-mirror
 [submodule "lib/hps"]
 	path = lib/hps
 	url = https://github.com/jl2922/hps
