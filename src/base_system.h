@@ -40,6 +40,10 @@ class BaseSystem {
 
   virtual void update_diag_helper() = 0;
 
+  virtual void post_variation(){};
+
+  virtual void post_perturbation(){};
+
   template <class B>
   void serialize(B& buf) const {
     buf << n_up << n_dn << dets << coefs << energy_hf << energy_var;

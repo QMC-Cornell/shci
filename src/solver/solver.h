@@ -76,6 +76,7 @@ void Solver<S>::run() {
 
   Timer::start("variation");
   run_all_variations();
+  system.post_variation();
   hamiltonian.clear();
   Timer::end();
 
@@ -83,6 +84,7 @@ void Solver<S>::run() {
 
   Timer::start("perturbation");
   run_all_perturbations();
+  system.post_perturbation();
   Timer::end();
 
   Result::dump();
