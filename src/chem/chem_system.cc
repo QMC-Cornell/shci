@@ -441,3 +441,8 @@ double ChemSystem::get_two_body_double(const DiffResult& diff_up, const DiffResu
   }
   return energy;
 }
+
+void ChemSystem::post_variation() {
+  Timer::start("post variation");
+  Timer::end();
+}
