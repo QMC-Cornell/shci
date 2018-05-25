@@ -80,6 +80,8 @@ void Solver<S>::run() {
   hamiltonian.clear();
   Timer::end();
 
+  system.post_variation();
+  
   if (Config::get<bool>("var_only", false)) return;
 
   Timer::start("perturbation");
