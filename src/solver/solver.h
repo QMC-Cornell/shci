@@ -120,11 +120,7 @@ void Solver<S>::run_all_variations() {
 
       save_variation_result(filename);
     } else {
-      const size_t n_dets = system.get_n_dets();
-      eps_tried_prev.resize(n_dets);
-      for (size_t i = 0; i < n_dets; i++) {
-        eps_tried_prev[i] = eps_var * 1.1 / std::abs(system.coefs[i]);
-      }
+      eps_tried_prev.clear();
       var_dets.clear();
       for (const auto& det : system.dets) var_dets.set(det);
       hamiltonian.clear();
