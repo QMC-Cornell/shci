@@ -76,9 +76,10 @@ void Solver<S>::run() {
 
   Timer::start("variation");
   run_all_variations();
-  system.post_variation();
   hamiltonian.clear();
   Timer::end();
+
+  system.post_variation();
 
   if (Config::get<bool>("var_only", false)) return;
 
