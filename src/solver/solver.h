@@ -104,7 +104,7 @@ void Solver<S>::run_all_variations() {
     const auto& filename = get_wf_filename(eps_var);
     if (!load_variation_result(filename)) {
       // Perform extra scheduled eps.
-      while (it_schedule != eps_vars_schedule.end() && *it_schedule > eps_var_prev) it_schedule++;
+      while (it_schedule != eps_vars_schedule.end() && *it_schedule >= eps_var_prev) it_schedule++;
       while (it_schedule != eps_vars_schedule.end() && *it_schedule > eps_var) {
         const double eps_var_extra = *it_schedule;
         Timer::start(Util::str_printf("extra %#.2e", eps_var_extra));
@@ -120,6 +120,13 @@ void Solver<S>::run_all_variations() {
 
       save_variation_result(filename);
     } else {
+      const size_t n_dets = system.get_n_dets();
+      eps_tried_prev.resize(n_dets);
+      for (size_t i = 0; i < n_dets; i++) {
+        eps_tried_prev[i] = eps_var * 1.1 / std::abs(system.coefs[i]);
+      }
+      var_dets.clear();
+      for (const auto& det : system.dets) var_dets.set(det);
       hamiltonian.clear();
     }
     eps_var_prev = eps_var;
