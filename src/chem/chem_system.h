@@ -24,8 +24,6 @@ class ChemSystem : public BaseSystem {
   void update_diag_helper() override;
 
   void post_variation() override;
-  
-  double s2;
 
  private:
   unsigned n_orbs;

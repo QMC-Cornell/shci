@@ -444,62 +444,68 @@ double ChemSystem::get_two_body_double(const DiffResult& diff_up, const DiffResu
 
 void ChemSystem::post_variation() {
   Timer::start("post variation");
-  get_s2();
+  const double s2 = get_s2();
   Result::put("s2", s2);
   Timer::end();
 }
 
 double ChemSystem::get_s2() const {
   double s2 = 0.;
-  
-  // Create hash table; used for looking up the coef of a det
-  std::unordered_map<Det,double,DetHasher> det2coef;
-  for (size_t i=0; i<dets.size(); i++) {
-    det2coef[dets[i]]=coefs[i];
-  }
-  
-  #pragma omp parallel for reduction(+:s2)
-  for (size_t idet = 0; idet < dets.size(); idet++) {
-    Det this_det = dets[idet];
 
-    
-    std::vector<unsigned> occ_orbs = this_det.up.get_occupied_orbs();
-    unsigned num_db_occ = 0; // number of doubly occupied orbs
-    for (unsigned i = 0; i < occ_orbs.size(); i++) {    
+  // Create hash table; used for looking up the coef of a det
+  std::unordered_map<Det, double, DetHasher> det2coef;
+  for (size_t i = 0; i < dets.size(); i++) {
+    det2coef[dets[i]] = coefs[i];
+  }
+
+#pragma omp parallel for reduction(+ : s2)
+  for (size_t i_det = 0; i_det < dets.size(); i_det++) {
+    Det this_det = dets[i_det];
+
+    const auto& occ_orbs = this_det.up.get_occupied_orbs();
+    unsigned num_db_occ = 0;  // number of doubly occupied orbs
+    for (unsigned i = 0; i < occ_orbs.size(); i++) {
       if (this_det.dn.has(occ_orbs[i])) num_db_occ++;
-}
-    
+    }
+
     // diagonal terms
-    double diag = pow(coefs[idet],2)*(0.5*n_up - num_db_occ + 0.5*n_dn + 0.25*(pow(n_up,2)+pow(n_dn,2)) - 0.5*n_up*n_dn);
+    double diag = 0.5 * n_up - num_db_occ + 0.5 * n_dn;
+    diag += 0.25 * (pow(n_up, 2) + pow(n_dn, 2)) - 0.5 * n_up * n_dn;
+    diag *= pow(coefs[i_det], 2);
     s2 += diag;
-  
+
     // double excitations
     for (unsigned i_orb = 0; i_orb < n_orbs; i_orb++) {
-      if (! this_det.dn.has(i_orb)) continue;
+      if (!this_det.dn.has(i_orb)) continue;
       if (this_det.up.has(i_orb)) continue;
-      
-      for (unsigned j_orb = i_orb+1; j_orb < n_orbs; j_orb++) {
-        if (! this_det.up.has(j_orb)) continue;
+
+      for (unsigned j_orb = i_orb + 1; j_orb < n_orbs; j_orb++) {
+        if (!this_det.up.has(j_orb)) continue;
         if (this_det.dn.has(j_orb)) continue;
-        
+
         Det new_det = this_det;
         new_det.up.unset(j_orb);
         new_det.up.set(i_orb);
         new_det.dn.unset(i_orb);
         new_det.dn.set(j_orb);
-        
+
         double coef;
-        if (det2coef.count(new_det) == 1) coef=det2coef[new_det];
-        else continue;
-        
-        double off_diag = -2*coef*coefs[idet]*this_det.up.diff(new_det.up).permutation_factor*this_det.dn.diff(new_det.dn).permutation_factor;
+        if (det2coef.count(new_det) == 1) {
+          coef = det2coef[new_det];
+        } else {
+          continue;
+        }
+
+        const double perm_up = this_det.up.diff(new_det.up).permutation_factor;
+        const double perm_dn = this_det.dn.diff(new_det.dn).permutation_factor;
+        double off_diag = -2 * coef * coefs[i_det] * perm_up * perm_dn;
         s2 += off_diag;
+      }  // j_orb
+    }  // i_orb
+  }  // i_det
 
- 
-      } // j_orb
-    } // i_orb     
-  } // idet
-
-  printf ("s_squared: %15.10f \n", s2);
+  if (Parallel::is_master()) {
+    printf("s_squared: %15.10f\n", s2);
+  }
   return s2;
 }
