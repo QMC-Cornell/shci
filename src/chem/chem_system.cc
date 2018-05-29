@@ -17,6 +17,8 @@ void ChemSystem::setup() {
 
   point_group = get_point_group(Config::get<std::string>("chem/point_group"));
   product_table.set_point_group(point_group);
+  time_sym = Config::get<bool>("chem/time_sym", false);
+  if (time_sym) z = Config::get<int>("chem/z", 1);
 
   Timer::start("load integrals");
   integrals.load();
@@ -186,9 +188,11 @@ void ChemSystem::find_connected_dets(
       Det connected_det(det);
       if (p_id < n_up) {
         connected_det.up.unset(p).set(r);
+        if (time_sym && connected_det.up < connected_det.dn) connected_det.reverse();
         handler(connected_det, 1);
       } else {
         connected_det.dn.unset(p).set(r);
+        if (time_sym && connected_det.up < connected_det.dn) connected_det.reverse();
         handler(connected_det, 1);
       }
     }
@@ -233,6 +237,7 @@ void ChemSystem::find_connected_dets(
         q < n_orbs ? connected_det.up.unset(q) : connected_det.dn.unset(q - n_orbs);
         r < n_orbs ? connected_det.up.set(r) : connected_det.dn.set(r - n_orbs);
         s < n_orbs ? connected_det.up.set(s) : connected_det.dn.set(s - n_orbs);
+        if (time_sym && connected_det.up < connected_det.dn) connected_det.reverse();
         handler(connected_det, 2);
       }
     }
@@ -241,7 +246,34 @@ void ChemSystem::find_connected_dets(
 
 double ChemSystem::get_hamiltonian_elem(
     const Det& det_i, const Det& det_j, const int n_excite) const {
-  return get_hamiltonian_elem_no_time_sym(det_i, det_j, n_excite);
+  if (!time_sym) {
+    return get_hamiltonian_elem_no_time_sym(det_i, det_j, n_excite);
+  }
+
+  double matrix_element1 = 0.0;
+  double matrix_element2 = 0.0;
+  double norm_ketinv = 1.0;
+  double norm_bra = 1.0;
+  bool check = true;
+  if (det_j.up == det_j.dn) norm_ketinv = Util::SQRT2_INV;
+  if (det_i.up == det_i.dn) {
+    norm_bra = Util::SQRT2;
+    check = false;
+  }
+
+  matrix_element1 = get_hamiltonian_elem_no_time_sym(det_i, det_j, n_excite);
+
+  if (check) {
+    if (det_j.up == det_j.dn) {
+      matrix_element2 = matrix_element1;
+    } else {
+      Det det_i_rev = det_i;
+      det_i_rev.reverse();
+      matrix_element2 = get_hamiltonian_elem_no_time_sym(det_i_rev, det_j, -1);
+    }
+  }
+
+  return (norm_bra * norm_ketinv) * (matrix_element1 + (z * matrix_element2));
 }
 
 double ChemSystem::get_hamiltonian_elem_no_time_sym(
