@@ -254,7 +254,7 @@ void Solver<S>::run_perturbation(const double eps_var) {
   pt_mem_avail = (mem_total * 0.90 - mem_var);
   const size_t n_procs = Parallel::get_n_procs();
   if (n_procs >= 2) {
-    pt_mem_avail += pt_mem_avail * (n_procs - 1) * 0.5;
+    pt_mem_avail += pt_mem_avail * (n_procs - 1) * 0.3;
   }
   const double energy_pt_pre_dtm = get_energy_pt_pre_dtm();
   const UncertResult energy_pt_dtm = get_energy_pt_dtm(energy_pt_pre_dtm);
