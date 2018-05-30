@@ -9,7 +9,7 @@ void Davidson::diagonalize(
     const bool verbose,
     const bool until_converged) {
   const double TOLERANCE = until_converged ? 2.0e-7 : 2.0e-6;
-  const size_t MAX_N_INTERATIONS = 4;
+  const size_t MAX_N_INTERATIONS = 5;
 
   const size_t dim = initial_vector.size();
 
@@ -52,7 +52,7 @@ void Davidson::diagonalize(
   if (verbose) printf("Davidson #0: %.10f\n", lowest_eigenvalue);
 
   size_t it_real = 1;
-  for (size_t it = 1; it < max_n_iterations * 5; it++) {
+  for (size_t it = 1; it < max_n_iterations * 2; it++) {
     size_t it_circ = it % max_n_iterations;
     if (it >= max_n_iterations && it_circ == 0) {
       v.col(0) = w.col(0);
