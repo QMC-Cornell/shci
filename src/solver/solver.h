@@ -360,25 +360,27 @@ UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
   for (size_t batch_id = 0; batch_id < n_batches; batch_id++) {
     Timer::start(Util::str_printf("#%zu/%zu", batch_id, n_batches));
 
-    fgpl::DistRange<size_t>(0, n_var_dets).for_each([&](const size_t i) {
-      const Det& det = system.dets[i];
-      const double coef = system.coefs[i];
-      const auto& pt_det_handler = [&](const Det& det_a, const int n_excite) {
-        if (var_dets.has(det_a)) return;
-        const size_t det_a_hash = det_hasher(det_a);
-        const size_t batch_hash = Util::rehash(det_a_hash);
-        if (batch_hash % n_batches != batch_id) return;
-        const double h_ai = system.get_hamiltonian_elem(det, det_a, n_excite);
-        const double hc = h_ai * coef;
-        if (std::abs(hc) < eps_pt_dtm) return;  // Filter out small single excitation.
-        MathVector<double, 2> contrib;
-        contrib[0] = hc;
-        if (std::abs(hc) >= eps_pt_pre_dtm) contrib[1] = hc;
-        hc_sums.async_set(det_a, contrib, fgpl::Reducer<MathVector<double, 2>>::sum);
-      };
-      system.find_connected_dets(det, Util::INF, eps_pt_dtm / std::abs(coef), pt_det_handler);
-    });
-    hc_sums.sync(fgpl::Reducer<MathVector<double, 2>>::sum);
+    for (size_t j = 0; j < 5; j++) {
+      fgpl::DistRange<size_t>(j, n_var_dets, 5).for_each([&](const size_t i) {
+        const Det& det = system.dets[i];
+        const double coef = system.coefs[i];
+        const auto& pt_det_handler = [&](const Det& det_a, const int n_excite) {
+          if (var_dets.has(det_a)) return;
+          const size_t det_a_hash = det_hasher(det_a);
+          const size_t batch_hash = Util::rehash(det_a_hash);
+          if (batch_hash % n_batches != batch_id) return;
+          const double h_ai = system.get_hamiltonian_elem(det, det_a, n_excite);
+          const double hc = h_ai * coef;
+          if (std::abs(hc) < eps_pt_dtm) return;  // Filter out small single excitation.
+          MathVector<double, 2> contrib;
+          contrib[0] = hc;
+          if (std::abs(hc) >= eps_pt_pre_dtm) contrib[1] = hc;
+          hc_sums.async_set(det_a, contrib, fgpl::Reducer<MathVector<double, 2>>::sum);
+        };
+        system.find_connected_dets(det, Util::INF, eps_pt_dtm / std::abs(coef), pt_det_handler);
+      });
+      hc_sums.sync(fgpl::Reducer<MathVector<double, 2>>::sum);
+    }
     const size_t n_pt_dets = hc_sums.get_n_keys();
     if (Parallel::is_master()) {
       printf("Number of dtm pt dets: %'zu\n", n_pt_dets);
