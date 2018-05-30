@@ -9,7 +9,7 @@ class Det {
 
   HalfDet dn;
 
-  void reverse() {
+  void reverse_spin() {
     if (up == dn) return;
     HalfDet tmp = up;
     up = dn;

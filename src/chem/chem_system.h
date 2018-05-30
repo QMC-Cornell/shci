@@ -21,14 +21,15 @@ class ChemSystem : public BaseSystem {
   double get_hamiltonian_elem(
       const Det& det_i, const Det& det_j, const int n_excite) const override;
 
+  double get_hamiltonian_elem_no_time_sym(
+      const Det& det_i, const Det& det_j, const int n_excite) const override;
+
   void update_diag_helper() override;
 
   void post_variation() override;
 
  private:
   unsigned n_orbs;
-
-  bool time_sym;
 
   int z;  // reflection (parity).
 
@@ -52,8 +53,6 @@ class ChemSystem : public BaseSystem {
 
   double get_hci_queue_elem(const unsigned p, const unsigned q, const unsigned r, const unsigned s);
 
-  double get_hamiltonian_elem_no_time_sym(const Det& det_i, const Det& det_j, int n_excite) const;
-
   double get_one_body_diag(const Det& det) const;
 
   double get_two_body_diag(const Det& det) const;
@@ -64,6 +63,6 @@ class ChemSystem : public BaseSystem {
       const Det& det_i, const DiffResult& diff_up, const DiffResult& diff_dn) const;
 
   double get_two_body_double(const DiffResult& diff_up, const DiffResult& diff_dn) const;
-  
+
   double get_s2() const;
 };

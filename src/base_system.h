@@ -13,6 +13,8 @@ class BaseSystem {
 
   unsigned n_dn;
 
+  bool time_sym;
+
   unsigned n_elecs;
 
   double energy_hf;
@@ -36,6 +38,9 @@ class BaseSystem {
       const std::function<void(const Det&, const int n_excite)>& handler) const = 0;
 
   virtual double get_hamiltonian_elem(
+      const Det& det_i, const Det& det_j, const int n_excite) const = 0;
+
+  virtual double get_hamiltonian_elem_no_time_sym(
       const Det& det_i, const Det& det_j, const int n_excite) const = 0;
 
   virtual void update_diag_helper() = 0;
