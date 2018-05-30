@@ -145,47 +145,52 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
   Davidson davidson;
   fgpl::DistHashSet<Det, DetHasher> dist_new_dets;
   size_t n_dets = system.get_n_dets();
+  size_t n_dets_new = n_dets;
   double energy_var_prev = 0.0;
   bool converged = false;
   size_t iteration = 0;
+  bool dets_converged = false;
 
   while (!converged) {
     eps_tried_prev.resize(n_dets, Util::INF);
     Timer::start(Util::str_printf("#%zu", iteration));
 
     // Random execution and broadcast.
-    fgpl::DistRange<size_t>(0, n_dets).for_each([&](const size_t i) {
-      const double coef = system.coefs[i];
-      const double eps_min = eps_var / std::abs(coef);
-      if (eps_min >= eps_tried_prev[i] * 0.99) return;
-      const auto& det = system.dets[i];
-      const auto& connected_det_handler = [&](const Det& connected_det, const int n_excite) {
-        if (var_dets.has(connected_det)) return;
-        if (n_excite == 1) {
-          const double h_ai = system.get_hamiltonian_elem(det, connected_det, n_excite);
-          if (std::abs(h_ai) < eps_min) return;  // Filter out small single excitation.
-        }
-        dist_new_dets.async_set(connected_det);
-      };
-      system.find_connected_dets(det, eps_tried_prev[i], eps_min, connected_det_handler);
-      eps_tried_prev[i] = eps_min;
-    });
+    if (!dets_converged) {
+      fgpl::DistRange<size_t>(0, n_dets).for_each([&](const size_t i) {
+        const double coef = system.coefs[i];
+        const double eps_min = eps_var / std::abs(coef);
+        if (eps_min >= eps_tried_prev[i] * 0.99) return;
+        const auto& det = system.dets[i];
+        const auto& connected_det_handler = [&](const Det& connected_det, const int n_excite) {
+          if (var_dets.has(connected_det)) return;
+          if (n_excite == 1) {
+            const double h_ai = system.get_hamiltonian_elem(det, connected_det, n_excite);
+            if (std::abs(h_ai) < eps_min) return;  // Filter out small single excitation.
+          }
+          dist_new_dets.async_set(connected_det);
+        };
+        system.find_connected_dets(det, eps_tried_prev[i], eps_min, connected_det_handler);
+        eps_tried_prev[i] = eps_min;
+      });
 
-    dist_new_dets.sync();
-    dist_new_dets.for_each_serial([&](const Det& connected_det, const size_t) {
-      var_dets.set(connected_det);
-      system.dets.push_back(connected_det);
-      system.coefs.push_back(0.0);
-    });
-    dist_new_dets.clear();
+      dist_new_dets.sync();
+      dist_new_dets.for_each_serial([&](const Det& connected_det, const size_t) {
+        var_dets.set(connected_det);
+        system.dets.push_back(connected_det);
+        system.coefs.push_back(0.0);
+      });
+      dist_new_dets.clear();
 
-    const size_t n_dets_new = system.coefs.size();
-    if (Parallel::is_master()) {
-      printf("Number of dets / new dets: %'zu / %'zu\n", n_dets_new, n_dets_new - n_dets);
+      n_dets_new = system.coefs.size();
+      if (Parallel::is_master()) {
+        printf("Number of dets / new dets: %'zu / %'zu\n", n_dets_new, n_dets_new - n_dets);
+      }
+      Timer::checkpoint("get next det list");
+
+      hamiltonian.update(system);
     }
-    Timer::checkpoint("get next det list");
 
-    hamiltonian.update(system);
     davidson.diagonalize(hamiltonian.matrix, system.coefs, Parallel::is_master(), until_converged);
     const double energy_var_new = davidson.get_lowest_eigenvalue();
     system.coefs = davidson.get_lowest_eigenvector();
@@ -202,6 +207,10 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
     }
     if (std::abs(energy_var_new - energy_var_prev) < 1.0e-6) {
       converged = true;
+    }
+    if (n_dets_new < n_dets * 1.001) {
+      dets_converged = true;
+      if (davidson.converged) converged = true;
     }
     n_dets = n_dets_new;
     energy_var_prev = energy_var_new;

@@ -11,9 +11,11 @@ class Davidson {
       const bool verbose = false,
       const bool until_converged = true);
 
-  double get_lowest_eigenvalue() { return lowest_eigenvalue; }
+  double get_lowest_eigenvalue() const { return lowest_eigenvalue; }
 
-  std::vector<double> get_lowest_eigenvector() { return lowest_eigenvector; }
+  std::vector<double> get_lowest_eigenvector() const { return lowest_eigenvector; }
+
+  bool converged;
 
  private:
   double lowest_eigenvalue;
