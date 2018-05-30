@@ -9,7 +9,7 @@ void Davidson::diagonalize(
     const bool verbose,
     const bool until_converged) {
   const double TOLERANCE = until_converged ? 2.0e-7 : 2.0e-6;
-  const size_t MAX_N_INTERATIONS = 4;
+  const size_t N_ITERATIONS_STORE = 4;
 
   const size_t dim = initial_vector.size();
 
@@ -21,19 +21,19 @@ void Davidson::diagonalize(
     return;
   }
 
-  const size_t max_n_iterations = std::min(dim, MAX_N_INTERATIONS);
+  const size_t n_iterations_store = std::min(dim, N_ITERATIONS_STORE);
   double lowest_eigenvalue_prev = 0.0;
 
-  Eigen::MatrixXd v = Eigen::MatrixXd::Zero(dim, max_n_iterations);
+  Eigen::MatrixXd v = Eigen::MatrixXd::Zero(dim, n_iterations_store);
   for (size_t i = 0; i < dim; i++) v(i, 0) = initial_vector[i];
   v.col(0).normalize();
 
-  Eigen::MatrixXd Hv = Eigen::MatrixXd::Zero(dim, max_n_iterations);
+  Eigen::MatrixXd Hv = Eigen::MatrixXd::Zero(dim, n_iterations_store);
   Eigen::VectorXd w = Eigen::VectorXd::Zero(dim);
   Eigen::VectorXd Hw = Eigen::VectorXd::Zero(dim);
-  Eigen::MatrixXd h_krylov = Eigen::MatrixXd::Zero(max_n_iterations, max_n_iterations);
-  Eigen::VectorXd eigenvalues = Eigen::VectorXd::Zero(max_n_iterations);
-  size_t len_work = 3 * max_n_iterations - 1;
+  Eigen::MatrixXd h_krylov = Eigen::MatrixXd::Zero(n_iterations_store, n_iterations_store);
+  Eigen::VectorXd eigenvalues = Eigen::VectorXd::Zero(n_iterations_store);
+  size_t len_work = 3 * n_iterations_store - 1;
   Eigen::VectorXd work(len_work);
   converged = false;
   std::vector<double> tmp_v(dim);
@@ -52,9 +52,9 @@ void Davidson::diagonalize(
   if (verbose) printf("Davidson #0: %.10f\n", lowest_eigenvalue);
 
   size_t it_real = 1;
-  for (size_t it = 1; it < max_n_iterations * 3; it++) {
-    size_t it_circ = it % max_n_iterations;
-    if (it >= max_n_iterations && it_circ == 0) {
+  for (size_t it = 1; it < n_iterations_store * 3; it++) {
+    size_t it_circ = it % n_iterations_store;
+    if (it >= n_iterations_store && it_circ == 0) {
       v.col(0) = w.col(0);
       Hv.col(0) = Hw.col(0);
       lowest_eigenvalue = v.col(0).dot(Hv.col(0));
