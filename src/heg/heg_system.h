@@ -14,5 +14,7 @@ class HegSystem : public BaseSystem {
 
   double get_hamiltonian_elem(const Det&, const Det&, const int) const override { return 0.0; }
 
+  double get_hamiltonian_elem_no_time_sym(const Det&, const Det&, const int) const override { return 0.0; }
+
   void update_diag_helper() override {}
 };

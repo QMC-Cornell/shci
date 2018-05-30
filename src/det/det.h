@@ -9,6 +9,13 @@ class Det {
 
   HalfDet dn;
 
+  void reverse_spin() {
+    if (up == dn) return;
+    HalfDet tmp = up;
+    up = dn;
+    dn = tmp;
+  }
+
   friend bool operator==(const Det& a, const Det& b) { return a.up == b.up && a.dn == b.dn; }
 
   friend bool operator!=(const Det& a, const Det& b) { return !(a == b); }

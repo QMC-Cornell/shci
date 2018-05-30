@@ -155,14 +155,16 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
 
     // Random execution and broadcast.
     fgpl::DistRange<size_t>(0, n_dets).for_each([&](const size_t i) {
-      const double coef = system.coefs[i];
-      const double eps_min = eps_var / std::abs(coef);
-      if (eps_min >= eps_tried_prev[i] * 0.99) return;
       const auto& det = system.dets[i];
+      const double coef = system.coefs[i];
+      double eps_min = eps_var / std::abs(coef);
+      // printf("system time sym: %d\n", system.time_sym); 
+      if (system.time_sym && det.up != det.dn) eps_min *= Util::SQRT2;
+      if (eps_min >= eps_tried_prev[i] * 0.99) return;
       const auto& connected_det_handler = [&](const Det& connected_det, const int n_excite) {
         if (var_dets.has(connected_det)) return;
         if (n_excite == 1) {
-          const double h_ai = system.get_hamiltonian_elem(det, connected_det, n_excite);
+          const double h_ai = system.get_hamiltonian_elem_no_time_sym(det, connected_det, n_excite);
           if (std::abs(h_ai) < eps_min) return;  // Filter out small single excitation.
         }
         dist_new_dets.async_set(connected_det);
@@ -182,6 +184,11 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
     const size_t n_dets_new = system.coefs.size();
     if (Parallel::is_master()) {
       printf("Number of dets / new dets: %'zu / %'zu\n", n_dets_new, n_dets_new - n_dets);
+      size_t same_spin_count = 0;
+      for (const auto& det : system.dets) {
+        if (det.up == det.dn) same_spin_count++;
+      }
+      printf("Same spin dets: %'zu\n", same_spin_count);
     }
     Timer::checkpoint("get next det list");
 
@@ -200,9 +207,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
           n_dets_new,
           energy_var_new);
     }
-    if (std::abs(energy_var_new - energy_var_prev) < 1.0e-6) {
-      converged = true;
-    }
+    if (std::abs(energy_var_new - energy_var_prev) < 1.0e-6) converged = true;
     n_dets = n_dets_new;
     energy_var_prev = energy_var_new;
     Timer::end();
