@@ -253,7 +253,7 @@ void Solver<S>::run_perturbation(const double eps_var) {
   const size_t mem_var = system.get_n_dets() * (N_CHUNKS * 40) / 1000;
   pt_mem_avail = (mem_total * 0.95 - mem_var);
   const size_t n_procs = Parallel::get_n_procs();
-  if (n_procs >= 1) pt_mem_avail *= n_procs / 2;
+  if (n_procs >= 2) pt_mem_avail *= n_procs * 0.2;
   const double energy_pt_pre_dtm = get_energy_pt_pre_dtm();
   const UncertResult energy_pt_dtm = get_energy_pt_dtm(energy_pt_pre_dtm);
   const UncertResult energy_pt = get_energy_pt_sto(energy_pt_dtm);
