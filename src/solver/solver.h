@@ -380,7 +380,7 @@ UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
         system.find_connected_dets(det, Util::INF, eps_pt_dtm / std::abs(coef), pt_det_handler);
       });
       hc_sums.sync(fgpl::Reducer<MathVector<double, 2>>::sum);
-      if (Parallel::is_master()) printf("%zu% ", (j + 1) * 10);
+      if (Parallel::is_master()) printf("%zu%% ", (j + 1) * 10);
     }
     const size_t n_pt_dets = hc_sums.get_n_keys();
     if (Parallel::is_master()) {
