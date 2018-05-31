@@ -273,21 +273,24 @@ double Solver<S>::get_energy_pt_pre_dtm() {
   Timer::start(Util::str_printf("pre dtm %#.2e", eps_pt_pre_dtm));
   const size_t n_var_dets = system.get_n_dets();
   fgpl::DistHashMap<Det, MathVector<double, 1>, DetHasher> hc_sums;
-
-  fgpl::DistRange<size_t>(0, n_var_dets).for_each([&](const size_t i) {
-    const Det& det = system.dets[i];
-    const double coef = system.coefs[i];
-    const auto& pt_det_handler = [&](const Det& det_a, const int n_excite) {
-      if (var_dets.has(det_a)) return;
-      const double h_ai = system.get_hamiltonian_elem(det, det_a, n_excite);
-      const double hc = h_ai * coef;
-      if (std::abs(hc) < eps_pt_pre_dtm) return;  // Filter out small single excitation.
-      const MathVector<double, 1> contrib(hc);
-      hc_sums.async_set(det_a, contrib, fgpl::Reducer<MathVector<double, 1>>::sum);
-    };
-    system.find_connected_dets(det, Util::INF, eps_pt_pre_dtm / std::abs(coef), pt_det_handler);
-  });
-  hc_sums.sync(fgpl::Reducer<MathVector<double, 1>>::sum);
+  
+  for (size_t j = 0; j < 5; j++) {
+    fgpl::DistRange<size_t>(j, n_var_dets, 5).for_each([&](const size_t i) {
+      const Det& det = system.dets[i];
+      const double coef = system.coefs[i];
+      const auto& pt_det_handler = [&](const Det& det_a, const int n_excite) {
+        if (var_dets.has(det_a)) return;
+        const double h_ai = system.get_hamiltonian_elem(det, det_a, n_excite);
+        const double hc = h_ai * coef;
+        if (std::abs(hc) < eps_pt_pre_dtm) return;  // Filter out small single excitation.
+        const MathVector<double, 1> contrib(hc);
+        hc_sums.async_set(det_a, contrib, fgpl::Reducer<MathVector<double, 1>>::sum);
+      };
+      system.find_connected_dets(det, Util::INF, eps_pt_pre_dtm / std::abs(coef), pt_det_handler);
+    });
+    hc_sums.sync(fgpl::Reducer<MathVector<double, 1>>::sum);
+    if (Parallel::is_master()) printf("%zu%% ", (j + 1) * 20);
+  }
   const size_t n_pt_dets = hc_sums.get_n_keys();
   if (Parallel::is_master()) {
     printf("Number of pre dtm pt dets: %'zu\n", n_pt_dets);
