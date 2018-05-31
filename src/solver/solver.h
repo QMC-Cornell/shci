@@ -250,11 +250,11 @@ void Solver<S>::run_perturbation(const double eps_var) {
   // for (const auto& det : system.dets) var_dets.insert(det);
   for (const auto& det : system.dets) var_dets.set(det);
   const size_t mem_total = Util::get_mem_total();
-  const size_t mem_var = system.get_n_dets() * (N_CHUNKS * 40) / 1000;
+  const size_t mem_var = system.get_n_dets() * (N_CHUNKS * 160) / 1000;
   pt_mem_avail = (mem_total * 0.9 - mem_var);
   const size_t n_procs = Parallel::get_n_procs();
   if (n_procs >= 2) {
-    pt_mem_avail += pt_mem_avail * (n_procs - 1) * 0.9;
+    pt_mem_avail = static_cast<size_t>(pt_mem_avail * 0.7 * n_procs);
   }
   const double energy_pt_pre_dtm = get_energy_pt_pre_dtm();
   const UncertResult energy_pt_dtm = get_energy_pt_dtm(energy_pt_pre_dtm);
@@ -268,7 +268,7 @@ void Solver<S>::run_perturbation(const double eps_var) {
 
 template <class S>
 double Solver<S>::get_energy_pt_pre_dtm() {
-  const double eps_pt_pre_dtm = Config::get<double>("eps_pt_pre_dtm");
+  const double eps_pt_pre_dtm = Config::get<double>("eps_pt_pre_dtm", 1.0);
   if (eps_pt_pre_dtm >= 1.0) return system.energy_var;
   Timer::start(Util::str_printf("pre dtm %#.2e", eps_pt_pre_dtm));
   const size_t n_var_dets = system.get_n_dets();
@@ -311,9 +311,9 @@ double Solver<S>::get_energy_pt_pre_dtm() {
 
 template <class S>
 UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
-  const double eps_pt_pre_dtm = Config::get<double>("eps_pt_pre_dtm");
-  const double eps_pt_dtm = Config::get<double>("eps_pt_dtm");
+  const double eps_pt_pre_dtm = Config::get<double>("eps_pt_pre_dtm", 1.0);
   const double eps_pt = Config::get<double>("eps_pt");
+  const double eps_pt_dtm = Config::get<double>("eps_pt_dtm", eps_pt * 10.0);
   if (eps_pt_dtm >= eps_pt_pre_dtm) return UncertResult(energy_pt_pre_dtm, 0.0);
   Timer::start(Util::str_printf("dtm %#.2e", eps_pt_dtm));
   const size_t n_var_dets = system.get_n_dets();
@@ -417,8 +417,8 @@ UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
     hc_sums.clear();
     Timer::end();  // batch
 
-    if (energy_pt_dtm.uncert < target_error * 0.2) break;
-    if (eps_pt_dtm <= eps_pt && energy_pt_dtm.uncert < target_error) break;
+    if (energy_pt_dtm.uncert <= target_error * 0.2) break;
+    if (eps_pt_dtm <= eps_pt && energy_pt_dtm.uncert <= target_error) break;
   }
 
   Timer::end();  // dtm
@@ -427,8 +427,8 @@ UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
 
 template <class S>
 UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
-  const double eps_pt_dtm = Config::get<double>("eps_pt_dtm");
   const double eps_pt = Config::get<double>("eps_pt");
+  const double eps_pt_dtm = Config::get<double>("eps_pt_dtm", eps_pt * 10);
   if (eps_pt >= eps_pt_dtm) return energy_pt_dtm;
   const size_t max_pt_iterations = Config::get<size_t>("max_pt_iterations", 50);
   fgpl::DistHashMap<Det, MathVector<double, 3>, DetHasher> hc_sums;
@@ -494,7 +494,7 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
     const size_t n_pt_dets_batch = n_pt_dets * 16 / n_batches;
     const size_t bytes_per_det = N_CHUNKS * 16 + 40;
     size_t n_unique_target =
-        pt_mem_avail * 1000 * n_unique_samples / bytes_per_det / 1.6 / n_pt_dets_batch;
+        pt_mem_avail * 1000 * n_unique_samples / bytes_per_det / 3.0 / n_pt_dets_batch;
     if (n_unique_target >= n_var_dets / 2) n_unique_target = n_var_dets / 2;
     sample_dets.clear();
     sample_dets_list.clear();
@@ -595,7 +595,10 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
     hc_sums.clear();
     Timer::end();
     iteration++;
-    if (iteration >= 5 && (energy_pt_sto + energy_pt_dtm).uncert < target_error) {
+    if (iteration >= 4 && (energy_pt_sto + energy_pt_dtm).uncert <= target_error * 0.5) {
+      break;
+    }
+    if (iteration >= 8 && (energy_pt_sto + energy_pt_dtm).uncert <= target_error) {
       break;
     }
   }
