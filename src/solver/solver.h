@@ -323,7 +323,7 @@ UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
 
   // Estimate best n_batches.
   if (n_batches == 0) {
-    fgpl::DistRange<size_t>(500, n_var_dets, 1000).for_each([&](const size_t i) {
+    fgpl::DistRange<size_t>(50, n_var_dets, 100).for_each([&](const size_t i) {
       const Det& det = system.dets[i];
       const double coef = system.coefs[i];
       const auto& pt_det_handler = [&](const Det& det_a, const int n_excite) {
@@ -344,7 +344,8 @@ UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
     hc_sums.sync();
     const size_t n_pt_dets = hc_sums.get_n_keys();
     n_batches = static_cast<size_t>(
-        ceil(1.6 * 16000 / 1000 * n_pt_dets * (N_CHUNKS * 16 + 24) / pt_mem_avail));
+        ceil(1.6 * 1600 / 1000 * n_pt_dets * (N_CHUNKS * 16 + 24) / pt_mem_avail));
+    if (n_batches == 0) n_batches = 1;
     if (Parallel::is_master()) {
       printf("Number of batches chosen: %zu\n", n_batches);
     }
@@ -360,8 +361,8 @@ UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
   for (size_t batch_id = 0; batch_id < n_batches; batch_id++) {
     Timer::start(Util::str_printf("#%zu/%zu", batch_id, n_batches));
 
-    for (size_t j = 0; j < 10; j++) {
-      fgpl::DistRange<size_t>(j, n_var_dets, 10).for_each([&](const size_t i) {
+    for (size_t j = 0; j < 5; j++) {
+      fgpl::DistRange<size_t>(j, n_var_dets, 5).for_each([&](const size_t i) {
         const Det& det = system.dets[i];
         const double coef = system.coefs[i];
         const auto& pt_det_handler = [&](const Det& det_a, const int n_excite) {
@@ -380,7 +381,7 @@ UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
         system.find_connected_dets(det, Util::INF, eps_pt_dtm / std::abs(coef), pt_det_handler);
       });
       hc_sums.sync(fgpl::Reducer<MathVector<double, 2>>::sum);
-      if (Parallel::is_master()) printf("%zu%% ", (j + 1) * 10);
+      if (Parallel::is_master()) printf("%zu%% ", (j + 1) * 20);
     }
     const size_t n_pt_dets = hc_sums.get_n_keys();
     if (Parallel::is_master()) {
@@ -413,7 +414,6 @@ UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
       printf("PT dtm energy: %s Ha\n", (energy_pt_dtm + energy_pt_pre_dtm).to_string().c_str());
     }
 
-    // hc_sums_pre.clear();
     hc_sums.clear();
     Timer::end();  // batch
 
@@ -513,7 +513,7 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
     sample_dets.clear();
     fgpl::broadcast(n_samples);
     if (Parallel::is_master()) {
-      printf("Number of samples chosen: %zu\n", n_samples);
+      printf("Number of samples chosen: %'zu\n", n_samples);
     }
     Timer::checkpoint("determine n samples");
   }
@@ -538,8 +538,8 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
     const size_t n_unique_samples = sample_dets_list.size();
     if (Parallel::is_master()) printf("Batch id: %zu / %zu\n", batch_id, n_batches);
     
-    for (size_t j = 0; j < 10; j++) {
-      fgpl::DistRange<size_t>(j, n_unique_samples, 10).for_each([&](const size_t sample_id) {
+    for (size_t j = 0; j < 5; j++) {
+      fgpl::DistRange<size_t>(j, n_unique_samples, 5).for_each([&](const size_t sample_id) {
         const size_t i = sample_dets_list[sample_id];
         const double count = static_cast<double>(sample_dets[i]);
         const Det& det = system.dets[i];
@@ -568,7 +568,7 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
         system.find_connected_dets(det, Util::INF, eps_pt / std::abs(coef), pt_det_handler);
       });
       hc_sums.sync(fgpl::Reducer<MathVector<double, 3>>::sum);
-      if (Parallel::is_master()) printf("%zu%% ", (j + 1) * 10);
+      if (Parallel::is_master()) printf("%zu%% ", (j + 1) * 20);
     }
     const size_t n_pt_dets = hc_sums.get_n_keys();
     if (Parallel::is_master()) printf("\nNumber of sto pt dets: %'zu\n", n_pt_dets);
