@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <cctype>
 #include <cstdio>
+#include <fstream>
 
 constexpr double Util::EPS;
 
@@ -65,3 +66,23 @@ size_t Util::rehash(const size_t a) {
 int Util::ctz(unsigned long long x) { return __builtin_ctzll(x); }
 
 int Util::popcnt(unsigned long long x) { return __builtin_popcountll(x); }
+
+size_t Util::get_mem_info(const std::string& key) {
+  std::ifstream meminfo("/proc/meminfo");
+  std::string token;
+  size_t value;
+  while (meminfo >> token) {
+    if (token == key + ":") {
+      if (meminfo >> value) {
+        return value;
+      } else {
+        return 0;
+      }
+    }
+  }
+  return 0;
+}
+
+size_t Util::get_mem_total() { return get_mem_info("MemTotal"); }
+
+size_t Util::get_mem_avail() { return get_mem_info("MemAvailable"); }

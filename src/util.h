@@ -29,6 +29,10 @@ class Util {
 
   static int popcnt(unsigned long long x);
 
+  static size_t get_mem_total();
+
+  static size_t get_mem_avail();
+
   template <class T1, class T2>
   static void sort_by_first(std::vector<T1>& v1, std::vector<T2>& v2);
 
@@ -39,6 +43,9 @@ class Util {
   constexpr static double SQRT2 = 1.4142135623730951;
 
   constexpr static double SQRT2_INV = 0.7071067811865475;
+
+ private:
+  static size_t get_mem_info(const std::string& key);
 };
 
 template <typename... Args>

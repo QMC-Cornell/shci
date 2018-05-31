@@ -38,6 +38,8 @@ class Solver {
 
   fgpl::HashSet<Det, DetHasher> var_dets;
 
+  size_t pt_mem_avail;
+
   size_t var_iteration_global;
 
   void run_all_variations();
@@ -81,7 +83,10 @@ void Solver<S>::run() {
 
   system.post_variation();
 
-  if (Config::get<bool>("var_only", false)) return;
+  if (Config::get<bool>("var_only", false)) {
+    Result::dump();
+    return;
+  }
 
   Timer::start("perturbation");
   run_all_perturbations();
@@ -245,8 +250,14 @@ void Solver<S>::run_perturbation(const double eps_var) {
 
   // Perform multi stage PT.
   var_dets.clear();
-  // for (const auto& det : system.dets) var_dets.insert(det);
   for (const auto& det : system.dets) var_dets.set(det);
+  const size_t mem_total = Util::get_mem_total();
+  const size_t mem_var = system.get_n_dets() * (N_CHUNKS * 160) / 1000;
+  pt_mem_avail = (mem_total * 0.9 - mem_var);
+  const size_t n_procs = Parallel::get_n_procs();
+  if (n_procs >= 2) {
+    pt_mem_avail = static_cast<size_t>(pt_mem_avail * 0.7 * n_procs);
+  }
   const double energy_pt_pre_dtm = get_energy_pt_pre_dtm();
   const UncertResult energy_pt_dtm = get_energy_pt_dtm(energy_pt_pre_dtm);
   const UncertResult energy_pt = get_energy_pt_sto(energy_pt_dtm);
@@ -259,28 +270,32 @@ void Solver<S>::run_perturbation(const double eps_var) {
 
 template <class S>
 double Solver<S>::get_energy_pt_pre_dtm() {
-  const double eps_pt_pre_dtm = Config::get<double>("eps_pt_pre_dtm");
+  const double eps_pt_pre_dtm = Config::get<double>("eps_pt_pre_dtm", 1.0);
+  if (eps_pt_pre_dtm >= 1.0) return system.energy_var;
   Timer::start(Util::str_printf("pre dtm %#.2e", eps_pt_pre_dtm));
   const size_t n_var_dets = system.get_n_dets();
   fgpl::DistHashMap<Det, MathVector<double, 1>, DetHasher> hc_sums;
-
-  fgpl::DistRange<size_t>(0, n_var_dets).for_each([&](const size_t i) {
-    const Det& det = system.dets[i];
-    const double coef = system.coefs[i];
-    const auto& pt_det_handler = [&](const Det& det_a, const int n_excite) {
-      if (var_dets.has(det_a)) return;
-      const double h_ai = system.get_hamiltonian_elem(det, det_a, n_excite);
-      const double hc = h_ai * coef;
-      if (std::abs(hc) < eps_pt_pre_dtm) return;  // Filter out small single excitation.
-      const MathVector<double, 1> contrib(hc);
-      hc_sums.async_set(det_a, contrib, fgpl::Reducer<MathVector<double, 1>>::sum);
-    };
-    system.find_connected_dets(det, Util::INF, eps_pt_pre_dtm / std::abs(coef), pt_det_handler);
-  });
-  hc_sums.sync(fgpl::Reducer<MathVector<double, 1>>::sum);
+  
+  for (size_t j = 0; j < 5; j++) {
+    fgpl::DistRange<size_t>(j, n_var_dets, 5).for_each([&](const size_t i) {
+      const Det& det = system.dets[i];
+      const double coef = system.coefs[i];
+      const auto& pt_det_handler = [&](const Det& det_a, const int n_excite) {
+        if (var_dets.has(det_a)) return;
+        const double h_ai = system.get_hamiltonian_elem(det, det_a, n_excite);
+        const double hc = h_ai * coef;
+        if (std::abs(hc) < eps_pt_pre_dtm) return;  // Filter out small single excitation.
+        const MathVector<double, 1> contrib(hc);
+        hc_sums.async_set(det_a, contrib, fgpl::Reducer<MathVector<double, 1>>::sum);
+      };
+      system.find_connected_dets(det, Util::INF, eps_pt_pre_dtm / std::abs(coef), pt_det_handler);
+    });
+    hc_sums.sync(fgpl::Reducer<MathVector<double, 1>>::sum);
+    if (Parallel::is_master()) printf("%zu%% ", (j + 1) * 20);
+  }
   const size_t n_pt_dets = hc_sums.get_n_keys();
   if (Parallel::is_master()) {
-    printf("Number of pre dtm pt dets: %'zu\n", n_pt_dets);
+    printf("\nNumber of pre dtm pt dets: %'zu\n", n_pt_dets);
   }
   Timer::checkpoint("create hc sums");
 
@@ -301,46 +316,82 @@ double Solver<S>::get_energy_pt_pre_dtm() {
 
 template <class S>
 UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
-  const double eps_pt_pre_dtm = Config::get<double>("eps_pt_pre_dtm");
-  const double eps_pt_dtm = Config::get<double>("eps_pt_dtm");
+  const double eps_pt_pre_dtm = Config::get<double>("eps_pt_pre_dtm", 1.0);
   const double eps_pt = Config::get<double>("eps_pt");
+  const double eps_pt_dtm = Config::get<double>("eps_pt_dtm", eps_pt * 10.0);
   if (eps_pt_dtm >= eps_pt_pre_dtm) return UncertResult(energy_pt_pre_dtm, 0.0);
+
   Timer::start(Util::str_printf("dtm %#.2e", eps_pt_dtm));
   const size_t n_var_dets = system.get_n_dets();
-  const size_t n_batches = Config::get<size_t>("n_batches_pt_dtm", 5);
+  size_t n_batches = Config::get<size_t>("n_batches_pt_dtm", 0);
   fgpl::DistHashMap<Det, MathVector<double, 2>, DetHasher> hc_sums;
-  double energy_sum = 0.0;
-  double energy_sq_sum = 0.0;
-  size_t n_pt_dets_sum = 0;
-  UncertResult energy_pt_dtm;
   const DetHasher det_hasher;
-  const double target_error = Config::get<double>("target_error", 1.0e-5);
 
-  for (size_t batch_id = 0; batch_id < n_batches; batch_id++) {
-    Timer::start(Util::str_printf("#%zu/%zu", batch_id, n_batches));
-
-    fgpl::DistRange<size_t>(0, n_var_dets).for_each([&](const size_t i) {
+  // Estimate best n batches.
+  if (n_batches == 0) {
+    fgpl::DistRange<size_t>(50, n_var_dets, 100).for_each([&](const size_t i) {
       const Det& det = system.dets[i];
       const double coef = system.coefs[i];
       const auto& pt_det_handler = [&](const Det& det_a, const int n_excite) {
         if (var_dets.has(det_a)) return;
         const size_t det_a_hash = det_hasher(det_a);
         const size_t batch_hash = Util::rehash(det_a_hash);
-        if (batch_hash % n_batches != batch_id) return;
-        const double h_ai = system.get_hamiltonian_elem(det, det_a, n_excite);
-        const double hc = h_ai * coef;
-        if (std::abs(hc) < eps_pt_dtm) return;  // Filter out small single excitation.
+        if ((batch_hash & 15) != 0) return;  // use 1st of 8 batches.
+        if (n_excite == 1) {
+          const double h_ai = system.get_hamiltonian_elem(det, det_a, n_excite);
+          const double hc = h_ai * coef;
+          if (std::abs(hc) < eps_pt_dtm) return;  // Filter out small single excitation.
+        }
         MathVector<double, 2> contrib;
-        contrib[0] = hc;
-        if (std::abs(hc) >= eps_pt_pre_dtm) contrib[1] = hc;
-        hc_sums.async_set(det_a, contrib, fgpl::Reducer<MathVector<double, 2>>::sum);
+        hc_sums.async_set(det_a, contrib);
       };
       system.find_connected_dets(det, Util::INF, eps_pt_dtm / std::abs(coef), pt_det_handler);
     });
-    hc_sums.sync(fgpl::Reducer<MathVector<double, 2>>::sum);
+    hc_sums.sync();
+    const size_t n_pt_dets = hc_sums.get_n_keys();
+    n_batches = static_cast<size_t>(
+        ceil(1.6 * 1600 / 1000 * n_pt_dets * (N_CHUNKS * 16 + 24) / pt_mem_avail));
+    if (n_batches == 0) n_batches = 1;
+    if (Parallel::is_master()) {
+      printf("Number of batches chosen: %zu\n", n_batches);
+    }
+    Timer::checkpoint("determine n batches");
+    hc_sums.clear();
+  }
+
+  double energy_sum = 0.0;
+  double energy_sq_sum = 0.0;
+  size_t n_pt_dets_sum = 0;
+  UncertResult energy_pt_dtm;
+  const double target_error = Config::get<double>("target_error", 1.0e-5);
+  for (size_t batch_id = 0; batch_id < n_batches; batch_id++) {
+    Timer::start(Util::str_printf("#%zu/%zu", batch_id, n_batches));
+
+    for (size_t j = 0; j < 5; j++) {
+      fgpl::DistRange<size_t>(j, n_var_dets, 5).for_each([&](const size_t i) {
+        const Det& det = system.dets[i];
+        const double coef = system.coefs[i];
+        const auto& pt_det_handler = [&](const Det& det_a, const int n_excite) {
+          if (var_dets.has(det_a)) return;
+          const size_t det_a_hash = det_hasher(det_a);
+          const size_t batch_hash = Util::rehash(det_a_hash);
+          if (batch_hash % n_batches != batch_id) return;
+          const double h_ai = system.get_hamiltonian_elem(det, det_a, n_excite);
+          const double hc = h_ai * coef;
+          if (std::abs(hc) < eps_pt_dtm) return;  // Filter out small single excitation.
+          MathVector<double, 2> contrib;
+          contrib[0] = hc;
+          if (std::abs(hc) >= eps_pt_pre_dtm) contrib[1] = hc;
+          hc_sums.async_set(det_a, contrib, fgpl::Reducer<MathVector<double, 2>>::sum);
+        };
+        system.find_connected_dets(det, Util::INF, eps_pt_dtm / std::abs(coef), pt_det_handler);
+      });
+      hc_sums.sync(fgpl::Reducer<MathVector<double, 2>>::sum);
+      if (Parallel::is_master()) printf("%zu%% ", (j + 1) * 20);
+    }
     const size_t n_pt_dets = hc_sums.get_n_keys();
     if (Parallel::is_master()) {
-      printf("Number of dtm pt dets: %'zu\n", n_pt_dets);
+      printf("\nNumber of dtm pt dets: %'zu\n", n_pt_dets);
     }
     n_pt_dets_sum += n_pt_dets;
     Timer::checkpoint("create hc sums");
@@ -369,12 +420,11 @@ UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
       printf("PT dtm energy: %s Ha\n", (energy_pt_dtm + energy_pt_pre_dtm).to_string().c_str());
     }
 
-    // hc_sums_pre.clear();
     hc_sums.clear();
     Timer::end();  // batch
 
-    if (energy_pt_dtm.uncert < target_error * 0.2) break;
-    if (eps_pt_dtm <= eps_pt && energy_pt_dtm.uncert < target_error) break;
+    if (energy_pt_dtm.uncert <= target_error * 0.2) break;
+    if (eps_pt_dtm <= eps_pt && energy_pt_dtm.uncert <= target_error) break;
   }
 
   Timer::end();  // dtm
@@ -383,14 +433,16 @@ UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
 
 template <class S>
 UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
-  const double eps_pt_dtm = Config::get<double>("eps_pt_dtm");
   const double eps_pt = Config::get<double>("eps_pt");
+  const double eps_pt_dtm = Config::get<double>("eps_pt_dtm", eps_pt * 10);
   if (eps_pt >= eps_pt_dtm) return energy_pt_dtm;
+
   const size_t max_pt_iterations = Config::get<size_t>("max_pt_iterations", 50);
   fgpl::DistHashMap<Det, MathVector<double, 3>, DetHasher> hc_sums;
   const size_t n_var_dets = system.get_n_dets();
-  const size_t n_batches = Config::get<size_t>("n_batches_pt_sto", 5);
-  const size_t n_samples = Config::get<size_t>("n_samples_pt_sto", 1000);
+  size_t n_batches = Config::get<size_t>("n_batches_pt_sto", 8);
+  if (n_batches == 0) n_batches = 8;
+  size_t n_samples = Config::get<size_t>("n_samples_pt_sto", 0);
   std::vector<double> probs(n_var_dets);
   std::vector<double> cum_probs(n_var_dets);  // For sampling.
   std::unordered_map<size_t, unsigned> sample_dets;
@@ -412,6 +464,68 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
 
   srand(time(nullptr));
   Timer::start(Util::str_printf("sto %#.2e", eps_pt));
+
+  // Estimate best n sample.
+  if (n_samples == 0) {
+    for (size_t i = 0; i < 1000; i++) {
+      const double rand_01 = (static_cast<double>(rand()) / (RAND_MAX));
+      const int sample_det_id =
+          std::lower_bound(cum_probs.begin(), cum_probs.end(), rand_01) - cum_probs.begin();
+      if (sample_dets.count(sample_det_id) == 0) sample_dets_list.push_back(sample_det_id);
+      sample_dets[sample_det_id]++;
+    }
+    fgpl::broadcast(sample_dets);
+    fgpl::broadcast(sample_dets_list);
+    size_t n_unique_samples = sample_dets_list.size();
+    fgpl::DistRange<size_t>(0, n_unique_samples).for_each([&](const size_t sample_id) {
+      const size_t i = sample_dets_list[sample_id];
+      const Det& det = system.dets[i];
+      const double coef = system.coefs[i];
+      const auto& pt_det_handler = [&](const Det& det_a, const int n_excite) {
+        if (var_dets.has(det_a)) return;
+        const size_t det_a_hash = det_hasher(det_a);
+        const size_t batch_hash = Util::rehash(det_a_hash);
+        if ((batch_hash & 15) != 0) return;
+        if (n_excite == 1) {
+          const double h_ai = system.get_hamiltonian_elem(det, det_a, n_excite);
+          const double hc = h_ai * coef;
+          if (std::abs(hc) < eps_pt) return;  // Filter out small single excitation.
+        }
+        MathVector<double, 3> contrib;
+        hc_sums.async_set(det_a, contrib);
+      };
+      system.find_connected_dets(det, Util::INF, eps_pt / std::abs(coef), pt_det_handler);
+    });
+    hc_sums.sync();
+    const size_t n_pt_dets = hc_sums.get_n_keys();
+    hc_sums.clear();
+    const size_t n_pt_dets_batch = n_pt_dets * 16 / n_batches;
+    const size_t bytes_per_det = N_CHUNKS * 16 + 40;
+    size_t n_unique_target =
+        pt_mem_avail * 1000 * n_unique_samples / bytes_per_det / 3.0 / n_pt_dets_batch;
+    if (n_unique_target >= n_var_dets / 2) n_unique_target = n_var_dets / 2;
+    sample_dets.clear();
+    sample_dets_list.clear();
+    n_samples = 0;
+    n_unique_samples = 0;
+    while (n_unique_samples < n_unique_target) {
+      const double rand_01 = (static_cast<double>(rand()) / (RAND_MAX));
+      const int sample_det_id =
+          std::lower_bound(cum_probs.begin(), cum_probs.end(), rand_01) - cum_probs.begin();
+      if (sample_dets.count(sample_det_id) == 0) {
+        n_unique_samples++;
+      }
+      n_samples++;
+      sample_dets[sample_det_id]++;
+    }
+    sample_dets.clear();
+    fgpl::broadcast(n_samples);
+    if (Parallel::is_master()) {
+      printf("Number of samples chosen: %'zu\n", n_samples);
+    }
+    Timer::checkpoint("determine n samples");
+  }
+
   while (iteration < max_pt_iterations) {
     Timer::start(Util::str_printf("#%zu", iteration));
 
@@ -431,38 +545,41 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
     fgpl::broadcast(batch_id);
     const size_t n_unique_samples = sample_dets_list.size();
     if (Parallel::is_master()) printf("Batch id: %zu / %zu\n", batch_id, n_batches);
+    
+    for (size_t j = 0; j < 5; j++) {
+      fgpl::DistRange<size_t>(j, n_unique_samples, 5).for_each([&](const size_t sample_id) {
+        const size_t i = sample_dets_list[sample_id];
+        const double count = static_cast<double>(sample_dets[i]);
+        const Det& det = system.dets[i];
+        const double coef = system.coefs[i];
+        const double prob = probs[i];
+        const auto& pt_det_handler = [&](const Det& det_a, const int n_excite) {
+          if (var_dets.has(det_a)) return;
+          const size_t det_a_hash = det_hasher(det_a);
+          const size_t batch_hash = Util::rehash(det_a_hash);
+          if (batch_hash % n_batches != batch_id) return;
+          const double h_ai = system.get_hamiltonian_elem(det, det_a, n_excite);
+          const double hc = h_ai * coef;
+          if (std::abs(hc) < eps_pt) return;  // Filter out small single excitation.
+          const double factor = static_cast<double>(n_batches) / (n_samples * (n_samples - 1));
 
-    fgpl::DistRange<size_t>(0, n_unique_samples).for_each([&](const size_t sample_id) {
-      const size_t i = sample_dets_list[sample_id];
-      const double count = static_cast<double>(sample_dets[i]);
-      const Det& det = system.dets[i];
-      const double coef = system.coefs[i];
-      const double prob = probs[i];
-      const auto& pt_det_handler = [&](const Det& det_a, const int n_excite) {
-        if (var_dets.has(det_a)) return;
-        const size_t det_a_hash = det_hasher(det_a);
-        const size_t batch_hash = Util::rehash(det_a_hash);
-        if (batch_hash % n_batches != batch_id) return;
-        const double h_ai = system.get_hamiltonian_elem(det, det_a, n_excite);
-        const double hc = h_ai * coef;
-        if (std::abs(hc) < eps_pt) return;  // Filter out small single excitation.
-        const double factor = static_cast<double>(n_batches) / (n_samples * (n_samples - 1));
-
-        MathVector<double, 3> contrib;
-        contrib[0] = count * hc / prob * sqrt(factor);
-        if (std::abs(hc) < eps_pt_dtm) {
-          contrib[2] =
-              (count * (n_samples - 1) / prob - (count * count) / (prob * prob)) * hc * hc * factor;
-        } else {
-          contrib[1] = contrib[0];
-        }
-        hc_sums.async_set(det_a, contrib, fgpl::Reducer<MathVector<double, 3>>::sum);
-      };
-      system.find_connected_dets(det, Util::INF, eps_pt / std::abs(coef), pt_det_handler);
-    });
-    hc_sums.sync(fgpl::Reducer<MathVector<double, 3>>::sum);
+          MathVector<double, 3> contrib;
+          contrib[0] = count * hc / prob * sqrt(factor);
+          if (std::abs(hc) < eps_pt_dtm) {
+            contrib[2] =
+                (count * (n_samples - 1) / prob - (count * count) / (prob * prob)) * hc * hc * factor;
+          } else {
+            contrib[1] = contrib[0];
+          }
+          hc_sums.async_set(det_a, contrib, fgpl::Reducer<MathVector<double, 3>>::sum);
+        };
+        system.find_connected_dets(det, Util::INF, eps_pt / std::abs(coef), pt_det_handler);
+      });
+      hc_sums.sync(fgpl::Reducer<MathVector<double, 3>>::sum);
+      if (Parallel::is_master()) printf("%zu%% ", (j + 1) * 20);
+    }
     const size_t n_pt_dets = hc_sums.get_n_keys();
-    if (Parallel::is_master()) printf("Number of sto pt dets: %'zu\n", n_pt_dets);
+    if (Parallel::is_master()) printf("\nNumber of sto pt dets: %'zu\n", n_pt_dets);
     sample_dets.clear();
     sample_dets_list.clear();
     Timer::checkpoint("create hc sums");
@@ -486,7 +603,10 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
     hc_sums.clear();
     Timer::end();
     iteration++;
-    if (iteration >= 5 && (energy_pt_sto + energy_pt_dtm).uncert < target_error) {
+    if (iteration >= 4 && (energy_pt_sto + energy_pt_dtm).uncert <= target_error * 0.5) {
+      break;
+    }
+    if (iteration >= 8 && (energy_pt_sto + energy_pt_dtm).uncert <= target_error) {
       break;
     }
   }
