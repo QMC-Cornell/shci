@@ -251,7 +251,7 @@ void Solver<S>::run_perturbation(const double eps_var) {
   for (const auto& det : system.dets) var_dets.set(det);
   const size_t mem_total = Util::get_mem_total();
   const size_t mem_var = system.get_n_dets() * (N_CHUNKS * 40) / 1000;
-  pt_mem_avail = (mem_total * 0.80 - mem_var);
+  pt_mem_avail = (mem_total * 0.90 - mem_var);
   const size_t n_procs = Parallel::get_n_procs();
   if (n_procs >= 2) {
     pt_mem_avail += pt_mem_avail * (n_procs - 1) * 0.8;
