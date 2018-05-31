@@ -83,7 +83,10 @@ void Solver<S>::run() {
 
   system.post_variation();
 
-  if (Config::get<bool>("var_only", false)) return;
+  if (Config::get<bool>("var_only", false)) {
+    Result::dump();
+    return;
+  }
 
   Timer::start("perturbation");
   run_all_perturbations();
@@ -247,7 +250,6 @@ void Solver<S>::run_perturbation(const double eps_var) {
 
   // Perform multi stage PT.
   var_dets.clear();
-  // for (const auto& det : system.dets) var_dets.insert(det);
   for (const auto& det : system.dets) var_dets.set(det);
   const size_t mem_total = Util::get_mem_total();
   const size_t mem_var = system.get_n_dets() * (N_CHUNKS * 160) / 1000;
@@ -318,13 +320,14 @@ UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
   const double eps_pt = Config::get<double>("eps_pt");
   const double eps_pt_dtm = Config::get<double>("eps_pt_dtm", eps_pt * 10.0);
   if (eps_pt_dtm >= eps_pt_pre_dtm) return UncertResult(energy_pt_pre_dtm, 0.0);
+
   Timer::start(Util::str_printf("dtm %#.2e", eps_pt_dtm));
   const size_t n_var_dets = system.get_n_dets();
   size_t n_batches = Config::get<size_t>("n_batches_pt_dtm", 0);
   fgpl::DistHashMap<Det, MathVector<double, 2>, DetHasher> hc_sums;
   const DetHasher det_hasher;
 
-  // Estimate best n_batches.
+  // Estimate best n batches.
   if (n_batches == 0) {
     fgpl::DistRange<size_t>(50, n_var_dets, 100).for_each([&](const size_t i) {
       const Det& det = system.dets[i];
@@ -433,6 +436,7 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
   const double eps_pt = Config::get<double>("eps_pt");
   const double eps_pt_dtm = Config::get<double>("eps_pt_dtm", eps_pt * 10);
   if (eps_pt >= eps_pt_dtm) return energy_pt_dtm;
+
   const size_t max_pt_iterations = Config::get<size_t>("max_pt_iterations", 50);
   fgpl::DistHashMap<Det, MathVector<double, 3>, DetHasher> hc_sums;
   const size_t n_var_dets = system.get_n_dets();
@@ -461,6 +465,7 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
   srand(time(nullptr));
   Timer::start(Util::str_printf("sto %#.2e", eps_pt));
 
+  // Estimate best n sample.
   if (n_samples == 0) {
     for (size_t i = 0; i < 1000; i++) {
       const double rand_01 = (static_cast<double>(rand()) / (RAND_MAX));
