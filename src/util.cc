@@ -50,6 +50,16 @@ double Util::stdev(const std::vector<double>& vec) {
   return sqrt((sq_sum - sum * sum / n) / (n - 1));
 }
 
+double Util::dot_omp(const std::vector<double>& a, const std::vector<double>& b) {
+  double sum = 0.0;
+  const size_t n = a.size();
+#pragma omp parallel for reduction(+: sum)
+  for (size_t i = 0; i < n; i++) {
+    sum += a[i] * b[i];
+  }
+  return sum;
+}
+
 size_t Util::rehash(const size_t a) {
   size_t hash = a;
   hash += (hash << 10);
