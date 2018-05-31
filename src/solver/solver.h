@@ -293,7 +293,7 @@ double Solver<S>::get_energy_pt_pre_dtm() {
   }
   const size_t n_pt_dets = hc_sums.get_n_keys();
   if (Parallel::is_master()) {
-    printf("Number of pre dtm pt dets: %'zu\n", n_pt_dets);
+    printf("\nNumber of pre dtm pt dets: %'zu\n", n_pt_dets);
   }
   Timer::checkpoint("create hc sums");
 
