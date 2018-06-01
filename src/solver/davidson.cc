@@ -93,10 +93,16 @@ void Davidson::diagonalize(
 
     // Orthogonalize and normalize.
     for (size_t i = 0; i < it_circ; i++) {
+      //       double prod = 0.0;
+      // #pragma omp parallel for reduction(+ : prod)
+      //       for (size_t j = 0; j < dim; j++) {
+      //         prod += v[it_circ][j] * v[i][j];
+      //       }
       norm = Util::dot_omp(v[it_circ], v[i]);
 // double norm = v.col(it_circ).dot(v.col(i));
 #pragma omp parallel for
       for (size_t j = 0; j < dim; j++) {
+        // v[it_circ][j] -= prod * v[i][j];
         v[it_circ][j] -= norm * v[i][j];
       }
       // v.col(it_circ) -= norm * v.col(i);

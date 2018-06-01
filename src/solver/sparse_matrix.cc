@@ -12,7 +12,10 @@ std::vector<double> SparseMatrix::mul(const std::vector<double>& vec) const {
   const int n_threads = Parallel::get_n_threads();
   const size_t dim = rows.size();
   std::vector<std::vector<double>> res_local(n_threads);
-  for (int i = 0; i < n_threads; i++) res_local[i].assign(dim, 0.0);
+#pragma omp parallel for
+  for (int i = 0; i < n_threads; i++) {
+    res_local[i].assign(dim, 0.0);
+  }
 
 #pragma omp parallel for schedule(static, 1)
   for (size_t i = proc_id; i < dim; i += n_procs) {
@@ -54,7 +57,7 @@ void SparseMatrix::cache_diag() {
 std::vector<double> SparseMatrix::reduce_sum(const std::vector<double>& vec) const {
   const size_t dim = vec.size();
   std::vector<double> res(dim, 0.0);
-  const size_t TRUNK_SIZE = 1 << 24;
+  const size_t TRUNK_SIZE = 1 << 27;
   double* src_ptr = const_cast<double*>(vec.data());
   double* dest_ptr = res.data();
   size_t n_elems_left = dim;
