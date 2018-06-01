@@ -23,6 +23,10 @@ class Util {
 
   static double stdev(const std::vector<double>& vec);
 
+  // static double dot_omp(const std::vector<double>& a, const std::vector<double>& b, const size_t dim);
+  static double dot_omp(const std::vector<double>& a, const std::vector<double>& b);
+  static double dot(const std::vector<double>& a, const std::vector<double>& b);
+
   static size_t rehash(const size_t a);
 
   static int ctz(unsigned long long x);
