@@ -30,6 +30,8 @@ class Hamiltonian {
 
   unsigned n_dn = 0;
 
+  bool sort_by_det_id = false;
+
   std::vector<HalfDet> unique_alphas;
 
   std::vector<HalfDet> unique_betas;
@@ -82,6 +84,7 @@ void Hamiltonian<S>::update(const S& system) {
   n_dets_prev = n_dets;
   n_dets = system.get_n_dets();
   if (n_dets_prev == n_dets) return;
+  if (n_dets < n_dets_prev * 1.1) sort_by_det_id = true;
 
   update_abdet(system);
   Timer::checkpoint("update unique ab");
@@ -157,12 +160,22 @@ void Hamiltonian<S>::update_abdet(const S& system) {
   }
 
   // Sort updated alpha/beta to det info.
-  for (const size_t alpha_id : updated_alphas) {
-    Util::sort_by_first<size_t, size_t>(
-        alpha_id_to_beta_ids[alpha_id], alpha_id_to_det_ids[alpha_id]);
-  }
-  for (const size_t beta_id : updated_betas) {
-    Util::sort_by_first<size_t, size_t>(beta_id_to_alpha_ids[beta_id], beta_id_to_det_ids[beta_id]);
+  if (sort_by_det_id) {
+    for (const size_t alpha_id : updated_alphas) {
+      Util::sort_by_first<size_t, size_t>(
+          alpha_id_to_det_ids[alpha_id], alpha_id_to_beta_ids[alpha_id]);
+    }
+    for (const size_t beta_id : updated_betas) {
+      Util::sort_by_first<size_t, size_t>(beta_id_to_det_ids[beta_id], beta_id_to_alpha_ids[beta_id]);
+    }
+  } else {
+    for (const size_t alpha_id : updated_alphas) {
+      Util::sort_by_first<size_t, size_t>(
+          alpha_id_to_beta_ids[alpha_id], alpha_id_to_det_ids[alpha_id]);
+    }
+    for (const size_t beta_id : updated_betas) {
+      Util::sort_by_first<size_t, size_t>(beta_id_to_alpha_ids[beta_id], beta_id_to_det_ids[beta_id]);
+    }
   }
 }
 
@@ -355,22 +368,37 @@ void Hamiltonian<S>::update_matrix(const S& system) {
       const auto& related_beta_ids = alpha_id_to_beta_ids[alpha_single];
       const auto& related_det_ids = alpha_id_to_det_ids[alpha_single];
       const size_t n_related_dets = related_beta_ids.size();
-      size_t ptr = 0;
-      for (auto it = beta_singles.begin(); it != beta_singles.end(); it++) {
-        const size_t beta_single = *it;
-        while (ptr < n_related_dets && related_beta_ids[ptr] < beta_single) {
-          ptr++;
+      if (sort_by_det_id) {
+        const auto& start_ptr =
+            std::lower_bound(related_det_ids.begin(), related_det_ids.end(), start_id);
+        const size_t start_related_id = start_ptr - related_det_ids.begin();
+        for (size_t related_id = start_related_id; related_id < n_related_dets; related_id++) {
+          const size_t related_beta = related_beta_ids[related_id];
+          if (std::binary_search(beta_singles.begin(), beta_singles.end(), related_beta)) {
+            const size_t related_det_id = related_det_ids[related_id];
+            const auto& connected_det = system.dets[related_det_id];
+            const double H = system.get_hamiltonian_elem(det, connected_det, 2);
+            if (std::abs(H) < Util::EPS) continue;
+            matrix.append_elem(det_id, related_det_id, H);
+          }
         }
-        if (ptr == n_related_dets) break;
-
-        if (related_beta_ids[ptr] == beta_single) {
-          const size_t related_det_id = related_det_ids[ptr];
-          ptr++;
-          if (related_det_id < start_id) continue;
-          const auto& connected_det = system.dets[related_det_id];
-          const double H = system.get_hamiltonian_elem(det, connected_det, 2);
-          if (std::abs(H) < Util::EPS) continue;
-          matrix.append_elem(det_id, related_det_id, H);
+      } else {
+        size_t ptr = 0;
+        for (auto it = beta_singles.begin(); it != beta_singles.end(); it++) {
+          const size_t beta_single = *it;
+          while (ptr < n_related_dets && related_beta_ids[ptr] < beta_single) {
+            ptr++;
+          }
+          if (ptr == n_related_dets) break;
+          if (related_beta_ids[ptr] == beta_single) {
+            const size_t related_det_id = related_det_ids[ptr];
+            ptr++;
+            if (related_det_id < start_id) continue;
+            const auto& connected_det = system.dets[related_det_id];
+            const double H = system.get_hamiltonian_elem(det, connected_det, 2);
+            if (std::abs(H) < Util::EPS) continue;
+            matrix.append_elem(det_id, related_det_id, H);
+          }
         }
       }
     }
