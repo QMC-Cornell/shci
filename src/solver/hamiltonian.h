@@ -84,7 +84,7 @@ void Hamiltonian<S>::update(const S& system) {
   n_dets_prev = n_dets;
   n_dets = system.get_n_dets();
   if (n_dets_prev == n_dets) return;
-  if (n_dets < n_dets_prev * 1.15) sort_by_det_id = true;
+  sort_by_det_id = (n_dets < n_dets_prev * 1.15);
 
   update_abdet(system);
   Timer::checkpoint("update unique ab");
