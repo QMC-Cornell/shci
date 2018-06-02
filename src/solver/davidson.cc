@@ -98,12 +98,14 @@ void Davidson::diagonalize(
     for (size_t i = 0; i < it_circ + 1; i++) eigenvector_krylov[i] = eigenvectors(i, 0) * factor;
 #pragma omp parallel for
     for (size_t j = 0; j < dim; j++) {
-      w[j] = 0.0;
-      Hw[j] = 0.0;
+      double w_j = 0.0;
+      double Hw_j = 0.0;
       for (size_t i = 0; i < it_circ + 1; i++) {
-        w[j] += v[i][j] * eigenvector_krylov[i];
-        Hw[j] += Hv[i][j] * eigenvector_krylov[i];
+        w_j += v[i][j] * eigenvector_krylov[i];
+        Hw_j += Hv[i][j] * eigenvector_krylov[i];
       }
+      w[j] = w_j;
+      Hw[j] = Hw_j;
     }
 
     if (verbose) printf("Davidson #%zu: %.10f\n", it_real, lowest_eigenvalue);
