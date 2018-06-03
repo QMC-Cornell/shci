@@ -54,6 +54,7 @@ class Result {
       }
     }
     node_ref.get() = value;
+    dump();
   }
 
  private:

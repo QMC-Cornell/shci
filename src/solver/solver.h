@@ -84,7 +84,6 @@ void Solver<S>::run() {
   system.post_variation();
 
   if (Config::get<bool>("var_only", false)) {
-    Result::dump();
     return;
   }
 
@@ -92,8 +91,6 @@ void Solver<S>::run() {
   run_all_perturbations();
   system.post_perturbation();
   Timer::end();
-
-  Result::dump();
 }
 
 template <class S>
@@ -122,13 +119,13 @@ void Solver<S>::run_all_variations() {
       run_variation(eps_var);
       Result::put<double>(Util::str_printf("energy_var/%#.2e", eps_var), system.energy_var);
       Timer::end();
-
       save_variation_result(filename);
     } else {
       eps_tried_prev.clear();
       var_dets.clear();
       for (const auto& det : system.dets) var_dets.set(det);
       hamiltonian.clear();
+      Result::put<double>(Util::str_printf("energy_var/%#.2e", eps_var), system.energy_var);
     }
     eps_var_prev = eps_var;
     Timer::end();
@@ -643,7 +640,7 @@ bool Solver<S>::load_variation_result(const std::string& filename) {
   std::ifstream file(filename, std::ifstream::binary);
   if (!file) return false;
   hps::from_stream<S>(file, system);
-  if (Parallel::get_proc_id() == 0) {
+  if (Parallel::is_master()) {
     printf("Loaded %'zu dets from: %s\n", system.get_n_dets(), filename.c_str());
     printf("HF energy: " ENERGY_FORMAT "\n", system.energy_hf);
     printf("Variation energy: " ENERGY_FORMAT "\n", system.energy_var);
@@ -653,7 +650,7 @@ bool Solver<S>::load_variation_result(const std::string& filename) {
 
 template <class S>
 void Solver<S>::save_variation_result(const std::string& filename) {
-  if (Parallel::get_proc_id() == 0) {
+  if (Parallel::is_master()) {
     std::ofstream file(filename, std::ofstream::binary);
     hps::to_stream(system, file);
     printf("Variation results saved to: %s\n", filename.c_str());
