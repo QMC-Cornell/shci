@@ -643,14 +643,56 @@ std::array<double, 2> Solver<S>::mapreduce_sum(
 
 template <class S>
 bool Solver<S>::load_variation_result(const std::string& filename) {
-  std::ifstream file(filename, std::ifstream::binary);
-  if (!file) return false;
-  hps::from_stream<S>(file, system);
+  std::string serialized;
+  const size_t TRUNK_SIZE = 1 << 20;
+  char buffer[TRUNK_SIZE];
+  MPI_File file;
+  MPI_Info info;
+  int error;
+  error = MPI_File_open(
+      MPI_COMM_WORLD, filename.c_str(), MPI_MODE_RDONLY | MPI_MODE_RDONLY, MPI_INFO_NULL, &file);
+  if (error) return false;
+  MPI_Offset size;
+  MPI_File_get_size(file, &size);
+  MPI_Status status;
+  while (size > TRUNK_SIZE) {
+    MPI_File_read_all(file, buffer, TRUNK_SIZE, MPI_CHAR, &status);
+    serialized.append(buffer, TRUNK_SIZE);
+    size -= TRUNK_SIZE;
+  }
+  MPI_File_read_all(file, buffer, size, MPI_CHAR, &status);
+  serialized.append(buffer, size);
+  MPI_File_close(&file);
+  hps::from_string(serialized, system);
   if (Parallel::is_master()) {
     printf("Loaded %'zu dets from: %s\n", system.get_n_dets(), filename.c_str());
     printf("HF energy: " ENERGY_FORMAT "\n", system.energy_hf);
     printf("Variation energy: " ENERGY_FORMAT "\n", system.energy_var);
   }
+  return true;
+  // bool wf_ok = true;
+  // std::string serialized;
+  // if (Parallel::is_master()) {
+  //   std::ifstream file(filename, std::ifstream::binary);
+  //   if (!file) wf_ok = false;
+  //   fgpl::broadcast(wf_ok);
+  //   if (!wf_ok) return false;
+  //   hps::from_stream<S>(file, system);
+  //   printf("Loaded %'zu dets from: %s\n", system.get_n_dets(), filename.c_str());
+  //   printf("HF energy: " ENERGY_FORMAT "\n", system.energy_hf);
+  //   printf("Variation energy: " ENERGY_FORMAT "\n", system.energy_var);
+  //   hps::to_string(system, serialized);
+  // } else {
+  //   fgpl::broadcast(wf_ok);
+  //   printf("s here\n");
+  //   if (!wf_ok) return false;
+  //   printf("s here\n");
+  // }
+  // printf("here\n");
+  // Parallel::barrier();
+  // fgpl::broadcast(serialized);
+  // hps::from_string(serialized, system);
+  // printf("here2\n");
   return true;
 }
 
