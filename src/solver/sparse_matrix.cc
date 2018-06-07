@@ -41,7 +41,14 @@ void SparseMatrix::set_dim(const size_t dim) {
   diag.resize(dim, 0.0);
 }
 
-void SparseMatrix::clear() { rows.clear(); }
+void SparseMatrix::clear() {
+  rows.clear();
+  rows.shrink_to_fit();
+  diag_local.clear();
+  diag_local.shrink_to_fit();
+  diag.clear();
+  diag.shrink_to_fit();
+}
 
 void SparseMatrix::sort_row(const size_t i) { rows[i].sort(); }
 
