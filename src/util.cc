@@ -56,22 +56,12 @@ double Util::dot_omp(const std::vector<double>& a, const std::vector<double>& b)
   const size_t n = a.size();
   const int n_threads = omp_get_max_threads();
   std::vector<double> sum_thread(n_threads, 0.0);
-// #pragma omp parallel for reduction(+ : sum) schedule(static, 1)
 #pragma omp parallel for
   for (size_t i = 0; i < n; i++) {
     const int thread_id = omp_get_thread_num();
     sum_thread[thread_id] += a[i] * b[i];
   }
   for (int i = 0; i < n_threads; i++) sum += sum_thread[i];
-  return sum;
-}
-
-double Util::dot(const std::vector<double>& a, const std::vector<double>& b) {
-  double sum = 0.0;
-  const size_t n = a.size();
-  for (size_t i = 0; i < n; i++) {
-    sum += a[i] * b[i];
-  }
   return sum;
 }
 

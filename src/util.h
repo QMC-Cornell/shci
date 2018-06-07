@@ -63,7 +63,7 @@ std::string Util::str_printf(const std::string& format, Args... args) {
 
 template <class T>
 void Util::free(T& t) {
-  T& dummy;
+  T dummy;
   std::swap(t, dummy);
 }
 
