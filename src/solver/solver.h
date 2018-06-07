@@ -670,30 +670,6 @@ bool Solver<S>::load_variation_result(const std::string& filename) {
     printf("Variation energy: " ENERGY_FORMAT "\n", system.energy_var);
   }
   return true;
-  // bool wf_ok = true;
-  // std::string serialized;
-  // if (Parallel::is_master()) {
-  //   std::ifstream file(filename, std::ifstream::binary);
-  //   if (!file) wf_ok = false;
-  //   fgpl::broadcast(wf_ok);
-  //   if (!wf_ok) return false;
-  //   hps::from_stream<S>(file, system);
-  //   printf("Loaded %'zu dets from: %s\n", system.get_n_dets(), filename.c_str());
-  //   printf("HF energy: " ENERGY_FORMAT "\n", system.energy_hf);
-  //   printf("Variation energy: " ENERGY_FORMAT "\n", system.energy_var);
-  //   hps::to_string(system, serialized);
-  // } else {
-  //   fgpl::broadcast(wf_ok);
-  //   printf("s here\n");
-  //   if (!wf_ok) return false;
-  //   printf("s here\n");
-  // }
-  // printf("here\n");
-  // Parallel::barrier();
-  // fgpl::broadcast(serialized);
-  // hps::from_string(serialized, system);
-  // printf("here2\n");
-  return true;
 }
 
 template <class S>
