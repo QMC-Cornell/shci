@@ -20,6 +20,10 @@ class Integrals {
   unsigned n_dn;
 
   std::vector<unsigned> orb_sym;
+  
+  std::vector<unsigned> orb_order;
+  
+  std::vector<unsigned> orb_order_inv;
 
   Det det_hf;
 
@@ -39,11 +43,11 @@ class Integrals {
   template <class B>
   void parse(B& buf);
 
- private:
   fgpl::HashMap<size_t, double, IntegralsHasher> integrals_1b;
 
   fgpl::HashMap<size_t, double, IntegralsHasher> integrals_2b;
 
+ private:
   std::vector<Hpqrs> raw_integrals;
 
   void read_fcidump();
@@ -63,12 +67,12 @@ class Integrals {
 
 template <class B>
 void Integrals::serialize(B& buf) const {
-  buf << energy_core << n_orbs << n_elecs << n_up << n_dn << orb_sym << det_hf;
+  buf << energy_core << n_orbs << n_elecs << n_up << n_dn << orb_sym << orb_order << orb_order_inv << det_hf;
   buf << integrals_1b << integrals_2b;
 }
 
 template <class B>
 void Integrals::parse(B& buf) {
-  buf >> energy_core >> n_orbs >> n_elecs >> n_up >> n_dn >> orb_sym >> det_hf;
+  buf >> energy_core >> n_orbs >> n_elecs >> n_up >> n_dn >> orb_sym >> orb_order >> orb_order_inv >> det_hf;
   buf >> integrals_1b >> integrals_2b;
 }
