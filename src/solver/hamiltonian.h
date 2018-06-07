@@ -146,8 +146,8 @@ void Hamiltonian<S>::update_abdet(const S& system) {
       alpha_to_id[alpha] = alpha_id;
       unique_alphas.push_back(alpha);
       if (alpha_id_to_beta_ids.capacity() < alpha_id + 1) {
-        alpha_id_to_beta_ids.reserve(alpha_id + 20);
-        alpha_id_to_det_ids.reserve(alpha_id + 20);
+        alpha_id_to_beta_ids.reserve(alpha_id_to_beta_ids.capacity() * 2);
+        alpha_id_to_det_ids.reserve(alpha_id_to_det_ids.capacity() * 2);
       }
       alpha_id_to_beta_ids.resize(alpha_id + 1);
       alpha_id_to_det_ids.resize(alpha_id + 1);
@@ -163,8 +163,8 @@ void Hamiltonian<S>::update_abdet(const S& system) {
       beta_to_id[beta] = beta_id;
       unique_betas.push_back(beta);
       if (beta_id_to_alpha_ids.capacity() < beta_id + 1) {
-        beta_id_to_alpha_ids.reserve(beta_id + 20);
-        beta_id_to_det_ids.reserve(beta_id + 20);
+        beta_id_to_alpha_ids.reserve(beta_id_to_alpha_ids.capacity() * 2);
+        beta_id_to_det_ids.reserve(beta_id_to_det_ids.capacity() * 2);
       }
       beta_id_to_alpha_ids.resize(beta_id + 1);
       beta_id_to_det_ids.resize(beta_id + 1);
