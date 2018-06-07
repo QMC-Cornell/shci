@@ -92,6 +92,7 @@ void Hamiltonian<S>::update(const S& system) {
   Timer::checkpoint("create abm1");
   update_absingles(system);
   abm1_to_ab_ids.clear();
+  Util::free(abm1_to_ab_ids);
   Timer::checkpoint("create absingles");
   update_matrix(system);
   alpha_id_to_single_ids.clear();
@@ -110,8 +111,11 @@ void Hamiltonian<S>::clear() {
   unique_betas.clear();
   unique_betas.shrink_to_fit();
   alpha_to_id.clear();
+  Util::free(alpha_to_id);
   beta_to_id.clear();
+  Util::free(beta_to_id);
   abm1_to_ab_ids.clear();
+  Util::free(abm1_to_ab_ids);
   alpha_id_to_single_ids.clear();
   alpha_id_to_single_ids.shrink_to_fit();
   beta_id_to_single_ids.clear();
