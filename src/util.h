@@ -23,9 +23,7 @@ class Util {
 
   static double stdev(const std::vector<double>& vec);
 
-  // static double dot_omp(const std::vector<double>& a, const std::vector<double>& b, const size_t dim);
   static double dot_omp(const std::vector<double>& a, const std::vector<double>& b);
-  static double dot(const std::vector<double>& a, const std::vector<double>& b);
 
   static size_t rehash(const size_t a);
 
@@ -36,6 +34,9 @@ class Util {
   static size_t get_mem_total();
 
   static size_t get_mem_avail();
+
+  template <class T>
+  static void free(T& t);
 
   template <class T1, class T2>
   static void sort_by_first(std::vector<T1>& v1, std::vector<T2>& v2);
@@ -58,6 +59,12 @@ std::string Util::str_printf(const std::string& format, Args... args) {
   std::unique_ptr<char[]> buf(new char[size + 1]);  // Extra space for '\0'
   snprintf(buf.get(), size + 1, format.c_str(), args...);
   return std::string(buf.get(), buf.get() + size);
+}
+
+template <class T>
+void Util::free(T& t) {
+  T dummy;
+  std::swap(t, dummy);
 }
 
 template <class T1, class T2>

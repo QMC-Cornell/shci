@@ -78,14 +78,11 @@ void Solver<S>::run() {
 
   Timer::start("variation");
   run_all_variations();
-  hamiltonian.clear();
   Timer::end();
 
   system.post_variation();
 
-  if (Config::get<bool>("var_only", false)) {
-    return;
-  }
+  if (Config::get<bool>("var_only", false)) return;
 
   Timer::start("perturbation");
   run_all_perturbations();
@@ -130,6 +127,10 @@ void Solver<S>::run_all_variations() {
     eps_var_prev = eps_var;
     Timer::end();
   }
+  hamiltonian.clear();
+  eps_tried_prev.clear();
+  eps_tried_prev.shrink_to_fit();
+  var_dets.clear_and_shrink();
 }
 
 template <class S>
@@ -177,14 +178,16 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
       });
 
       dist_new_dets.sync();
+      n_dets_new = n_dets + dist_new_dets.get_n_keys();
+      system.dets.reserve(n_dets_new);
+      system.coefs.reserve(n_dets_new);
       dist_new_dets.for_each_serial([&](const Det& connected_det, const size_t) {
         var_dets.set(connected_det);
         system.dets.push_back(connected_det);
         system.coefs.push_back(0.0);
       });
-      dist_new_dets.clear();
+      dist_new_dets.clear_and_shrink();
 
-      n_dets_new = system.coefs.size();
       if (Parallel::is_master()) {
         printf("Number of dets / new dets: %'zu / %'zu\n", n_dets_new, n_dets_new - n_dets);
       }
@@ -246,7 +249,10 @@ void Solver<S>::run_perturbation(const double eps_var) {
   system.update_diag_helper();
 
   // Perform multi stage PT.
-  var_dets.clear();
+  system.dets.shrink_to_fit();
+  system.coefs.shrink_to_fit();
+  var_dets.clear_and_shrink();
+  var_dets.reserve(system.get_n_dets());
   for (const auto& det : system.dets) var_dets.set(det);
   const size_t mem_total = Util::get_mem_total();
   const size_t mem_var = system.get_n_dets() * (N_CHUNKS * 160) / 1000;
@@ -272,7 +278,7 @@ double Solver<S>::get_energy_pt_pre_dtm() {
   Timer::start(Util::str_printf("pre dtm %#.2e", eps_pt_pre_dtm));
   const size_t n_var_dets = system.get_n_dets();
   fgpl::DistHashMap<Det, MathVector<double, 1>, DetHasher> hc_sums;
-  
+
   for (size_t j = 0; j < 5; j++) {
     fgpl::DistRange<size_t>(j, n_var_dets, 5).for_each([&](const size_t i) {
       const Det& det = system.dets[i];
@@ -542,7 +548,7 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
     fgpl::broadcast(batch_id);
     const size_t n_unique_samples = sample_dets_list.size();
     if (Parallel::is_master()) printf("Batch id: %zu / %zu\n", batch_id, n_batches);
-    
+
     for (size_t j = 0; j < 5; j++) {
       fgpl::DistRange<size_t>(j, n_unique_samples, 5).for_each([&](const size_t sample_id) {
         const size_t i = sample_dets_list[sample_id];
@@ -563,8 +569,8 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
           MathVector<double, 3> contrib;
           contrib[0] = count * hc / prob * sqrt(factor);
           if (std::abs(hc) < eps_pt_dtm) {
-            contrib[2] =
-                (count * (n_samples - 1) / prob - (count * count) / (prob * prob)) * hc * hc * factor;
+            contrib[2] = (count * (n_samples - 1) / prob - (count * count) / (prob * prob)) * hc *
+                         hc * factor;
           } else {
             contrib[1] = contrib[0];
           }
@@ -637,9 +643,27 @@ std::array<double, 2> Solver<S>::mapreduce_sum(
 
 template <class S>
 bool Solver<S>::load_variation_result(const std::string& filename) {
-  std::ifstream file(filename, std::ifstream::binary);
-  if (!file) return false;
-  hps::from_stream<S>(file, system);
+  std::string serialized;
+  const size_t TRUNK_SIZE = 1 << 20;
+  char buffer[TRUNK_SIZE];
+  MPI_File file;
+  MPI_Info info;
+  int error;
+  error = MPI_File_open(
+      MPI_COMM_WORLD, filename.c_str(), MPI_MODE_RDONLY | MPI_MODE_RDONLY, MPI_INFO_NULL, &file);
+  if (error) return false;
+  MPI_Offset size;
+  MPI_File_get_size(file, &size);
+  MPI_Status status;
+  while (size > TRUNK_SIZE) {
+    MPI_File_read_all(file, buffer, TRUNK_SIZE, MPI_CHAR, &status);
+    serialized.append(buffer, TRUNK_SIZE);
+    size -= TRUNK_SIZE;
+  }
+  MPI_File_read_all(file, buffer, size, MPI_CHAR, &status);
+  serialized.append(buffer, size);
+  MPI_File_close(&file);
+  hps::from_string(serialized, system);
   if (Parallel::is_master()) {
     printf("Loaded %'zu dets from: %s\n", system.get_n_dets(), filename.c_str());
     printf("HF energy: " ENERGY_FORMAT "\n", system.energy_hf);

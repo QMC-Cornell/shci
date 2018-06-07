@@ -92,10 +92,13 @@ void Hamiltonian<S>::update(const S& system) {
   Timer::checkpoint("create abm1");
   update_absingles(system);
   abm1_to_ab_ids.clear();
+  Util::free(abm1_to_ab_ids);
   Timer::checkpoint("create absingles");
   update_matrix(system);
   alpha_id_to_single_ids.clear();
+  alpha_id_to_single_ids.shrink_to_fit();
   beta_id_to_single_ids.clear();
+  beta_id_to_single_ids.shrink_to_fit();
   Timer::checkpoint("generate sparse hamiltonian");
 }
 
@@ -104,16 +107,27 @@ void Hamiltonian<S>::clear() {
   n_dets = 0;
   n_dets_prev = 0;
   unique_alphas.clear();
+  unique_alphas.shrink_to_fit();
   unique_betas.clear();
+  unique_betas.shrink_to_fit();
   alpha_to_id.clear();
+  Util::free(alpha_to_id);
   beta_to_id.clear();
+  Util::free(beta_to_id);
   abm1_to_ab_ids.clear();
+  Util::free(abm1_to_ab_ids);
   alpha_id_to_single_ids.clear();
+  alpha_id_to_single_ids.shrink_to_fit();
   beta_id_to_single_ids.clear();
+  beta_id_to_single_ids.shrink_to_fit();
   alpha_id_to_beta_ids.clear();
+  alpha_id_to_beta_ids.shrink_to_fit();
   alpha_id_to_det_ids.clear();
+  alpha_id_to_det_ids.shrink_to_fit();
   beta_id_to_alpha_ids.clear();
+  beta_id_to_alpha_ids.shrink_to_fit();
   beta_id_to_det_ids.clear();
+  beta_id_to_det_ids.shrink_to_fit();
   matrix.clear();
 }
 
@@ -131,6 +145,10 @@ void Hamiltonian<S>::update_abdet(const S& system) {
       alpha_id = alpha_to_id.size();
       alpha_to_id[alpha] = alpha_id;
       unique_alphas.push_back(alpha);
+      if (alpha_id_to_beta_ids.capacity() < alpha_id + 1) {
+        alpha_id_to_beta_ids.reserve(alpha_id_to_beta_ids.capacity() * 2);
+        alpha_id_to_det_ids.reserve(alpha_id_to_det_ids.capacity() * 2);
+      }
       alpha_id_to_beta_ids.resize(alpha_id + 1);
       alpha_id_to_det_ids.resize(alpha_id + 1);
     } else {
@@ -144,6 +162,10 @@ void Hamiltonian<S>::update_abdet(const S& system) {
       beta_id = beta_to_id.size();
       beta_to_id[beta] = beta_id;
       unique_betas.push_back(beta);
+      if (beta_id_to_alpha_ids.capacity() < beta_id + 1) {
+        beta_id_to_alpha_ids.reserve(beta_id_to_alpha_ids.capacity() * 2);
+        beta_id_to_det_ids.reserve(beta_id_to_det_ids.capacity() * 2);
+      }
       beta_id_to_alpha_ids.resize(beta_id + 1);
       beta_id_to_det_ids.resize(beta_id + 1);
     } else {
