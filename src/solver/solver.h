@@ -644,7 +644,7 @@ std::array<double, 2> Solver<S>::mapreduce_sum(
 template <class S>
 bool Solver<S>::load_variation_result(const std::string& filename) {
   std::string serialized;
-  const size_t TRUNK_SIZE = 1 << 20;
+  const size_t TRUNK_SIZE = 1 << 24;
   char buffer[TRUNK_SIZE];
   MPI_File file;
   MPI_Info info;
