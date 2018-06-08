@@ -23,11 +23,20 @@ class Util {
 
   static double stdev(const std::vector<double>& vec);
 
+  static double dot_omp(const std::vector<double>& a, const std::vector<double>& b);
+
   static size_t rehash(const size_t a);
 
   static int ctz(unsigned long long x);
 
   static int popcnt(unsigned long long x);
+
+  static size_t get_mem_total();
+
+  static size_t get_mem_avail();
+
+  template <class T>
+  static void free(T& t);
 
   template <class T1, class T2>
   static void sort_by_first(std::vector<T1>& v1, std::vector<T2>& v2);
@@ -39,6 +48,9 @@ class Util {
   constexpr static double SQRT2 = 1.4142135623730951;
 
   constexpr static double SQRT2_INV = 0.7071067811865475;
+
+ private:
+  static size_t get_mem_info(const std::string& key);
 };
 
 template <typename... Args>
@@ -47,6 +59,12 @@ std::string Util::str_printf(const std::string& format, Args... args) {
   std::unique_ptr<char[]> buf(new char[size + 1]);  // Extra space for '\0'
   snprintf(buf.get(), size + 1, format.c_str(), args...);
   return std::string(buf.get(), buf.get() + size);
+}
+
+template <class T>
+void Util::free(T& t) {
+  T dummy;
+  std::swap(t, dummy);
 }
 
 template <class T1, class T2>

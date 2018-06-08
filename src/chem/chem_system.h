@@ -74,7 +74,7 @@ class ChemSystem : public BaseSystem {
   
   void generate_natorb_integrals(MatrixXd rdm);
 
-  size_t nonsym_combine2(const size_t a, const size_t b);
+//  size_t nonsym_combine2(const size_t a, const size_t b); // used for generate_natorb_integrals with hash tables
 
-  size_t nonsym_combine4(const size_t a, const size_t b, const size_t c, const size_t d);
+//  size_t nonsym_combine4(const size_t a, const size_t b, const size_t c, const size_t d);
 };

@@ -4,6 +4,8 @@
 #include <unistd.h>
 #include <cctype>
 #include <cstdio>
+#include <fstream>
+#include <omp.h>
 
 constexpr double Util::EPS;
 
@@ -49,6 +51,20 @@ double Util::stdev(const std::vector<double>& vec) {
   return sqrt((sq_sum - sum * sum / n) / (n - 1));
 }
 
+double Util::dot_omp(const std::vector<double>& a, const std::vector<double>& b) {
+  double sum = 0.0;
+  const size_t n = a.size();
+  const int n_threads = omp_get_max_threads();
+  std::vector<double> sum_thread(n_threads, 0.0);
+#pragma omp parallel for
+  for (size_t i = 0; i < n; i++) {
+    const int thread_id = omp_get_thread_num();
+    sum_thread[thread_id] += a[i] * b[i];
+  }
+  for (int i = 0; i < n_threads; i++) sum += sum_thread[i];
+  return sum;
+}
+
 size_t Util::rehash(const size_t a) {
   size_t hash = a;
   hash += (hash << 10);
@@ -65,3 +81,23 @@ size_t Util::rehash(const size_t a) {
 int Util::ctz(unsigned long long x) { return __builtin_ctzll(x); }
 
 int Util::popcnt(unsigned long long x) { return __builtin_popcountll(x); }
+
+size_t Util::get_mem_info(const std::string& key) {
+  std::ifstream meminfo("/proc/meminfo");
+  std::string token;
+  size_t value;
+  while (meminfo >> token) {
+    if (token == key + ":") {
+      if (meminfo >> value) {
+        return value;
+      } else {
+        return 0;
+      }
+    }
+  }
+  return 0;
+}
+
+size_t Util::get_mem_total() { return get_mem_info("MemTotal"); }
+
+size_t Util::get_mem_avail() { return get_mem_info("MemAvailable"); }

@@ -9,99 +9,114 @@ void Davidson::diagonalize(
     const bool verbose,
     const bool until_converged) {
   const double TOLERANCE = until_converged ? 2.0e-7 : 2.0e-6;
-  const size_t MAX_N_INTERATIONS = 10;
+  const size_t N_ITERATIONS_STORE = 5;
 
   const size_t dim = initial_vector.size();
+  lowest_eigenvector.resize(dim);
 
   if (dim == 1) {
     lowest_eigenvalue = matrix.get_diag(0);
     lowest_eigenvector.resize(1);
     lowest_eigenvector[0] = 1.0;
+    converged = true;
     return;
   }
 
-  const size_t max_n_iterations = std::min(dim, MAX_N_INTERATIONS);
+  const size_t n_iterations_store = std::min(dim, N_ITERATIONS_STORE);
   double lowest_eigenvalue_prev = 0.0;
-  double lowest_eigenvalue_prev2 = 0.0;
 
-  Eigen::MatrixXd v = Eigen::MatrixXd::Zero(dim, max_n_iterations);
-  for (size_t i = 0; i < dim; i++) v(i, 0) = initial_vector[i];
-  v.col(0).normalize();
+  std::vector<std::vector<double>> v(n_iterations_store);
+  std::vector<std::vector<double>> Hv(n_iterations_store);
+  std::vector<double> w(dim);
+  std::vector<double> Hw(dim);
+  for (size_t i = 0; i < n_iterations_store; i++) {
+    v[i].resize(dim);
+  }
+  double norm = sqrt(Util::dot_omp(initial_vector, initial_vector));
+#pragma omp parallel for
+  for (size_t j = 0; j < dim; j++) v[0][j] = initial_vector[j] / norm;
 
-  Eigen::MatrixXd Hv = Eigen::MatrixXd::Zero(dim, max_n_iterations);
-  Eigen::VectorXd w = Eigen::VectorXd::Zero(dim);
-  Eigen::VectorXd Hw = Eigen::VectorXd::Zero(dim);
-  Eigen::MatrixXd h_krylov = Eigen::MatrixXd::Zero(max_n_iterations, max_n_iterations);
-  Eigen::VectorXd eigenvalues = Eigen::VectorXd::Zero(max_n_iterations);
-  size_t len_work = 3 * max_n_iterations - 1;
-  Eigen::VectorXd work(len_work);
-  bool converged = false;
-  std::vector<double> tmp_v(dim);
-  // Get diagonal elements.
-  Eigen::VectorXd diag_elems(dim);
-  for (size_t i = 0; i < dim; i++) diag_elems[i] = matrix.get_diag(i);
-
-  // First iteration.
-  for (size_t i = 0; i < dim; i++) tmp_v[i] = v(i, 0);
-  const auto& tmp_Hv = matrix.mul(tmp_v);
-  for (size_t i = 0; i < dim; i++) Hv(i, 0) = tmp_Hv[i];
-  lowest_eigenvalue = v.col(0).dot(Hv.col(0));
+  Eigen::MatrixXd h_krylov = Eigen::MatrixXd::Zero(n_iterations_store, n_iterations_store);
+  std::vector<double> eigenvector_krylov(n_iterations_store);
+  converged = false;
+  Hv[0] = matrix.mul(v[0]);
+  lowest_eigenvalue = Util::dot_omp(v[0], Hv[0]);
   h_krylov(0, 0) = lowest_eigenvalue;
-  w = v.col(0);
-  Hw = Hv.col(0);
+  w = v[0];
+  Hw = Hv[0];
   if (verbose) printf("Davidson #0: %.10f\n", lowest_eigenvalue);
 
-  for (size_t it = 1; it < max_n_iterations; it++) {
-    // Compute residual.
+  size_t it_real = 1;
+  for (size_t it = 1; it < n_iterations_store * 2; it++) {
+    size_t it_circ = it % n_iterations_store;
+    if (it >= n_iterations_store && it_circ == 0) {
+      v[0] = w;
+      Hv[0] = Hw;
+      lowest_eigenvalue = Util::dot_omp(v[0], Hv[0]);
+      h_krylov(0, 0) = lowest_eigenvalue;
+      continue;
+    }
+
+#pragma omp parallel for
     for (size_t j = 0; j < dim; j++) {
-      const double diff_to_diag = lowest_eigenvalue - diag_elems[j];
-      if (std::abs(diff_to_diag) < 1.0e-10) {
-        v(j, it) = (Hw(j, 0) - lowest_eigenvalue * w(j, 0)) / -1.0e-10;
+      const double diff_to_diag = lowest_eigenvalue - matrix.get_diag(j);  // diag_elems[j];
+      if (std::abs(diff_to_diag) < 1.0e-12) {
+        v[it_circ][j] = (Hw[j] - lowest_eigenvalue * w[j]) / -1.0e-12;
       } else {
-        v(j, it) = (Hw(j, 0) - lowest_eigenvalue * w(j, 0)) / diff_to_diag;
+        v[it_circ][j] = (Hw[j] - lowest_eigenvalue * w[j]) / diff_to_diag;
       }
     }
 
     // Orthogonalize and normalize.
-    for (size_t i = 0; i < it; i++) {
-      double norm = v.col(it).dot(v.col(i));
-      v.col(it) -= norm * v.col(i);
+    for (size_t i = 0; i < it_circ; i++) {
+      norm = Util::dot_omp(v[it_circ], v[i]);
+#pragma omp parallel for
+      for (size_t j = 0; j < dim; j++) {
+        v[it_circ][j] -= norm * v[i][j];
+      }
     }
-    v.col(it).normalize();
-
-    // Apply H once.
-    for (size_t i = 0; i < dim; i++) tmp_v[i] = v(i, it);
-    const auto& tmp_Hv2 = matrix.mul(tmp_v);
-    for (size_t i = 0; i < dim; i++) Hv(i, it) = tmp_Hv2[i];
+    norm = sqrt(Util::dot_omp(v[it_circ], v[it_circ]));
+#pragma omp parallel for
+    for (size_t j = 0; j < dim; j++) {
+      v[it_circ][j] /= norm;
+    }
+    Hv[it_circ] = matrix.mul(v[it_circ]);
 
     // Construct subspace matrix.
-    for (size_t i = 0; i <= it; i++) {
-      h_krylov(i, it) = v.col(i).dot(Hv.col(it));
-      h_krylov(it, i) = h_krylov(i, it);
+    for (size_t i = 0; i <= it_circ; i++) {
+      h_krylov(i, it_circ) = Util::dot_omp(v[i], Hv[it_circ]);
+      h_krylov(it_circ, i) = h_krylov(i, it_circ);
     }
 
     // Diagonalize subspace matrix.
-    len_work = 3 * it + 2;
     Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> eigenSolver(
-        h_krylov.leftCols(it + 1).topRows(it + 1));
-    const auto& eigenvalues = eigenSolver.eigenvalues();
-    auto eigenvectors = eigenSolver.eigenvectors();
-    lowest_eigenvalue = eigenvalues(0);
-    if (eigenvectors(0, 0) < 0) eigenvectors.col(0) *= -1;
-    w = v.leftCols(it) * eigenvectors.col(0).topRows(it);
-    Hw = Hv.leftCols(it) * eigenvectors.col(0).topRows(it);
+        h_krylov.leftCols(it_circ + 1).topRows(it_circ + 1));
+    lowest_eigenvalue = eigenSolver.eigenvalues()(0);
+    const auto& eigenvectors = eigenSolver.eigenvectors();
+    double factor = 1.0;
+    if (eigenvectors(0, 0) < 0) factor = -1.0;
+    for (size_t i = 0; i < it_circ + 1; i++) eigenvector_krylov[i] = eigenvectors(i, 0) * factor;
+#pragma omp parallel for
+    for (size_t j = 0; j < dim; j++) {
+      double w_j = 0.0;
+      double Hw_j = 0.0;
+      for (size_t i = 0; i < it_circ + 1; i++) {
+        w_j += v[i][j] * eigenvector_krylov[i];
+        Hw_j += Hv[i][j] * eigenvector_krylov[i];
+      }
+      w[j] = w_j;
+      Hw[j] = Hw_j;
+    }
 
-    if (verbose) printf("Davidson #%zu: %.10f\n", it, lowest_eigenvalue);
-    if (std::abs(lowest_eigenvalue - lowest_eigenvalue_prev2) < TOLERANCE) {
+    if (verbose) printf("Davidson #%zu: %.10f\n", it_real, lowest_eigenvalue);
+    it_real++;
+    if (std::abs(lowest_eigenvalue - lowest_eigenvalue_prev) < TOLERANCE) {
       converged = true;
     } else {
-      lowest_eigenvalue_prev2 = lowest_eigenvalue_prev;
       lowest_eigenvalue_prev = lowest_eigenvalue;
     }
 
     if (converged) break;
   }
-
-  lowest_eigenvector.resize(dim);
-  for (unsigned i = 0; i < dim; i++) lowest_eigenvector[i] = w(i);
+  lowest_eigenvector = w;
 }

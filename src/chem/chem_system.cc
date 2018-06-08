@@ -452,9 +452,11 @@ double ChemSystem::get_two_body_double(const DiffResult& diff_up, const DiffResu
 }
 
 void ChemSystem::post_variation() {
-  Timer::start("s2");
-  const double s2 = get_s2();
-  Result::put("s2", s2);
+  Timer::start("post variation");
+  if (Config::get<bool>("s2", false)) {
+    const double s2 = get_s2();
+    Result::put("s2", s2);
+  }
   Timer::end();
   
   if (Config::get<bool>("natorb", false)) {
@@ -1079,3 +1081,4 @@ size_t ChemSystem::nonsym_combine2(const size_t a, const size_t b) {
 size_t ChemSystem::nonsym_combine4(const size_t a, const size_t b, const size_t c, const size_t d) {
   return nonsym_combine2(nonsym_combine2(nonsym_combine2(a,b),c),d);
 } */
+
