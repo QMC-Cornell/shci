@@ -1,9 +1,12 @@
+#include <chrono>
 #include <csignal>
 #include <cstdio>
 #include <ctime>
+#include <thread>
 #include "config.h"
-#include "parallel.h"
 #include "injector.h"
+#include "parallel.h"
+#include "result.h"
 #include "util.h"
 
 void print_info() {
@@ -22,10 +25,11 @@ int main() {
   MPI_Init(nullptr, nullptr);
 
   if (Parallel::is_master()) print_info();
+  Result::dump();
+  std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
   Injector::run();
 
   MPI_Finalize();
   return 0;
 }
-

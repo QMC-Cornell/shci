@@ -4,6 +4,7 @@
 #include <functional>
 #include <iostream>
 #include <json/single_include/nlohmann/json.hpp>
+#include "parallel.h"
 
 class Result {
  public:
@@ -13,8 +14,10 @@ class Result {
   }
 
   static void dump() {
+    if (!Parallel::is_master()) return;
+    const auto& instance = get_instance();
     std::ofstream result_file("result.json");
-    result_file << get_instance().data.dump(2) << std::endl;
+    result_file << instance.data.dump(2) << std::endl;
   }
 
   template <class T>
@@ -64,6 +67,7 @@ class Result {
       result_file >> data;
     }
     data["config"] = Config::get_instance().data;
+    result_file.close();
   }
 
   nlohmann::json data;
