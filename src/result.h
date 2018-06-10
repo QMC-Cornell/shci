@@ -13,6 +13,16 @@ class Result {
     return instance;
   }
 
+  static void init() {
+    auto& instance = get_instance();
+    std::ifstream result_file("result.json");
+    if (result_file) {
+      result_file >> instance.data;
+    }
+    instance.data["config"] = Config::get_instance().data;
+    result_file.close();
+  }
+
   static void dump() {
     if (!Parallel::is_master()) return;
     const auto& instance = get_instance();
@@ -61,14 +71,7 @@ class Result {
   }
 
  private:
-  Result() {
-    std::ifstream result_file("result.json");
-    if (result_file) {
-      result_file >> data;
-    }
-    data["config"] = Config::get_instance().data;
-    result_file.close();
-  }
+  Result() {}
 
   nlohmann::json data;
 };

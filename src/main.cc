@@ -25,8 +25,9 @@ int main() {
   MPI_Init(nullptr, nullptr);
 
   if (Parallel::is_master()) print_info();
+  Result::init();
+  Parallel::barrier();
   Result::dump();
-  std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
   Injector::run();
 
