@@ -13,6 +13,8 @@
     1e-4
   ],
   "var_only": true,
+  "s2": true,
+  "natorb": true,
   "eps_pt": 1e-5,
   "eps_pt_pre_dtm": 1e-4,
   "eps_pt_dtm": 2e-5,

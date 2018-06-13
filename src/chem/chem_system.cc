@@ -1,19 +1,19 @@
 #include "chem_system.h"
 
 #include <fgpl/src/concurrent_hash_map.h>
+#include <fgpl/src/hash_map.h>
+#include <stdio.h>
 #include <cfloat>
 #include <cmath>
+#include <eigen/Eigen/Dense>
+#include <fstream>
+#include <iostream>
 #include "../parallel.h"
 #include "../result.h"
 #include "../timer.h"
 #include "../util.h"
 #include "dooh_util.h"
-#include <stdio.h>
-#include <eigen/Eigen/Dense>
-#include <iostream>
-#include <fstream>
-#include <fgpl/src/hash_map.h>
-
+#include "rdm.h"
 
 void ChemSystem::setup() {
   n_up = Config::get<unsigned>("n_up");
@@ -416,7 +416,6 @@ double ChemSystem::get_two_body_single(
   return energy;
 }
 
-
 double ChemSystem::get_two_body_double(const DiffResult& diff_up, const DiffResult& diff_dn) const {
   double energy = 0.0;
   if (diff_up.n_diffs == 0) {
@@ -456,28 +455,27 @@ void ChemSystem::post_variation() {
     Result::put("s2", s2);
   }
   Timer::end();
-  
+
   if (Config::get<bool>("natorb", false)) {
+    RDM rdm;
     Timer::start("get_1rdm");
-    const MatrixXd one_rdm = get_1rdm();
+    rdm.get_1rdm(dets, coefs, integrals);
     Timer::end();
-//std::cout<<one_rdm<<"\n";
-  
+
     Timer::start("generate_natorb_integrals");
-    generate_natorb_integrals(one_rdm);
+    rdm.generate_natorb_integrals(integrals);
     Timer::end();
   }
 }
 
-
 //======================================================
 double ChemSystem::get_s2() const {
-// Calculates <S^2> of the variation wf.
-// s^2 = n_up -n_doub - 1/2*(n_up-n_dn) + 1/4*(n_up - n_dn)^2
-//  - sum_{p != q} c_{q,dn}^{+} c_{p,dn} c_{p,up}^{+} c_{q,up}
-//
-// Created: Y. Yao, May 2018
-//======================================================
+  // Calculates <S^2> of the variation wf.
+  // s^2 = n_up -n_doub - 1/2*(n_up-n_dn) + 1/4*(n_up - n_dn)^2
+  //  - sum_{p != q} c_{q,dn}^{+} c_{p,dn} c_{p,up}^{+} c_{q,up}
+  //
+  // Created: Y. Yao, May 2018
+  //======================================================
   double s2 = 0.;
 
   // Create hash table; used for looking up the coef of a det
@@ -537,5 +535,3 @@ double ChemSystem::get_s2() const {
   }
   return s2;
 }
-
-

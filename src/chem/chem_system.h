@@ -1,5 +1,6 @@
 #pragma once
 
+#include <eigen/Eigen/Dense>
 #include <string>
 #include "../base_system.h"
 #include "../config.h"
@@ -7,7 +8,6 @@
 #include "integrals.h"
 #include "point_group.h"
 #include "product_table.h"
-#include <eigen/Eigen/Dense>
 
 using namespace Eigen;
 
@@ -67,14 +67,17 @@ class ChemSystem : public BaseSystem {
       const Det& det_i, const DiffResult& diff_up, const DiffResult& diff_dn) const;
 
   double get_two_body_double(const DiffResult& diff_up, const DiffResult& diff_dn) const;
-  
+
   double get_s2() const;
-  
+
   MatrixXd get_1rdm() const;
-  
+
   void generate_natorb_integrals(MatrixXd rdm);
 
-//  size_t nonsym_combine2(const size_t a, const size_t b); // used for generate_natorb_integrals with hash tables
+  /*
+    size_t nonsym_combine2(const size_t a, const size_t b); // used for generate_natorb_integrals
+    with hash tables
 
-//  size_t nonsym_combine4(const size_t a, const size_t b, const size_t c, const size_t d);
+    size_t nonsym_combine4(const size_t a, const size_t b, const size_t c, const size_t d);
+  */
 };
