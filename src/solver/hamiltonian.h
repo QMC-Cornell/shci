@@ -30,6 +30,8 @@ class Hamiltonian {
 
   unsigned n_dn = 0;
 
+  bool time_sym = false;
+
   bool sort_by_det_id = false;
 
   std::vector<HalfDet> unique_alphas;
@@ -84,6 +86,7 @@ void Hamiltonian<S>::update(const S& system) {
   n_dets_prev = n_dets;
   n_dets = system.get_n_dets();
   if (n_dets_prev == n_dets) return;
+  time_sym = system.time_sym;
   sort_by_det_id = (n_dets < n_dets_prev * 1.15);
 
   update_abdet(system);
@@ -154,22 +157,51 @@ void Hamiltonian<S>::update_abdet(const S& system) {
     } else {
       alpha_id = alpha_to_id[alpha];
     }
+    updated_alphas.insert(alpha_id);
 
     // Obtain beta id.
     const auto& beta = det.dn;
     size_t beta_id;
-    if (beta_to_id.count(beta) == 0) {
-      beta_id = beta_to_id.size();
-      beta_to_id[beta] = beta_id;
-      unique_betas.push_back(beta);
-      if (beta_id_to_alpha_ids.capacity() < beta_id + 1) {
-        beta_id_to_alpha_ids.reserve(beta_id_to_alpha_ids.capacity() * 2);
-        beta_id_to_det_ids.reserve(beta_id_to_det_ids.capacity() * 2);
+    if (time_sym) {
+      if (alpha_to_id.count(beta) == 0) {
+        beta_id = alpha_to_id.size();
+        alpha_to_id[beta] = beta_id;
+        unique_alphas.push_back(beta);
+        if (beta_id_to_alpha_ids.capacity() < beta_id + 1) {
+          beta_id_to_alpha_ids.reserve(beta_id_to_alpha_ids.capacity() * 2);
+          beta_id_to_det_ids.reserve(beta_id_to_det_ids.capacity() * 2);
+        }
+        beta_id_to_alpha_ids.resize(beta_id + 1);
+        beta_id_to_det_ids.resize(beta_id + 1);
+      } else {
+        beta_id = alpha_to_id[beta];
       }
-      beta_id_to_alpha_ids.resize(beta_id + 1);
-      beta_id_to_det_ids.resize(beta_id + 1);
     } else {
-      beta_id = beta_to_id[beta];
+      if (beta_to_id.count(beta) == 0) {
+        beta_id = beta_to_id.size();
+        beta_to_id[beta] = beta_id;
+        unique_betas.push_back(beta);
+        if (beta_id_to_alpha_ids.capacity() < beta_id + 1) {
+          beta_id_to_alpha_ids.reserve(beta_id_to_alpha_ids.capacity() * 2);
+          beta_id_to_det_ids.reserve(beta_id_to_det_ids.capacity() * 2);
+        }
+        beta_id_to_alpha_ids.resize(beta_id + 1);
+        beta_id_to_det_ids.resize(beta_id + 1);
+      } else {
+        beta_id = beta_to_id[beta];
+      }
+    }
+    updated_betas.insert(beta_id);
+
+    if (time_sym) {
+      if (alpha_id_to_beta_ids.size() <= alpha_id) {
+        alpha_id_to_beta_ids.resize(alpha_id + 1);
+        alpha_id_to_det_ids.resize(alpha_id + 1);
+      }
+      if (beta_id_to_alpha_ids.size() <= beta_id) {
+        beta_id_to_alpha_ids.resize(beta_id + 1);
+        beta_id_to_det_ids.resize(beta_id + 1);
+      }
     }
 
     // Update alpha/beta to det info.
@@ -177,8 +209,6 @@ void Hamiltonian<S>::update_abdet(const S& system) {
     alpha_id_to_det_ids[alpha_id].push_back(i);
     beta_id_to_alpha_ids[beta_id].push_back(alpha_id);
     beta_id_to_det_ids[beta_id].push_back(i);
-    updated_alphas.insert(alpha_id);
-    updated_betas.insert(beta_id);
   }
 
   // Sort updated alpha/beta to det info.
@@ -188,7 +218,8 @@ void Hamiltonian<S>::update_abdet(const S& system) {
           alpha_id_to_det_ids[alpha_id], alpha_id_to_beta_ids[alpha_id]);
     }
     for (const size_t beta_id : updated_betas) {
-      Util::sort_by_first<size_t, size_t>(beta_id_to_det_ids[beta_id], beta_id_to_alpha_ids[beta_id]);
+      Util::sort_by_first<size_t, size_t>(
+          beta_id_to_det_ids[beta_id], beta_id_to_alpha_ids[beta_id]);
     }
   } else {
     for (const size_t alpha_id : updated_alphas) {
@@ -196,7 +227,8 @@ void Hamiltonian<S>::update_abdet(const S& system) {
           alpha_id_to_beta_ids[alpha_id], alpha_id_to_det_ids[alpha_id]);
     }
     for (const size_t beta_id : updated_betas) {
-      Util::sort_by_first<size_t, size_t>(beta_id_to_alpha_ids[beta_id], beta_id_to_det_ids[beta_id]);
+      Util::sort_by_first<size_t, size_t>(
+          beta_id_to_alpha_ids[beta_id], beta_id_to_det_ids[beta_id]);
     }
   }
 }
@@ -224,16 +256,30 @@ void Hamiltonian<S>::update_abm1(const S& system) {
 
     // Update beta m1.
     const auto& beta = det.dn;
-    const size_t beta_id = beta_to_id[beta];
-    if (updated_betas.count(beta_id) == 0) {
-      const auto& dn_elecs = det.dn.get_occupied_orbs();
-      HalfDet beta_m1 = det.dn;
-      for (unsigned j = 0; j < n_dn; j++) {
-        beta_m1.unset(dn_elecs[j]);
-        abm1_to_ab_ids[beta_m1].second.push_back(beta_id);
-        beta_m1.set(dn_elecs[j]);
+    if (time_sym) {
+      const size_t beta_id = alpha_to_id[beta];
+      if (updated_alphas.count(beta_id) == 0) {
+        const auto& dn_elecs = det.dn.get_occupied_orbs();
+        HalfDet beta_m1 = det.dn;
+        for (unsigned j = 0; j < n_dn; j++) {
+          beta_m1.unset(dn_elecs[j]);
+          abm1_to_ab_ids[beta_m1].first.push_back(beta_id);
+          beta_m1.set(dn_elecs[j]);
+        }
+        updated_alphas.insert(beta_id);
       }
-      updated_betas.insert(beta_id);
+    } else {
+      const size_t beta_id = beta_to_id[beta];
+      if (updated_betas.count(beta_id) == 0) {
+        const auto& dn_elecs = det.dn.get_occupied_orbs();
+        HalfDet beta_m1 = det.dn;
+        for (unsigned j = 0; j < n_dn; j++) {
+          beta_m1.unset(dn_elecs[j]);
+          abm1_to_ab_ids[beta_m1].second.push_back(beta_id);
+          beta_m1.set(dn_elecs[j]);
+        }
+        updated_betas.insert(beta_id);
+      }
     }
   }
 }
@@ -253,8 +299,13 @@ void Hamiltonian<S>::update_absingles(const S& system) {
     updated_alphas.insert(alpha_id);
 
     const auto& beta = det.dn;
-    const size_t beta_id = beta_to_id[beta];
-    updated_betas.insert(beta_id);
+    if (time_sym) {
+      const size_t beta_id = alpha_to_id[beta];
+      updated_alphas.insert(beta_id);
+    } else {
+      const size_t beta_id = beta_to_id[beta];
+      updated_betas.insert(beta_id);
+    }
   }
 
   const size_t n_unique_alphas = alpha_to_id.size();
@@ -352,22 +403,36 @@ void Hamiltonian<S>::update_matrix(const S& system) {
     const auto& det = system.dets[det_id];
     const bool is_new_det = det_id >= n_dets_prev;
     if (is_new_det) {
-      const double H = system.get_hamiltonian_elem(det, det, 0);
+      const double H = time_sym ? system.get_hamiltonian_elem_time_sym(det, det, 0)
+                                : system.get_hamiltonian_elem(det, det, 0);
       matrix.append_elem(det_id, det_id, H);
     }
     const size_t start_id = is_new_det ? det_id + 1 : n_dets_prev;
 
     // Single or double alpha excitations.
     const auto& beta = det.dn;
-    const size_t beta_id = beta_to_id[beta];
+    const size_t beta_id = time_sym ? alpha_to_id[beta] : beta_to_id[beta];
     const auto& alpha_dets = beta_id_to_det_ids[beta_id];
     for (auto it = alpha_dets.begin(); it != alpha_dets.end(); it++) {
       const size_t alpha_det_id = *it;
       if (alpha_det_id < start_id) continue;
       const auto& connected_det = system.dets[alpha_det_id];
-      const double H = system.get_hamiltonian_elem(det, connected_det, -1);
+      const double H = time_sym ? system.get_hamiltonian_elem_time_sym(det, connected_det, -1)
+                                : system.get_hamiltonian_elem(det, connected_det, -1);
       if (std::abs(H) < Util::EPS) continue;
       matrix.append_elem(det_id, alpha_det_id, H);
+    }
+    if (time_sym && alpha_id_to_det_ids.size() > beta_id && det.up != det.dn) {
+      const auto& alpha_dets = alpha_id_to_det_ids[beta_id];
+      for (auto it = alpha_dets.begin(); it != alpha_dets.end(); it++) {
+        const size_t alpha_det_id = *it;
+        if (alpha_det_id < start_id) continue;
+        const auto& connected_det = system.dets[alpha_det_id];
+        if (connected_det.up == connected_det.dn) continue;
+        const double H = system.get_hamiltonian_elem_time_sym(det, connected_det, -1);
+        if (std::abs(H) < Util::EPS) continue;
+        matrix.append_elem(det_id, alpha_det_id, H);
+      }
     }
 
     // Single or double beta excitations.
@@ -378,15 +443,30 @@ void Hamiltonian<S>::update_matrix(const S& system) {
       const size_t beta_det_id = *it;
       if (beta_det_id < start_id) continue;
       const auto& connected_det = system.dets[beta_det_id];
-      const double H = system.get_hamiltonian_elem(det, connected_det, -1);
+      const double H = time_sym ? system.get_hamiltonian_elem_time_sym(det, connected_det, -1)
+                                : system.get_hamiltonian_elem(det, connected_det, -1);
       if (std::abs(H) < Util::EPS) continue;
       matrix.append_elem(det_id, beta_det_id, H);
+    }
+    if (time_sym && beta_id_to_det_ids.size() > alpha_id && det.up != det.dn) {
+      const auto& beta_dets = beta_id_to_det_ids[alpha_id];
+      for (auto it = beta_dets.begin(); it != beta_dets.end(); it++) {
+        const size_t beta_det_id = *it;
+        if (beta_det_id < start_id) continue;
+        const auto& connected_det = system.dets[beta_det_id];
+        if (connected_det.up == connected_det.dn) continue;
+        const double H = system.get_hamiltonian_elem_time_sym(det, connected_det, -1);
+        if (std::abs(H) < Util::EPS) continue;
+        matrix.append_elem(det_id, beta_det_id, H);
+      }
     }
 
     // Mixed double excitation.
     const auto& alpha_singles = alpha_id_to_single_ids[alpha_id];
-    const auto& beta_singles = beta_id_to_single_ids[beta_id];
+    const auto& beta_singles =
+        time_sym ? alpha_id_to_single_ids[beta_id] : beta_id_to_single_ids[beta_id];
     for (const auto alpha_single : alpha_singles) {
+      if (alpha_id_to_beta_ids.size() <= alpha_single) continue;
       const auto& related_beta_ids = alpha_id_to_beta_ids[alpha_single];
       const auto& related_det_ids = alpha_id_to_det_ids[alpha_single];
       const size_t n_related_dets = related_beta_ids.size();
@@ -399,7 +479,8 @@ void Hamiltonian<S>::update_matrix(const S& system) {
           if (std::binary_search(beta_singles.begin(), beta_singles.end(), related_beta)) {
             const size_t related_det_id = related_det_ids[related_id];
             const auto& connected_det = system.dets[related_det_id];
-            const double H = system.get_hamiltonian_elem(det, connected_det, 2);
+            const double H = time_sym ? system.get_hamiltonian_elem_time_sym(det, connected_det, 2)
+                                      : system.get_hamiltonian_elem(det, connected_det, 2);
             if (std::abs(H) < Util::EPS) continue;
             matrix.append_elem(det_id, related_det_id, H);
           }
@@ -417,14 +498,65 @@ void Hamiltonian<S>::update_matrix(const S& system) {
             ptr++;
             if (related_det_id < start_id) continue;
             const auto& connected_det = system.dets[related_det_id];
-            const double H = system.get_hamiltonian_elem(det, connected_det, 2);
+            const double H = time_sym ? system.get_hamiltonian_elem_time_sym(det, connected_det, 2)
+                                      : system.get_hamiltonian_elem(det, connected_det, 2);
             if (std::abs(H) < Util::EPS) continue;
             matrix.append_elem(det_id, related_det_id, H);
           }
         }
-      }
+      }  // sort by det
     }
-  }
+    if (time_sym) {
+      Det det_rev = det;
+      det_rev.reverse_spin();
+      for (const auto alpha_single : alpha_singles) {
+        if (beta_id_to_alpha_ids.size() <= alpha_single) continue;
+        const auto& related_beta_ids = beta_id_to_alpha_ids[alpha_single];
+        const auto& related_det_ids = beta_id_to_det_ids[alpha_single];
+        const size_t n_related_dets = related_beta_ids.size();
+        if (sort_by_det_id) {
+          const auto& start_ptr =
+              std::lower_bound(related_det_ids.begin(), related_det_ids.end(), start_id);
+          const size_t start_related_id = start_ptr - related_det_ids.begin();
+          for (size_t related_id = start_related_id; related_id < n_related_dets; related_id++) {
+            const size_t related_beta = related_beta_ids[related_id];
+            const size_t related_det_id = related_det_ids[related_id];
+            const auto& connected_det = system.dets[related_det_id];
+            if (connected_det.up == connected_det.dn) continue;
+            if (std::binary_search(beta_singles.begin(), beta_singles.end(), related_beta)) {
+              const double H = system.get_hamiltonian_elem_time_sym(det_rev, connected_det, 2);
+              if (std::abs(H) < Util::EPS) continue;
+              matrix.append_elem(det_id, related_det_id, H);
+            }
+          }
+        } else {
+          size_t ptr = 0;
+          for (auto it = beta_singles.begin(); it != beta_singles.end(); it++) {
+            const size_t beta_single = *it;
+            while (ptr < n_related_dets && related_beta_ids[ptr] < beta_single) {
+              ptr++;
+            }
+            if (ptr == n_related_dets) break;
+            if (related_beta_ids[ptr] == beta_single) {
+              const size_t related_det_id = related_det_ids[ptr];
+              ptr++;
+              if (related_det_id < start_id) continue;
+              const auto& connected_det = system.dets[related_det_id];
+              if (connected_det.up == connected_det.dn) continue;
+              if (connected_det.up.diff(det.up).n_diffs == 1) continue;
+              const double H = system.get_hamiltonian_elem_time_sym(det_rev, connected_det, 2);
+              if (std::abs(H) < Util::EPS) continue;
+              matrix.append_elem(det_id, related_det_id, H);
+            }
+          }
+        }  // sort by det
+      }  // alpha single
+    }  // time sym
+    if (det_id == 0) {
+      matrix.sort_row(0);
+      matrix.print_row(0);
+    }
+  }  // det i
 
   matrix.cache_diag();
 }

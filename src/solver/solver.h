@@ -162,16 +162,20 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
     if (!dets_converged) {
       fgpl::DistRange<size_t>(0, n_dets).for_each([&](const size_t i) {
         const double coef = system.coefs[i];
-        const double eps_min = eps_var / std::abs(coef);
+        double eps_min = eps_var / std::abs(coef);
         if (eps_min >= eps_tried_prev[i] * 0.99) return;
         const auto& det = system.dets[i];
         const auto& connected_det_handler = [&](const Det& connected_det, const int n_excite) {
-          if (var_dets.has(connected_det)) return;
+          Det connected_det_reg = connected_det;
+          if (system.time_sym && connected_det.up > connected_det.dn) {
+            connected_det_reg.reverse_spin();
+          }
+          if (var_dets.has(connected_det_reg)) return;
           if (n_excite == 1) {
-            const double h_ai = system.get_hamiltonian_elem(det, connected_det, n_excite);
+            const double h_ai = system.get_hamiltonian_elem(det, connected_det, 1);
             if (std::abs(h_ai) < eps_min) return;  // Filter out small single excitation.
           }
-          dist_new_dets.async_set(connected_det);
+          dist_new_dets.async_set(connected_det_reg);
         };
         system.find_connected_dets(det, eps_tried_prev[i], eps_min, connected_det_handler);
         eps_tried_prev[i] = eps_min;

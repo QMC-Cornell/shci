@@ -19,6 +19,11 @@ class SparseVector {
 
   void sort() { Util::sort_by_first<size_t, double>(indices, values); }
 
+  void print() const {
+    for (size_t i = 0; i < size(); i++) printf("%zu: %.12f\n", indices[i], values[i]);
+    printf("n elems: %zu\n", size());
+  }
+
  private:
   std::vector<size_t> indices;
 

@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 #include "det/det.h"
+#include "util.h"
 
 class BaseSystem {
  public:
@@ -14,6 +15,8 @@ class BaseSystem {
   unsigned n_dn;
 
   unsigned n_elecs;
+
+  bool time_sym;
 
   double energy_hf;
 
@@ -43,6 +46,23 @@ class BaseSystem {
   virtual void post_variation(){};
 
   virtual void post_perturbation(){};
+
+  double get_hamiltonian_elem_time_sym(
+      const Det& det_i, const Det& det_j, const int n_excite) const {
+    double h = get_hamiltonian_elem(det_i, det_j, n_excite);
+    if (det_i.up == det_i.dn) {
+      if (det_j.up != det_j.dn) h *= Util::SQRT2;
+    } else {
+      if (det_j.up == det_j.dn) {
+        h *= Util::SQRT2;
+      } else {
+        Det det_i_rev = det_i;
+        det_i_rev.reverse_spin();
+        h += get_hamiltonian_elem(det_i_rev, det_j, -1);
+      }
+    }
+    return h;
+  }
 
   template <class B>
   void serialize(B& buf) const {
