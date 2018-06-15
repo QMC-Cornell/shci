@@ -143,11 +143,11 @@ void RDM::generate_natorb_integrals(const Integrals& integrals) const {
   }  // irrep
 
   std::cout << "Occupation numbers:\n";
-  for (unsigned i = 0; i < integrals.n_elecs; i++) {
+  for (unsigned i = 0; i < integrals.n_elecs && i < n_orbs; i++) {
     std::cout << eigenvalues[i] << "\n";
   }
 
-  Timer::checkpoint("computing natural orbitals");
+  Timer::checkpoint("compute natural orbitals");
 
   // Rotate orbitals and generate new integrals
   std::vector<std::vector<std::vector<std::vector<double>>>> new_integrals(n_orbs);
