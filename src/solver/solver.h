@@ -161,10 +161,11 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
     // Random execution and broadcast.
     if (!dets_converged) {
       fgpl::DistRange<size_t>(0, n_dets).for_each([&](const size_t i) {
+        const auto& det = system.dets[i];
         const double coef = system.coefs[i];
         double eps_min = eps_var / std::abs(coef);
+        if (system.time_sym && det.up != det.dn) eps_min *= Util::SQRT2;
         if (eps_min >= eps_tried_prev[i] * 0.99) return;
-        const auto& det = system.dets[i];
         const auto& connected_det_handler = [&](const Det& connected_det, const int n_excite) {
           Det connected_det_reg = connected_det;
           if (system.time_sym && connected_det.up > connected_det.dn) {
@@ -194,6 +195,19 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
 
       if (Parallel::is_master()) {
         printf("Number of dets / new dets: %'zu / %'zu\n", n_dets_new, n_dets_new - n_dets);
+        size_t n_same = 0;
+        size_t n_smaller = 0;
+        size_t n_larger = 0;
+        for (const auto& det : system.dets) {
+          if (det.up == det.dn)
+            n_same++;
+          else if (det.up < det.dn)
+            n_smaller++;
+          else
+            n_larger++;
+        }
+        printf(
+            "Number of same / smaller / larger dets: %zu %zu %zu\n", n_same, n_smaller, n_larger);
       }
       Timer::checkpoint("get next det list");
 
