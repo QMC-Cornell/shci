@@ -18,4 +18,3 @@ void Injector::run() {
     throw std::invalid_argument(Util::str_printf("system '%s' is not supported.", type.c_str()));
   }
 }
-

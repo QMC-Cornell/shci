@@ -21,6 +21,8 @@ class Result {
     }
     instance.data["config"] = Config::get_instance().data;
     result_file.close();
+    Parallel::barrier();
+    dump();
   }
 
   static void dump() {

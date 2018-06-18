@@ -64,6 +64,21 @@ class BaseSystem {
     return h;
   }
 
+  void unpack_time_sym() {
+    const size_t n_dets_old = get_n_dets();
+    for (size_t i = 0; i < n_dets_old; i++) {
+      const auto& det = dets[i];
+      if (det.up < det.dn) {
+        Det det_rev = det;
+        det_rev.reverse_spin();
+        const double coef_new = coefs[i] * Util::SQRT2_INV;
+        coefs[i] = coef_new;
+        dets.push_back(det_rev);
+        coefs.push_back(coef_new);
+      }
+    }
+  }
+
   template <class B>
   void serialize(B& buf) const {
     buf << n_up << n_dn << dets << coefs << energy_hf << energy_var;

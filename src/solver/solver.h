@@ -42,6 +42,14 @@ class Solver {
 
   size_t var_iteration_global;
 
+  double eps_pt;
+
+  double eps_pt_pre_dtm;
+
+  double eps_pt_dtm;
+
+  double target_error;
+
   void run_all_variations();
 
   void run_variation(const double eps_var, const bool until_converged = true);
@@ -60,7 +68,7 @@ class Solver {
 
   void save_variation_result(const std::string& filename);
 
-  std::string get_wf_filename(const double eps) const;
+  std::string get_wf_filename(const double eps_var) const;
 
   template <class C>
   std::array<double, 2> mapreduce_sum(
@@ -135,6 +143,7 @@ void Solver<S>::run_all_variations() {
 
 template <class S>
 void Solver<S>::run_all_perturbations() {
+  target_error = Config::get<double>("target_error", 1.0e-5);
   const auto& eps_vars = Config::get<std::vector<double>>("eps_vars");
   for (const double eps_var : eps_vars) {
     Timer::start(Util::str_printf("eps_var %#.2e", eps_var));
@@ -156,7 +165,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
 
   while (!converged) {
     eps_tried_prev.resize(n_dets, Util::INF);
-    Timer::start(Util::str_printf("#%zu", iteration));
+    if (until_converged) Timer::start(Util::str_printf("#%zu", iteration));
 
     // Random execution and broadcast.
     if (!dets_converged) {
@@ -195,19 +204,6 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
 
       if (Parallel::is_master()) {
         printf("Number of dets / new dets: %'zu / %'zu\n", n_dets_new, n_dets_new - n_dets);
-        size_t n_same = 0;
-        size_t n_smaller = 0;
-        size_t n_larger = 0;
-        for (const auto& det : system.dets) {
-          if (det.up == det.dn)
-            n_same++;
-          else if (det.up < det.dn)
-            n_smaller++;
-          else
-            n_larger++;
-        }
-        printf(
-            "Number of same / smaller / larger dets: %zu %zu %zu\n", n_same, n_smaller, n_larger);
       }
       Timer::checkpoint("get next det list");
 
@@ -221,12 +217,8 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
     var_iteration_global++;
     if (Parallel::is_master()) {
       printf("Current variational energy: " ENERGY_FORMAT "\n", energy_var_new);
-      printf(
-          "Summary: Iteration %zu eps1= %#.2e ndets= %zu energy= %.8f\n",
-          var_iteration_global,
-          eps_var,
-          n_dets_new,
-          energy_var_new);
+      printf("Summary: iteration %zu ", var_iteration_global);
+      printf("eps1= %#.2e ndets= %zu energy= %.8f\n", eps_var, n_dets_new, energy_var_new);
     }
     if (std::abs(energy_var_new - energy_var_prev) < 1.0e-6) {
       converged = true;
@@ -237,8 +229,8 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
     }
     n_dets = n_dets_new;
     energy_var_prev = energy_var_new;
-    Timer::end();
     if (!until_converged) break;
+    Timer::end();
     iteration++;
   }
   system.energy_var = energy_var_prev;
@@ -247,7 +239,10 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
 template <class S>
 void Solver<S>::run_perturbation(const double eps_var) {
   // If result already exists, return.
-  const double eps_pt = Config::get<double>("eps_pt");
+  eps_pt = Config::get<double>("eps_pt", eps_var / 1000);
+  eps_pt_dtm = Config::get<double>("eps_pt_dtm", eps_var / 100);
+  eps_pt_pre_dtm = Config::get<double>("eps_pt_pre_dtm", eps_var / 10);
+
   const auto& value_entry = Util::str_printf("energy_pt/%#.2e/%#.2e/value", eps_var, eps_pt);
   const auto& uncert_entry = Util::str_printf("energy_pt/%#.2e/%#.2e/uncert", eps_var, eps_pt);
   UncertResult res(Result::get<double>(value_entry, 0.0));
@@ -265,6 +260,7 @@ void Solver<S>::run_perturbation(const double eps_var) {
     throw new std::runtime_error("cannot load variation results");
   }
   system.update_diag_helper();
+  if (system.time_sym) system.unpack_time_sym();
 
   // Perform multi stage PT.
   system.dets.shrink_to_fit();
@@ -273,11 +269,11 @@ void Solver<S>::run_perturbation(const double eps_var) {
   var_dets.reserve(system.get_n_dets());
   for (const auto& det : system.dets) var_dets.set(det);
   const size_t mem_total = Util::get_mem_total();
-  const size_t mem_var = system.get_n_dets() * (N_CHUNKS * 160) / 1000;
-  pt_mem_avail = (mem_total * 0.9 - mem_var);
+  const size_t mem_var = system.get_n_dets() * (8 + N_CHUNKS * 16 * 2) * 2 / 1000;
+  pt_mem_avail = (mem_total * 0.8 - mem_var);
   const size_t n_procs = Parallel::get_n_procs();
   if (n_procs >= 2) {
-    pt_mem_avail = static_cast<size_t>(pt_mem_avail * 0.7 * n_procs);
+    pt_mem_avail = static_cast<size_t>(pt_mem_avail * 0.6 * n_procs);
   }
   const double energy_pt_pre_dtm = get_energy_pt_pre_dtm();
   const UncertResult energy_pt_dtm = get_energy_pt_dtm(energy_pt_pre_dtm);
@@ -291,7 +287,6 @@ void Solver<S>::run_perturbation(const double eps_var) {
 
 template <class S>
 double Solver<S>::get_energy_pt_pre_dtm() {
-  const double eps_pt_pre_dtm = Config::get<double>("eps_pt_pre_dtm", 1.0);
   if (eps_pt_pre_dtm >= 1.0) return system.energy_var;
   Timer::start(Util::str_printf("pre dtm %#.2e", eps_pt_pre_dtm));
   const size_t n_var_dets = system.get_n_dets();
@@ -337,9 +332,6 @@ double Solver<S>::get_energy_pt_pre_dtm() {
 
 template <class S>
 UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
-  const double eps_pt_pre_dtm = Config::get<double>("eps_pt_pre_dtm", 1.0);
-  const double eps_pt = Config::get<double>("eps_pt");
-  const double eps_pt_dtm = Config::get<double>("eps_pt_dtm", eps_pt * 10.0);
   if (eps_pt_dtm >= eps_pt_pre_dtm) return UncertResult(energy_pt_pre_dtm, 0.0);
 
   Timer::start(Util::str_printf("dtm %#.2e", eps_pt_dtm));
@@ -371,7 +363,7 @@ UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
     hc_sums.sync();
     const size_t n_pt_dets = hc_sums.get_n_keys();
     n_batches = static_cast<size_t>(
-        ceil(1.6 * 1600 / 1000 * n_pt_dets * (N_CHUNKS * 16 + 24) / pt_mem_avail));
+        ceil(2.0 * 16 * 100 / 1000 * n_pt_dets * (N_CHUNKS * 16 + 16) / pt_mem_avail));
     if (n_batches == 0) n_batches = 1;
     if (Parallel::is_master()) {
       printf("Number of batches chosen: %zu\n", n_batches);
@@ -384,7 +376,7 @@ UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
   double energy_sq_sum = 0.0;
   size_t n_pt_dets_sum = 0;
   UncertResult energy_pt_dtm;
-  const double target_error = Config::get<double>("target_error", 1.0e-5);
+
   for (size_t batch_id = 0; batch_id < n_batches; batch_id++) {
     Timer::start(Util::str_printf("#%zu/%zu", batch_id, n_batches));
 
@@ -444,7 +436,7 @@ UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
     hc_sums.clear();
     Timer::end();  // batch
 
-    if (energy_pt_dtm.uncert <= target_error * 0.2) break;
+    if (energy_pt_dtm.uncert <= target_error * 0.2 && batch_id < n_batches - 2) break;
     if (eps_pt_dtm <= eps_pt && energy_pt_dtm.uncert <= target_error) break;
   }
 
@@ -454,15 +446,13 @@ UncertResult Solver<S>::get_energy_pt_dtm(const double energy_pt_pre_dtm) {
 
 template <class S>
 UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
-  const double eps_pt = Config::get<double>("eps_pt");
-  const double eps_pt_dtm = Config::get<double>("eps_pt_dtm", eps_pt * 10);
   if (eps_pt >= eps_pt_dtm) return energy_pt_dtm;
 
-  const size_t max_pt_iterations = Config::get<size_t>("max_pt_iterations", 50);
+  const size_t max_pt_iterations = Config::get<size_t>("max_pt_iterations", 100);
   fgpl::DistHashMap<Det, MathVector<double, 3>, DetHasher> hc_sums;
   const size_t n_var_dets = system.get_n_dets();
-  size_t n_batches = Config::get<size_t>("n_batches_pt_sto", 8);
-  if (n_batches == 0) n_batches = 8;
+  size_t n_batches = Config::get<size_t>("n_batches_pt_sto", 16);
+  if (n_batches == 0) n_batches = 16;
   size_t n_samples = Config::get<size_t>("n_samples_pt_sto", 0);
   std::vector<double> probs(n_var_dets);
   std::vector<double> cum_probs(n_var_dets);  // For sampling.
@@ -470,7 +460,7 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
   std::vector<size_t> sample_dets_list;
   size_t iteration = 0;
   const DetHasher det_hasher;
-  const double target_error = Config::get<double>("target_error", 1.0e-5);
+
   UncertResult energy_pt_sto;
   std::vector<double> energy_pt_sto_loops;
 
@@ -483,7 +473,8 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
     if (i > 0) cum_probs[i] += cum_probs[i - 1];
   }
 
-  srand(time(nullptr));
+  const unsigned random_seed = Config::get<unsigned>("random_seed", time(nullptr));
+  srand(random_seed);
   Timer::start(Util::str_printf("sto %#.2e", eps_pt));
 
   // Estimate best n sample.
@@ -521,7 +512,7 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
     const size_t n_pt_dets = hc_sums.get_n_keys();
     hc_sums.clear();
     const size_t n_pt_dets_batch = n_pt_dets * 16 / n_batches;
-    const size_t bytes_per_det = N_CHUNKS * 16 + 40;
+    const size_t bytes_per_det = N_CHUNKS * 16 + 24;
     size_t n_unique_target =
         pt_mem_avail * 1000 * n_unique_samples / bytes_per_det / 3.0 / n_pt_dets_batch;
     if (n_unique_target >= n_var_dets / 2) n_unique_target = n_var_dets / 2;
@@ -587,8 +578,7 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_dtm) {
           MathVector<double, 3> contrib;
           contrib[0] = count * hc / prob * sqrt(factor);
           if (std::abs(hc) < eps_pt_dtm) {
-            contrib[2] = (count * (n_samples - 1) / prob - (count * count) / (prob * prob)) * hc *
-                         hc * factor;
+            contrib[2] = (n_samples - 1 - count / prob) * hc * hc * factor * count / prob;
           } else {
             contrib[1] = contrib[0];
           }
@@ -699,6 +689,6 @@ void Solver<S>::save_variation_result(const std::string& filename) {
 }
 
 template <class S>
-std::string Solver<S>::get_wf_filename(const double eps) const {
-  return Util::str_printf("wf_eps1_%#.2e.dat", eps);
+std::string Solver<S>::get_wf_filename(const double eps_var) const {
+  return Util::str_printf("wf_eps1_%#.2e.dat", eps_var);
 }

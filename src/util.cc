@@ -1,11 +1,11 @@
 #include "util.h"
 
 #include <execinfo.h>
+#include <omp.h>
 #include <unistd.h>
 #include <cctype>
 #include <cstdio>
 #include <fstream>
-#include <omp.h>
 
 constexpr double Util::EPS;
 
@@ -22,14 +22,6 @@ bool Util::str_equals_ci(const std::string& a, const std::string& b) {
     if (tolower(a[i]) != tolower(b[i])) return false;
   }
   return true;
-}
-
-void Util::error_handler(const int sig) {
-  void* array[128];
-  size_t size = backtrace(array, 128);
-  fprintf(stderr, "Error: signal %d:\n", sig);
-  backtrace_symbols_fd(array, size, STDERR_FILENO);
-  exit(1);
 }
 
 double Util::avg(const std::vector<double>& vec) {
