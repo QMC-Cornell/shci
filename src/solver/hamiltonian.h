@@ -579,15 +579,6 @@ void Hamiltonian<S>::update_matrix(const S& system) {
         }  // sort by det
       }  // alpha single
     }  // time sym
-    if (det_id == -1) {
-      matrix.sort_row(1);
-      matrix.print_row(1);
-      system.dets[det_id].up.print();
-      system.dets[det_id].dn.print();
-      system.dets[351].up.print();
-      system.dets[351].dn.print();
-    }
-    matrix.sort_row(det_id);
   }  // det i
 
   matrix.cache_diag();
