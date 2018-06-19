@@ -32,7 +32,7 @@ void Integrals::read_fcidump() {
   }
 
   // Read head.
-  std::regex words("([^\\s,=]+)");
+  std::regex words("([\\-]?[^\\s,=\\-]+)");
   std::string line;
   enum class State { NONE, ORBSYM, END };
   State state = State::NONE;
