@@ -81,6 +81,7 @@ void Solver<S>::run() {
   Timer::start("setup");
   std::setlocale(LC_ALL, "en_US.UTF-8");
   system.setup();
+  target_error = Config::get<double>("target_error", 1.0e-5);
   Result::put("energy_hf", system.energy_hf);
   Timer::end();
 
@@ -143,7 +144,6 @@ void Solver<S>::run_all_variations() {
 
 template <class S>
 void Solver<S>::run_all_perturbations() {
-  target_error = Config::get<double>("target_error", 1.0e-5);
   const auto& eps_vars = Config::get<std::vector<double>>("eps_vars");
   for (const double eps_var : eps_vars) {
     Timer::start(Util::str_printf("eps_var %#.2e", eps_var));
@@ -210,7 +210,9 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
       hamiltonian.update(system);
     }
 
-    davidson.diagonalize(hamiltonian.matrix, system.coefs, Parallel::is_master(), until_converged);
+    const double davidson_target_error = until_converged ? target_error / 50 : target_error / 5;
+    davidson.diagonalize(
+        hamiltonian.matrix, system.coefs, davidson_target_error, Parallel::is_master());
     const double energy_var_new = davidson.get_lowest_eigenvalue();
     system.coefs = davidson.get_lowest_eigenvector();
     Timer::checkpoint("diagonalize sparse hamiltonian");
@@ -220,7 +222,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
       printf("Summary: iteration %zu ", var_iteration_global);
       printf("eps1= %#.2e ndets= %zu energy= %.8f\n", eps_var, n_dets_new, energy_var_new);
     }
-    if (std::abs(energy_var_new - energy_var_prev) < 1.0e-6) {
+    if (std::abs(energy_var_new - energy_var_prev) < target_error / 10) {
       converged = true;
     }
     if (n_dets_new < n_dets * 1.001) {
