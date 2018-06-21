@@ -11,7 +11,7 @@ make -j
 ```
 
 ## Example Run
-An example carbon atom calculation inputs in provided with the code.
+An example carbon atom calculation inputs is provided with the code.
 ```
 cp FCIDUMP.example FCIDUMP
 cp config.json.example config.json
