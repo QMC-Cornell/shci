@@ -174,7 +174,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
         const double coef = system.coefs[i];
         double eps_min = eps_var / std::abs(coef);
         if (system.time_sym && det.up != det.dn) eps_min *= Util::SQRT2;
-        if (eps_min >= eps_tried_prev[i] * 0.99) return;
+        if (eps_min >= eps_tried_prev[i] * 0.999) return;
         const auto& connected_det_handler = [&](const Det& connected_det, const int n_excite) {
           Det connected_det_reg = connected_det;
           if (system.time_sym && connected_det.up > connected_det.dn) {
@@ -210,7 +210,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
       hamiltonian.update(system);
     }
 
-    const double davidson_target_error = until_converged ? target_error / 50 : target_error / 5;
+    const double davidson_target_error = until_converged ? target_error / 200 : target_error / 20;
     davidson.diagonalize(
         hamiltonian.matrix, system.coefs, davidson_target_error, Parallel::is_master());
     const double energy_var_new = davidson.get_lowest_eigenvalue();
@@ -222,10 +222,10 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
       printf("Summary: iteration %zu ", var_iteration_global);
       printf("eps1= %#.2e ndets= %zu energy= %.8f\n", eps_var, n_dets_new, energy_var_new);
     }
-    if (std::abs(energy_var_new - energy_var_prev) < target_error / 10) {
+    if (std::abs(energy_var_new - energy_var_prev) < target_error / 50) {
       converged = true;
     }
-    if (n_dets_new < n_dets * 1.001) {
+    if (n_dets_new < n_dets * 1.0001) {
       dets_converged = true;
       if (davidson.converged) converged = true;
     }
