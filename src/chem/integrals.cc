@@ -218,12 +218,12 @@ std::vector<double> Integrals::get_orb_energies() const {
 }
 
 void Integrals::reorder_orbs(const std::vector<double>& orb_energies) {
-  std::vector<unsigned> orb_order(n_orbs);
+  orb_order.resize(n_orbs);
+  orb_order_inv.resize(n_orbs);
   std::iota(orb_order.begin(), orb_order.end(), 0);
   std::stable_sort(orb_order.begin(), orb_order.end(), [&](const unsigned a, const unsigned b) {
     return orb_energies[a] < orb_energies[b] - Util::EPS;
   });
-  std::vector<unsigned> orb_order_inv(n_orbs);
 
   // Reorder orb_sym.
   std::vector<unsigned> orb_syms_new(n_orbs);

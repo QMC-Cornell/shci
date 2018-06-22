@@ -87,12 +87,16 @@ void Solver<S>::run() {
 
   Timer::start("variation");
   run_all_variations();
+  hamiltonian.clear();
   Timer::end();
 
+  Timer::start("post variation");
   system.post_variation();
+  Timer::end();
+
 
   if (Config::get<bool>("var_only", false)) return;
-
+  
   Timer::start("perturbation");
   run_all_perturbations();
   system.post_perturbation();

@@ -60,6 +60,13 @@ class ChemSystem : public BaseSystem {
       const Det& det_i, const DiffResult& diff_up, const DiffResult& diff_dn) const;
 
   double get_two_body_double(const DiffResult& diff_up, const DiffResult& diff_dn) const;
-  
+
   double get_s2() const;
+
+  /*
+    size_t nonsym_combine2(const size_t a, const size_t b); // used for generate_natorb_integrals
+    with hash tables
+
+    size_t nonsym_combine4(const size_t a, const size_t b, const size_t c, const size_t d);
+  */
 };

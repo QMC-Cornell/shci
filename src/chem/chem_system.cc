@@ -3,11 +3,13 @@
 #include <fgpl/src/concurrent_hash_map.h>
 #include <cfloat>
 #include <cmath>
+#include <cstdio>
 #include "../parallel.h"
 #include "../result.h"
 #include "../timer.h"
 #include "../util.h"
 #include "dooh_util.h"
+#include "rdm.h"
 
 void ChemSystem::setup() {
   n_up = Config::get<unsigned>("n_up");
@@ -444,15 +446,31 @@ double ChemSystem::get_two_body_double(const DiffResult& diff_up, const DiffResu
 }
 
 void ChemSystem::post_variation() {
-  Timer::start("post variation");
   if (Config::get<bool>("s2", false)) {
     const double s2 = get_s2();
     Result::put("s2", s2);
   }
-  Timer::end();
+
+  if (Config::get<bool>("natorb", false)) {
+    RDM rdm;
+    rdm.get_1rdm(dets, coefs, integrals);
+    Timer::checkpoint("get 1rdm");
+
+    rdm.generate_natorb_integrals(integrals);
+    Timer::checkpoint("generate natorb integrals");
+
+    exit(0);
+  }
 }
 
+//======================================================
 double ChemSystem::get_s2() const {
+  // Calculates <S^2> of the variation wf.
+  // s^2 = n_up -n_doub - 1/2*(n_up-n_dn) + 1/4*(n_up - n_dn)^2
+  //  - sum_{p != q} c_{q,dn}^{+} c_{p,dn} c_{p,up}^{+} c_{q,up}
+  //
+  // Created: Y. Yao, May 2018
+  //======================================================
   double s2 = 0.;
 
   // Create hash table; used for looking up the coef of a det
