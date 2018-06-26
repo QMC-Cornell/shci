@@ -347,10 +347,10 @@ double Solver<S>::get_energy_pt_dtm(const double eps_var) {
         const Det& det = system.dets[i];
         const double coef = system.coefs[i];
         const auto& pt_det_handler = [&](const Det& det_a, const int n_excite) {
-          if (var_dets.has(det_a)) return;
           const size_t det_a_hash = det_hasher(det_a);
           const size_t batch_hash = Util::rehash(det_a_hash);
           if (batch_hash % n_batches != batch_id) return;
+          if (var_dets.has(det_a)) return;
           const double h_ai = system.get_hamiltonian_elem(det, det_a, n_excite);
           const double hc = h_ai * coef;
           if (std::abs(hc) < eps_pt_dtm) return;  // Filter out small single excitation.
@@ -457,10 +457,10 @@ UncertResult Solver<S>::get_energy_pt_psto(const double eps_var, const double en
         const Det& det = system.dets[i];
         const double coef = system.coefs[i];
         const auto& pt_det_handler = [&](const Det& det_a, const int n_excite) {
-          if (var_dets.has(det_a)) return;
           const size_t det_a_hash = det_hasher(det_a);
           const size_t batch_hash = Util::rehash(det_a_hash);
           if (batch_hash % n_batches != batch_id) return;
+          if (var_dets.has(det_a)) return;
           const double h_ai = system.get_hamiltonian_elem(det, det_a, n_excite);
           const double hc = h_ai * coef;
           if (std::abs(hc) < eps_pt_psto) return;  // Filter out small single excitation.
@@ -641,10 +641,10 @@ UncertResult Solver<S>::get_energy_pt_sto(
         const double coef = system.coefs[i];
         const double prob = probs[i];
         const auto& pt_det_handler = [&](const Det& det_a, const int n_excite) {
-          if (var_dets.has(det_a)) return;
           const size_t det_a_hash = det_hasher(det_a);
           const size_t batch_hash = Util::rehash(det_a_hash);
           if (batch_hash % n_batches != batch_id) return;
+          if (var_dets.has(det_a)) return;
           const double h_ai = system.get_hamiltonian_elem(det, det_a, n_excite);
           const double hc = h_ai * coef;
           if (std::abs(hc) < eps_pt) return;  // Filter out small single excitation.
@@ -681,8 +681,7 @@ UncertResult Solver<S>::get_energy_pt_sto(
     energy_pt_sto.value = Util::avg(energy_pt_sto_loops);
     energy_pt_sto.uncert = Util::stdev(energy_pt_sto_loops) / sqrt(iteration + 1.0);
     if (Parallel::is_master()) {
-      printf(
-          "PT sto loop correction (eps1=%.2e): " ENERGY_FORMAT "\n", eps_var, energy_pt_sto_loop);
+      printf("PT sto loop correction: " ENERGY_FORMAT "\n", energy_pt_sto_loop);
       printf("PT sto correction (eps1= %.2e):", eps_var);
       printf(" %s Ha\n", energy_pt_sto.to_string().c_str());
       printf("PT sto total energy (eps1= %.2e):", eps_var);
