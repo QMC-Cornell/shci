@@ -177,7 +177,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
         const double coef = system.coefs[i];
         double eps_min = eps_var / std::abs(coef);
         if (system.time_sym && det.up != det.dn) eps_min *= Util::SQRT2;
-        if (eps_min >= eps_tried_prev[i] * 0.999) return;
+        if (eps_min >= eps_tried_prev[i] * 0.99) return;
         const auto& connected_det_handler = [&](const Det& connected_det, const int n_excite) {
           Det connected_det_reg = connected_det;
           if (system.time_sym && connected_det.up > connected_det.dn) {
@@ -227,7 +227,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
     if (std::abs(energy_var_new - energy_var_prev) < target_error / 50) {
       converged = true;
     }
-    if (n_dets_new < n_dets * 1.0001) {
+    if (n_dets_new < n_dets * 1.001) {
       dets_converged = true;
       if (davidson.converged) converged = true;
     }
@@ -251,8 +251,8 @@ void Solver<S>::run_perturbation(const double eps_var) {
   eps_pt_psto = Config::get<double>("eps_pt_psto", eps_var / 100);
   eps_pt_dtm = Config::get<double>("eps_pt_dtm", eps_var / 10);
 
-  const auto& value_entry = Util::str_printf("energy_pt/%#.2e/%#.2e/value", eps_var, eps_pt);
-  const auto& uncert_entry = Util::str_printf("energy_pt/%#.2e/%#.2e/uncert", eps_var, eps_pt);
+  const auto& value_entry = Util::str_printf("energy_total/%#.2e/%#.2e/value", eps_var, eps_pt);
+  const auto& uncert_entry = Util::str_printf("energy_total/%#.2e/%#.2e/uncert", eps_var, eps_pt);
   UncertResult res(Result::get<double>(value_entry, 0.0));
   if (res.value != 0.0) {
     if (Parallel::is_master()) {
@@ -281,7 +281,7 @@ void Solver<S>::run_perturbation(const double eps_var) {
   pt_mem_avail = (mem_total * 0.8 - mem_var);
   const size_t n_procs = Parallel::get_n_procs();
   if (n_procs >= 2) {
-    pt_mem_avail = static_cast<size_t>(pt_mem_avail * 0.6 * n_procs);
+    pt_mem_avail = static_cast<size_t>(pt_mem_avail * 0.7 * n_procs);
   }
   const double energy_pt_dtm = get_energy_pt_dtm(eps_var);
   const UncertResult energy_pt_psto = get_energy_pt_psto(eps_var, energy_pt_dtm);
@@ -311,7 +311,7 @@ double Solver<S>::get_energy_pt_dtm(const double eps_var) {
         if (var_dets.has(det_a)) return;
         const size_t det_a_hash = det_hasher(det_a);
         const size_t batch_hash = Util::rehash(det_a_hash);
-        if ((batch_hash & 15) != 0) return;  // use 1st of 8 batches.
+        if ((batch_hash & 15) != 0) return;  // use 1st of 16 batches.
         if (n_excite == 1) {
           const double h_ai = system.get_hamiltonian_elem(det, det_a, n_excite);
           const double hc = h_ai * coef;
@@ -421,7 +421,7 @@ UncertResult Solver<S>::get_energy_pt_psto(const double eps_var, const double en
         if (var_dets.has(det_a)) return;
         const size_t det_a_hash = det_hasher(det_a);
         const size_t batch_hash = Util::rehash(det_a_hash);
-        if ((batch_hash & 15) != 0) return;  // use 1st of 8 batches.
+        if ((batch_hash & 15) != 0) return;  // use 1st of 16 batches.
         if (n_excite == 1) {
           const double h_ai = system.get_hamiltonian_elem(det, det_a, n_excite);
           const double hc = h_ai * coef;
@@ -683,8 +683,10 @@ UncertResult Solver<S>::get_energy_pt_sto(
     if (Parallel::is_master()) {
       printf(
           "PT sto loop correction (eps1=%.2e): " ENERGY_FORMAT "\n", eps_var, energy_pt_sto_loop);
-      printf("PT sto correction: %s Ha\n", energy_pt_sto.to_string().c_str());
-      printf("PT sto total energy: %s Ha\n", (energy_pt_sto + energy_pt_psto).to_string().c_str());
+      printf("PT sto correction (eps1= %.2e):", eps_var);
+      printf(" %s Ha\n", energy_pt_sto.to_string().c_str());
+      printf("PT sto total energy (eps1= %.2e):", eps_var);
+      printf(" %s Ha\n", (energy_pt_sto + energy_pt_psto).to_string().c_str());
     }
 
     hc_sums.clear();
