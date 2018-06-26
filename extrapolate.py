@@ -30,7 +30,7 @@ for eps_var, energy_var in energy_vars.iteritems():
         if eps_pt_iter < eps_pt:
             eps_pt = eps_pt_iter
             energy_pt = energy_pt_iter['value']
-    y.append(energy_var)
+    y.append(energy_pt)
     x.append(energy_var - energy_pt)
 
 # Fit and plot
@@ -52,8 +52,8 @@ params = {'mathtext.default': 'regular' }
 plt.rcParams.update(params)
 plt.plot(x, y, marker='o', ls='')
 plt.plot(x_fit, y_fit, color='grey', ls='--', zorder=0.1)
-plt.xlabel('$E_{var} - E_{pt}$ (Ha)')
-plt.ylabel('$E_{var}$ (Ha)')
+plt.xlabel('$E_{var} - E_{tot}$ (Ha)')
+plt.ylabel('$E_{tot}$ (Ha)')
 plt.title('Quadratic Extrapolation')
 plt.xlim(0)
 ax = plt.gca()

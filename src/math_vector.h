@@ -6,7 +6,7 @@
 template <class T, size_t N>
 class MathVector {
  public:
-  MathVector(const T& default_value = 0.0) {
+  MathVector(const T& default_value = 0) {
     for (size_t i = 0; i < N; i++) data[i] = default_value;
   }
 

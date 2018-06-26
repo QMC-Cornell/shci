@@ -1,6 +1,7 @@
 #include "timer.h"
 
 #include "parallel.h"
+#include "util.h"
 
 #define ANSI_COLOR_RED "\x1b[31m"
 #define ANSI_COLOR_GREEN "\x1b[32m"
@@ -15,6 +16,7 @@ Timer::Timer() {
   const auto& now = std::chrono::high_resolution_clock::now();
   init_time = prev_time = now;
   is_master = Parallel::get_proc_id() == 0;
+  init_mem = Util::get_mem_avail();
   if (is_master) {
     printf("Timing format: [DIFF/SECTION/TOTAL]\n");
   }
@@ -28,6 +30,7 @@ void Timer::start(const std::string& event) {
   if (instance.is_master) {
     printf("\nBEG OF ");
     instance.print_status();
+    instance.print_mem();
     instance.print_time();
   }
   instance.prev_time = now;
@@ -39,6 +42,7 @@ void Timer::checkpoint(const std::string& event) {
   auto& instance = get_instance();
   if (instance.is_master) {
     printf("END OF %s ", event.c_str());
+    instance.print_mem();
     instance.print_time();
   }
   instance.prev_time = now;
@@ -51,6 +55,7 @@ void Timer::end() {
   if (instance.is_master) {
     printf("END OF ");
     instance.print_status();
+    instance.print_mem();
     instance.print_time();
   }
   instance.start_times.pop_back();
@@ -64,11 +69,20 @@ void Timer::print_status() const {
   }
 }
 
+void Timer::print_mem() const {
+  const double scale = 1.0e-6;
+  const size_t mem_avail = Util::get_mem_avail();
+  const size_t mem_used = init_mem - mem_avail;
+  const size_t mem_total = Util::get_mem_total();
+  const size_t mem_used_total = mem_total - mem_avail;
+  printf("[%.1f/%.1f]GB ", mem_used * scale, mem_used_total * scale);
+}
+
 void Timer::print_time() const {
   const auto& now = std::chrono::high_resolution_clock::now();
   const auto& event_start_time = start_times.back().second;
   printf(
-      "[%.3f/%.3f/%.3f]\n",
+      "[%.3f/%.3f/%.3f]s\n",
       get_duration(prev_time, now),
       get_duration(event_start_time, now),
       get_duration(init_time, now));

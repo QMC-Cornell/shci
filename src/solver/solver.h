@@ -58,11 +58,11 @@ class Solver {
 
   void run_perturbation(const double eps_var);
 
-  double get_energy_pt_dtm();
+  double get_energy_pt_dtm(const double eps_var);
 
-  UncertResult get_energy_pt_psto(const double energy_pt_dtm);
+  UncertResult get_energy_pt_psto(const double eps_var, const double energy_pt_dtm);
 
-  UncertResult get_energy_pt_sto(const UncertResult& get_energy_pt_sto);
+  UncertResult get_energy_pt_sto(const double eps_var, const UncertResult& get_energy_pt_sto);
 
   bool load_variation_result(const std::string& filename);
 
@@ -94,9 +94,8 @@ void Solver<S>::run() {
   system.post_variation();
   Timer::end();
 
-
   if (Config::get<bool>("var_only", false)) return;
-  
+
   Timer::start("perturbation");
   run_all_perturbations();
   system.post_perturbation();
@@ -222,9 +221,8 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
     Timer::checkpoint("diagonalize sparse hamiltonian");
     var_iteration_global++;
     if (Parallel::is_master()) {
-      printf("Current variational energy: " ENERGY_FORMAT "\n", energy_var_new);
-      printf("Summary: iteration %zu ", var_iteration_global);
-      printf("eps1= %#.2e ndets= %zu energy= %.8f\n", eps_var, n_dets_new, energy_var_new);
+      printf("Iteration %zu ", var_iteration_global);
+      printf("eps1= %#.2e ndets= %'zu energy= %.8f\n", eps_var, n_dets_new, energy_var_new);
     }
     if (std::abs(energy_var_new - energy_var_prev) < target_error / 50) {
       converged = true;
@@ -240,6 +238,10 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
     iteration++;
   }
   system.energy_var = energy_var_prev;
+  if (Parallel::is_master()) {
+    printf("Final iteration %zu ", var_iteration_global);
+    printf("eps1= %#.2e ndets= %'zu energy= %.8f\n", eps_var, n_dets, system.energy_var);
+  }
 }
 
 template <class S>
@@ -255,7 +257,7 @@ void Solver<S>::run_perturbation(const double eps_var) {
   if (res.value != 0.0) {
     if (Parallel::is_master()) {
       res.uncert = Result::get<double>(uncert_entry, 0.0);
-      printf("PT energy: %s (loaded from result file)\n", res.to_string().c_str());
+      printf("Total energy: %s (loaded from result file)\n", res.to_string().c_str());
     }
     if (!Config::get<bool>("force_pt", false)) return;
   }
@@ -281,18 +283,18 @@ void Solver<S>::run_perturbation(const double eps_var) {
   if (n_procs >= 2) {
     pt_mem_avail = static_cast<size_t>(pt_mem_avail * 0.6 * n_procs);
   }
-  const double energy_pt_dtm = get_energy_pt_dtm();
-  const UncertResult energy_pt_psto = get_energy_pt_psto(energy_pt_dtm);
-  const UncertResult energy_pt = get_energy_pt_sto(energy_pt_psto);
+  const double energy_pt_dtm = get_energy_pt_dtm(eps_var);
+  const UncertResult energy_pt_psto = get_energy_pt_psto(eps_var, energy_pt_dtm);
+  const UncertResult energy_pt = get_energy_pt_sto(eps_var, energy_pt_psto);
   if (Parallel::is_master()) {
-    printf("PT energy: %s Ha\n", energy_pt.to_string().c_str());
+    printf("Total energy: %s Ha\n", energy_pt.to_string().c_str());
   }
   Result::put(value_entry, energy_pt.value);
   Result::put(uncert_entry, energy_pt.uncert);
 }
 
 template <class S>
-double Solver<S>::get_energy_pt_dtm() {
+double Solver<S>::get_energy_pt_dtm(const double eps_var) {
   if (eps_pt_dtm >= 1.0) return system.energy_var;
   Timer::start(Util::str_printf("dtm %#.2e", eps_pt_dtm));
   const size_t n_var_dets = system.get_n_dets();
@@ -385,9 +387,11 @@ double Solver<S>::get_energy_pt_dtm() {
     }
 
     if (Parallel::is_master()) {
-      printf("PT dtm correction batch: " ENERGY_FORMAT "\n", energy_pt_dtm_batch[0]);
-      printf("PT dtm correction: %s Ha\n", energy_pt_dtm.to_string().c_str());
-      printf("PT dtm energy: %s Ha\n", (energy_pt_dtm + system.energy_var).to_string().c_str());
+      printf("PT dtm batch correction: " ENERGY_FORMAT "\n", energy_pt_dtm_batch[0]);
+      printf("PT dtm correction (eps1= %.2e):", eps_var);
+      printf(" %s Ha\n", energy_pt_dtm.to_string().c_str());
+      printf("PT dtm total energy (eps1= %.2e):", eps_var);
+      printf(" %s Ha\n", (energy_pt_dtm + system.energy_var).to_string().c_str());
     }
 
     hc_sums.clear();
@@ -399,7 +403,7 @@ double Solver<S>::get_energy_pt_dtm() {
 }
 
 template <class S>
-UncertResult Solver<S>::get_energy_pt_psto(const double energy_pt_dtm) {
+UncertResult Solver<S>::get_energy_pt_psto(const double eps_var, const double energy_pt_dtm) {
   if (eps_pt_psto >= eps_pt_dtm) return UncertResult(energy_pt_dtm, 0.0);
 
   Timer::start(Util::str_printf("psto %#.2e", eps_pt_psto));
@@ -496,9 +500,11 @@ UncertResult Solver<S>::get_energy_pt_psto(const double energy_pt_dtm) {
     }
 
     if (Parallel::is_master()) {
-      printf("PT psto correction batch: " ENERGY_FORMAT "\n", energy_pt_psto_batch[0]);
-      printf("PT psto correction: %s Ha\n", energy_pt_psto.to_string().c_str());
-      printf("PT psto energy: %s Ha\n", (energy_pt_psto + energy_pt_dtm).to_string().c_str());
+      printf("PT psto batch correction: " ENERGY_FORMAT "\n", energy_pt_psto_batch[0]);
+      printf("PT psto correction (eps1= %.2e):", eps_var);
+      printf(" %s Ha\n", energy_pt_psto.to_string().c_str());
+      printf("PT psto total energy (eps1= %.2e):", eps_var);
+      printf(" %s Ha\n", (energy_pt_psto + energy_pt_dtm).to_string().c_str());
     }
 
     hc_sums.clear();
@@ -513,7 +519,8 @@ UncertResult Solver<S>::get_energy_pt_psto(const double energy_pt_dtm) {
 }
 
 template <class S>
-UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_psto) {
+UncertResult Solver<S>::get_energy_pt_sto(
+    const double eps_var, const UncertResult& energy_pt_psto) {
   if (eps_pt >= eps_pt_psto) return energy_pt_psto;
 
   const size_t max_pt_iterations = Config::get<size_t>("max_pt_iterations", 100);
@@ -674,9 +681,10 @@ UncertResult Solver<S>::get_energy_pt_sto(const UncertResult& energy_pt_psto) {
     energy_pt_sto.value = Util::avg(energy_pt_sto_loops);
     energy_pt_sto.uncert = Util::stdev(energy_pt_sto_loops) / sqrt(iteration + 1.0);
     if (Parallel::is_master()) {
-      printf("PT sto correction loop: " ENERGY_FORMAT "\n", energy_pt_sto_loop);
+      printf(
+          "PT sto loop correction (eps1=%.2e): " ENERGY_FORMAT "\n", eps_var, energy_pt_sto_loop);
       printf("PT sto correction: %s Ha\n", energy_pt_sto.to_string().c_str());
-      printf("PT sto energy: %s Ha\n", (energy_pt_sto + energy_pt_psto).to_string().c_str());
+      printf("PT sto total energy: %s Ha\n", (energy_pt_sto + energy_pt_psto).to_string().c_str());
     }
 
     hc_sums.clear();

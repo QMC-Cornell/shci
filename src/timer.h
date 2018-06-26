@@ -21,7 +21,9 @@ class Timer {
   Timer();
 
   void print_status() const;
-  
+
+  void print_mem() const;
+
   void print_time() const;
 
   double get_duration(
@@ -33,6 +35,8 @@ class Timer {
   std::chrono::high_resolution_clock::time_point prev_time;
 
   std::vector<std::pair<std::string, std::chrono::high_resolution_clock::time_point>> start_times;
+
+  size_t init_mem;
 
   bool is_master;
 };
