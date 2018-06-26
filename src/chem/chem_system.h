@@ -1,6 +1,5 @@
 #pragma once
 
-#include <eigen/Eigen/Dense>
 #include <string>
 #include "../base_system.h"
 #include "../config.h"
@@ -8,8 +7,6 @@
 #include "integrals.h"
 #include "point_group.h"
 #include "product_table.h"
-
-using namespace Eigen;
 
 class ChemSystem : public BaseSystem {
  public:
@@ -69,10 +66,6 @@ class ChemSystem : public BaseSystem {
   double get_two_body_double(const DiffResult& diff_up, const DiffResult& diff_dn) const;
 
   double get_s2() const;
-
-  MatrixXd get_1rdm() const;
-
-  void generate_natorb_integrals(MatrixXd rdm);
 
   /*
     size_t nonsym_combine2(const size_t a, const size_t b); // used for generate_natorb_integrals

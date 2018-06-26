@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <eigen/Eigen/Dense>
 #include "../parallel.h"
+#include "../timer.h"
 
 void RDM::get_1rdm(
     const std::vector<Det>& dets, const std::vector<double>& coefs, const Integrals& integrals) {
@@ -51,8 +52,7 @@ void RDM::get_1rdm(
           continue;
 
 #pragma omp atomic
-        one_rdm(p, r) =
-            one_rdm(p, r) + this_det.up.diff(new_det.up).permutation_factor * coef * coefs[idet];
+        one_rdm(p, r) += this_det.up.diff(new_det.up).permutation_factor * coef * coefs[idet];
       }  // r
     }  // i_elec
 
@@ -74,8 +74,7 @@ void RDM::get_1rdm(
           continue;
 
 #pragma omp atomic
-        one_rdm(p, r) =
-            one_rdm(p, r) + this_det.dn.diff(new_det.dn).permutation_factor * coef * coefs[idet];
+        one_rdm(p, r) += this_det.dn.diff(new_det.dn).permutation_factor * coef * coefs[idet];
       }  // r
     }  // i_elec
   }  // idet
@@ -144,12 +143,11 @@ void RDM::generate_natorb_integrals(const Integrals& integrals) const {
   }  // irrep
 
   std::cout << "Occupation numbers:\n";
-  for (unsigned i = 0; i < n_orbs; i++) {
+  for (unsigned i = 0; i < integrals.n_elecs && i < n_orbs; i++) {
     std::cout << eigenvalues[i] << "\n";
   }
 
-  std::cout << "Done computing natural orbitals. Computing new integrals."
-            << "\n";
+  Timer::checkpoint("compute natural orbitals");
 
   // Rotate orbitals and generate new integrals
   std::vector<std::vector<std::vector<std::vector<double>>>> new_integrals(n_orbs);
@@ -282,7 +280,7 @@ void RDM::generate_natorb_integrals(const Integrals& integrals) const {
     }
   }
 
-  std::cout << "Done computing new integrals. Dumping new integrals into file \n";
+  Timer::checkpoint("computing new integrals");
 
   FILE* pFile;
   pFile = fopen("FCIDUMP_natorb", "w");
@@ -337,7 +335,7 @@ void RDM::generate_natorb_integrals(const Integrals& integrals) const {
 
   fclose(pFile);
 
-  std::cout << "Done creating new FCIDUMP\n";
+  Timer::checkpoint("creating new FCIDUMP");
 }
 
 /*

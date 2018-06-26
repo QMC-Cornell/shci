@@ -23,7 +23,6 @@
 #include "davidson.h"
 #include "hamiltonian.h"
 #include "uncert_result.h"
-#include "../chem/rdm.h"
 
 template <class S>
 class Solver {
@@ -79,12 +78,12 @@ void Solver<S>::run() {
 
   Timer::start("variation");
   run_all_variations();
-
   hamiltonian.clear();
-
   Timer::end();
 
+  Timer::start("post variation");
   system.post_variation();
+  Timer::end();
 
 
   if (Config::get<bool>("var_only", false)) return;

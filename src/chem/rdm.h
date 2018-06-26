@@ -2,7 +2,7 @@
 
 #include <eigen/Eigen/Dense>
 #include "../config.h"
-#include "chem_system.h"
+#include "integrals.h"
 #include "point_group.h"
 
 using namespace Eigen;
@@ -19,6 +19,7 @@ class RDM {
 
     size_t nonsym_combine4(const size_t, const size_t, const size_t, const size_t) const;
   */
+
   void get_2rdm(const std::vector<Det>&, const std::vector<double>&, const Integrals&);
 
  private:

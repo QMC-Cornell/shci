@@ -1,13 +1,9 @@
 #include "chem_system.h"
 
 #include <fgpl/src/concurrent_hash_map.h>
-#include <fgpl/src/hash_map.h>
-#include <stdio.h>
 #include <cfloat>
 #include <cmath>
-#include <eigen/Eigen/Dense>
-#include <fstream>
-#include <iostream>
+#include <cstdio>
 #include "../parallel.h"
 #include "../result.h"
 #include "../timer.h"
@@ -449,22 +445,20 @@ double ChemSystem::get_two_body_double(const DiffResult& diff_up, const DiffResu
 }
 
 void ChemSystem::post_variation() {
-  Timer::start("post variation");
   if (Config::get<bool>("s2", false)) {
     const double s2 = get_s2();
     Result::put("s2", s2);
   }
-  Timer::end();
 
   if (Config::get<bool>("natorb", false)) {
     RDM rdm;
-    Timer::start("get_1rdm");
     rdm.get_1rdm(dets, coefs, integrals);
-    Timer::end();
+    Timer::checkpoint("get 1rdm");
 
-    Timer::start("generate_natorb_integrals");
     rdm.generate_natorb_integrals(integrals);
-    Timer::end();
+    Timer::checkpoint("generate natorb integrals");
+
+    exit(0);
   }
 
   if (Config::get<bool>("2rdm", false)) {
