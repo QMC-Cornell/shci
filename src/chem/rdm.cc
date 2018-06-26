@@ -49,7 +49,7 @@ void RDM::get_1rdm(
           coef = det2coef[new_det];
         else
           continue;
-          
+
 #pragma omp atomic
         one_rdm(p, r) =
             one_rdm(p, r) + this_det.up.diff(new_det.up).permutation_factor * coef * coefs[idet];
@@ -72,7 +72,7 @@ void RDM::get_1rdm(
           coef = det2coef[new_det];
         else
           continue;
-          
+
 #pragma omp atomic
         one_rdm(p, r) =
             one_rdm(p, r) + this_det.dn.diff(new_det.dn).permutation_factor * coef * coefs[idet];
@@ -341,7 +341,7 @@ void RDM::generate_natorb_integrals(const Integrals& integrals) const {
 }
 
 /*
-void ChemSystem::generate_natorb_integrals(MatrixXd rdm) {
+void RDM::generate_natorb_integrals(const Integrals& integrals) const {
 //======================================================
 // Compute natural orbitals by diagonalizing the 1RDM.
 // Rotate integrals to natural orbital basis and generate
@@ -351,8 +351,14 @@ void ChemSystem::generate_natorb_integrals(MatrixXd rdm) {
 //
 // Created: Y. Yao, June 2018
 //======================================================
-  unsigned n_group_elements;
-  if (point_group == PointGroup::D2h) n_group_elements=8;
+  unsigned n_orbs = integrals.n_orbs;
+  std::vector<unsigned int> orb_sym = integrals.orb_sym;
+
+  // Determine number of point gourp elements used for current system
+  unsigned n_group_elements = orb_sym[1];
+  for (size_t i = 1; i < orb_sym.size(); i++) {
+    if (orb_sym[i] > n_group_elements) n_group_elements = orb_sym[i];
+  }
 
   // Diagonalize rdm in the subspace of each irrep separately
   std::vector<std::vector<unsigned>> inds(n_group_elements);
@@ -378,7 +384,7 @@ void ChemSystem::generate_natorb_integrals(MatrixXd rdm) {
     MatrixXd tmp_rdm(n,n); // rdm in the subspace of current irrep
     for (unsigned i=0; i<n; i++) {
       for (unsigned j=0; j<n; j++) {
-        tmp_rdm(i,j) = rdm(inds[irrep][i],inds[irrep][j]);
+        tmp_rdm(i,j) = one_rdm(inds[irrep][i],inds[irrep][j]);
       }
     }
 
@@ -403,7 +409,6 @@ void ChemSystem::generate_natorb_integrals(MatrixXd rdm) {
 
   // Rotate orbitals and generate new integrals
 
-std::cout<<"AAA\n";
   // Two-body integrals
   fgpl::HashMap<size_t, double, IntegralsHasher> new_integrals_2b, tmp_integrals_2b;
 
@@ -414,7 +419,7 @@ std::cout<<"AAA\n";
         for (unsigned s=0; s<n_orbs; s++) {
           double val_pqrs = integrals.get_2b(p,q,r,s);
           if (val_pqrs != 0.) tmp_integrals_2b.set(nonsym_combine4(p,q,r,s), val_pqrs);
-if (Parallel::is_master()) std::cout<<p<<" "<<q<<" "<<r<<" "<<s<<"\n";
+//if (Parallel::is_master()) std::cout<<p<<" "<<q<<" "<<r<<" "<<s<<"\n";
         } // s
       } // r
     } // q
@@ -580,11 +585,195 @@ integrals.orb_order[q]+1, 0, 0);
 }
 
 
-size_t ChemSystem::nonsym_combine2(const size_t a, const size_t b) {
+size_t RDM::nonsym_combine2(const size_t a, const size_t b) const {
   return a*n_orbs + b;
 }
 
-size_t ChemSystem::nonsym_combine4(const size_t a, const size_t b, const size_t c, const size_t d) {
+size_t RDM::nonsym_combine4(const size_t a, const size_t b, const size_t c, const size_t d) const {
   return nonsym_combine2(nonsym_combine2(nonsym_combine2(a,b),c),d);
 }
 */
+
+void RDM::get_2rdm(
+    const std::vector<Det>& dets, const std::vector<double>& coefs, const Integrals& integrals) {
+  //=====================================================
+  // Create spatial 2RDM using the variational wavefunction
+  //
+  // D_pqrs corresponds to <a^+_p a^+_q a_r a_s>
+  // Four different spin configurations
+  // (1) p: up, q: up, r: up, s: up
+  // (2) p: dn, q: dn, r: dn, s: dn
+  // (3) p: dn, q: up, r: up, s: dn
+  // (4) p: up, q: dn, r: dn, s: up
+  //
+  // Created: Y. Yao, June 2018
+  //=====================================================
+
+  unsigned n_orbs = integrals.n_orbs;
+  unsigned n_up = integrals.n_up;
+  unsigned n_dn = integrals.n_dn;
+  std::vector<unsigned int> orb_sym = integrals.orb_sym;
+
+  std::vector<double> two_rdm(n_orbs * n_orbs * (n_orbs * n_orbs + 1) / 2);
+
+  // Create hash table; used for looking up the coef of a det
+  std::unordered_map<Det, double, DetHasher> det2coef;
+  for (size_t i = 0; i < dets.size(); i++) {
+    det2coef[dets[i]] = coefs[i];
+  }
+
+  // #pragma omp parallel for
+  for (size_t idet = 0; idet < dets.size(); idet++) {
+    Det this_det = dets[idet];
+    double this_coef = coefs[idet];
+
+    std::vector<unsigned> occ_up = this_det.up.get_occupied_orbs();
+    std::vector<unsigned> occ_dn = this_det.dn.get_occupied_orbs();
+
+    // (1) p: up, q: up, r: up, s: up
+    for (unsigned i_elec = 0; i_elec < n_up; i_elec++) {
+      Det new_det = this_det;
+      unsigned s = occ_up[i_elec];
+      new_det.up.unset(s);
+      for (unsigned j_elec = i_elec + 1; j_elec < n_up; j_elec++) {
+        unsigned r = occ_up[j_elec];
+        new_det.up.unset(r);
+        for (unsigned q = 0; q < n_orbs; q++) {
+          if (new_det.up.has(q)) continue;
+          new_det.up.set(q);
+          for (unsigned p = 0; p < q; p++) {
+            if (new_det.up.has(p)) continue;
+            new_det.up.set(p);
+
+            if (det2coef.count(new_det) == 1) {
+              double coef = det2coef[new_det];
+              double element = this_coef * coef * this_det.up.diff(new_det.up).permutation_factor;
+
+              two_rdm[combine4_2rdm(p, q, r, s, n_orbs)] += element;
+              two_rdm[combine4_2rdm(p, q, s, r, n_orbs)] -= element;  // since p<q, r>s
+              // exclude (q,p,r,s,-=) and (q,p,s,r,+=) since we are taking advantage of
+              // the symmetry (p,s) <-> (q,r) and only constructing half of the 2RDM
+            }
+
+            new_det.up.unset(p);
+          }  // p
+          new_det.up.unset(q);
+        }  // r
+        new_det.up.set(r);
+      }  // j_elec
+    }  // i_elec
+
+    // (2) p: dn, q: dn, r: dn, s: dn
+    for (unsigned i_elec = 0; i_elec < n_dn; i_elec++) {
+      Det new_det = this_det;
+      unsigned s = occ_dn[i_elec];
+      new_det.dn.unset(s);
+      for (unsigned j_elec = i_elec + 1; j_elec < n_dn; j_elec++) {
+        unsigned r = occ_dn[j_elec];
+        new_det.dn.unset(r);
+        for (unsigned q = 0; q < n_orbs; q++) {
+          if (new_det.dn.has(q)) continue;
+          new_det.dn.set(q);
+          for (unsigned p = 0; p < q; p++) {
+            if (new_det.dn.has(p)) continue;
+            new_det.dn.set(p);
+
+            if (det2coef.count(new_det) == 1) {
+              double coef = det2coef[new_det];
+              double element = this_coef * coef * this_det.dn.diff(new_det.dn).permutation_factor;
+
+              two_rdm[combine4_2rdm(p, q, r, s, n_orbs)] += element;
+              two_rdm[combine4_2rdm(p, q, s, r, n_orbs)] -= element;
+            }
+
+            new_det.dn.unset(p);
+          }  // p
+          new_det.dn.unset(q);
+        }  // r
+        new_det.dn.set(r);
+      }  // j_elec
+    }  // i_elec
+
+    // (3) p: dn, q: up, r: up, s: dn
+    // (4) p: up, q: dn, r: dn, s: up can be obtained from (3) by swapping indices
+    for (unsigned i_elec = 0; i_elec < n_dn; i_elec++) {
+      Det new_det = this_det;
+      unsigned s = occ_dn[i_elec];
+      new_det.dn.unset(s);
+      for (unsigned j_elec = 0; j_elec < n_up; j_elec++) {
+        unsigned r = occ_up[j_elec];
+        new_det.up.unset(r);
+        for (unsigned q = 0; q < n_orbs; q++) {
+          if (new_det.up.has(q)) continue;
+          new_det.up.set(q);
+          for (unsigned p = 0; p < n_orbs; p++) {
+            if (new_det.dn.has(p)) continue;
+            new_det.dn.set(p);
+
+            if (det2coef.count(new_det) == 1) {
+              double coef = det2coef[new_det];
+              int perm_fac = this_det.up.diff(new_det.up).permutation_factor *
+                             this_det.dn.diff(new_det.dn).permutation_factor;
+              double element = this_coef * coef * perm_fac;
+
+              two_rdm[combine4_2rdm(p, q, r, s, n_orbs)] += element;
+              if (p == q && s == r) two_rdm[combine4_2rdm(q, p, s, r, n_orbs)] += element;
+              // this line needed as a result of storing only half of 2RDM, (p,s) = (q,r)
+            }
+
+            new_det.dn.unset(p);
+          }  // p
+          new_det.up.unset(q);
+        }  // r
+        new_det.up.set(r);
+      }  // j_elec
+    }  // i_elec
+
+  }  // idet
+  /*
+  std::cout<<"before print\n";
+  for (unsigned p =0; p<n_orbs; p++) {
+    for (unsigned q=0; q<n_orbs; q++) {
+      for (unsigned s=0; s<n_orbs; s++) {
+        for (unsigned r=0; r<n_orbs; r++) {
+  if (std::abs(two_rdm[combine4_2rdm(p,q,r,s,n_orbs)]) > 1.e-6)
+  std::cout<<p<<"\t"<<q<<"\t"<<s<<"\t"<<r<<"\t"<<two_rdm[combine4_2rdm(p,q,r,s,n_orbs)]<<"\n";
+        } //r
+      } //s
+    }  //q
+  } // p
+  */
+  std::cout << "writing out 2RDM\n";
+
+  FILE* pFile;
+  pFile = fopen("spatialRDM.txt", "w");
+
+  fprintf(pFile, "%d\n", n_orbs);
+  for (unsigned p = 0; p < n_orbs; p++) {
+    for (unsigned q = 0; q < n_orbs; q++) {
+      for (unsigned s = 0; s < n_orbs; s++) {
+        for (unsigned r = 0; r < n_orbs; r++) {
+          if (std::abs(two_rdm[combine4_2rdm(p, q, r, s, n_orbs)]) > 1.e-6)
+            fprintf(
+                pFile,
+                "%3d   %3d   %3d   %3d   %10.8g\n",
+                p,
+                q,
+                s,
+                r,
+                two_rdm[combine4_2rdm(p, q, r, s, n_orbs)]);
+        }  // r
+      }  // s
+    }  // q
+  }  // p
+}
+
+unsigned RDM::combine4_2rdm(unsigned p, unsigned q, unsigned r, unsigned s, unsigned n_orbs) const {
+  unsigned a = p * n_orbs + s;
+  unsigned b = q * n_orbs + r;
+  if (a > b) {
+    return (a * (a + 1)) / 2 + b;
+  } else {
+    return (b * (b + 1)) / 2 + a;
+  }
+}

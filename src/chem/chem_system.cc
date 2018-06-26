@@ -466,6 +466,13 @@ void ChemSystem::post_variation() {
     rdm.generate_natorb_integrals(integrals);
     Timer::end();
   }
+
+  if (Config::get<bool>("2rdm", false)) {
+    RDM rdm;
+    Timer::start("get_2rdm");
+    rdm.get_2rdm(dets, coefs, integrals);
+    Timer::end();
+  }
 }
 
 //======================================================
