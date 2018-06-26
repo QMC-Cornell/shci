@@ -67,10 +67,4 @@ class ChemSystem : public BaseSystem {
 
   double get_s2() const;
 
-  /*
-    size_t nonsym_combine2(const size_t a, const size_t b); // used for generate_natorb_integrals
-    with hash tables
-
-    size_t nonsym_combine4(const size_t a, const size_t b, const size_t c, const size_t d);
-  */
 };

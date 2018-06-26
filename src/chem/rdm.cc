@@ -620,7 +620,7 @@ void RDM::get_2rdm(
     det2coef[dets[i]] = coefs[i];
   }
 
-  // #pragma omp parallel for
+#pragma omp parallel for
   for (size_t idet = 0; idet < dets.size(); idet++) {
     Det this_det = dets[idet];
     double this_coef = coefs[idet];
@@ -647,7 +647,9 @@ void RDM::get_2rdm(
               double coef = det2coef[new_det];
               double element = this_coef * coef * this_det.up.diff(new_det.up).permutation_factor;
 
+#pragma omp atomic
               two_rdm[combine4_2rdm(p, q, r, s, n_orbs)] += element;
+#pragma omp atomic
               two_rdm[combine4_2rdm(p, q, s, r, n_orbs)] -= element;  // since p<q, r>s
               // exclude (q,p,r,s,-=) and (q,p,s,r,+=) since we are taking advantage of
               // the symmetry (p,s) <-> (q,r) and only constructing half of the 2RDM
@@ -680,7 +682,9 @@ void RDM::get_2rdm(
               double coef = det2coef[new_det];
               double element = this_coef * coef * this_det.dn.diff(new_det.dn).permutation_factor;
 
+#pragma omp atomic
               two_rdm[combine4_2rdm(p, q, r, s, n_orbs)] += element;
+#pragma omp atomic
               two_rdm[combine4_2rdm(p, q, s, r, n_orbs)] -= element;
             }
 
@@ -714,8 +718,12 @@ void RDM::get_2rdm(
                              this_det.dn.diff(new_det.dn).permutation_factor;
               double element = this_coef * coef * perm_fac;
 
+#pragma omp atomic
               two_rdm[combine4_2rdm(p, q, r, s, n_orbs)] += element;
-              if (p == q && s == r) two_rdm[combine4_2rdm(q, p, s, r, n_orbs)] += element;
+              if (p == q && s == r) {
+#pragma omp atomic              
+                two_rdm[combine4_2rdm(q, p, s, r, n_orbs)] += element;                
+              }
               // this line needed as a result of storing only half of 2RDM, (p,s) = (q,r)
             }
 
