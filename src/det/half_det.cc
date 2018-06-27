@@ -127,8 +127,15 @@ bool operator!=(const HalfDet& a, const HalfDet& b) { return !(a == b); }
 bool operator<(const HalfDet& a, const HalfDet& b) {
   for (int chunk_id = N_CHUNKS - 1; chunk_id >= 0; chunk_id--) {
     if (a.chunks[chunk_id] < b.chunks[chunk_id]) return true;
+    if (a.chunks[chunk_id] > b.chunks[chunk_id]) return false;
   }
   return false;
 }
 
-bool operator>(const HalfDet& a, const HalfDet& b) { return !(a < b); }
+bool operator>(const HalfDet& a, const HalfDet& b) {
+  for (int chunk_id = N_CHUNKS - 1; chunk_id >= 0; chunk_id--) {
+    if (a.chunks[chunk_id] > b.chunks[chunk_id]) return true;
+    if (a.chunks[chunk_id] < b.chunks[chunk_id]) return false;
+  }
+  return false;
+}
