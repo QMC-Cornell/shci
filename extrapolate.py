@@ -21,17 +21,17 @@ x = []
 y = []
 energy_vars = result['energy_var']
 for eps_var, energy_var in energy_vars.iteritems():
-    if result['energy_pt'].get(eps_var) is None:
+    if result['energy_total'].get(eps_var) is None:
         continue
-    energy_pts = result['energy_pt'][eps_var]
+    energy_totals = result['energy_total'][eps_var]
     eps_pt = 1.0
-    for eps_pt_iter, energy_pt_iter in energy_pts.iteritems():
+    for eps_pt_iter, energy_total_iter in energy_totals.iteritems():
         eps_pt_iter = float(eps_pt_iter)
         if eps_pt_iter < eps_pt:
             eps_pt = eps_pt_iter
-            energy_pt = energy_pt_iter['value']
-    y.append(energy_pt)
-    x.append(energy_var - energy_pt)
+            energy_total = energy_total_iter['value']
+    y.append(energy_total)
+    x.append(energy_var - energy_total)
 
 # Fit and plot
 def model_aug(x):
@@ -48,7 +48,7 @@ x_fit_aug = model_aug(x_fit)
 y_fit = fit.predict(x_fit_aug)
 print(fit.summary())
 print('Extrapolated energy: %.10f +- %.10f' % (fit.params[0], fit.bse[0]))
-params = {'mathtext.default': 'regular' }          
+params = {'mathtext.default': 'regular' }
 plt.rcParams.update(params)
 plt.plot(x, y, marker='o', ls='')
 plt.plot(x_fit, y_fit, color='grey', ls='--', zorder=0.1)
