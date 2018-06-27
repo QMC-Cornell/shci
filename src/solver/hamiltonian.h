@@ -409,20 +409,6 @@ void Hamiltonian<S>::update_matrix(const S& system) {
     }
     const size_t start_id = is_new_det ? det_id + 1 : n_dets_prev;
 
-    // Brute force.
-    // for (size_t i = start_id; i < n_dets; i++) {
-    //   const auto& connected_det = system.dets[i];
-    //   const double H = time_sym ? system.get_hamiltonian_elem_time_sym(det, connected_det, -1)
-    //                             : system.get_hamiltonian_elem(det, connected_det, -1);
-    //   if (std::abs(H) < Util::EPS) continue;
-    //   matrix.append_elem(det_id, i, H);
-    // }
-    // if (det_id == -1) {
-    //   matrix.sort_row(1);
-    //   matrix.print_row(1);
-    // }
-    // continue;
-
     // Single or double alpha excitations.
     const auto& beta = det.dn;
     const size_t beta_id = time_sym ? alpha_to_id[beta] : beta_to_id[beta];
