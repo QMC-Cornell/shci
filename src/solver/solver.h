@@ -436,7 +436,7 @@ UncertResult Solver<S>::get_energy_pt_psto(const double eps_var, const double en
     const size_t n_pt_dets = hc_sums.get_n_keys();
     n_batches = static_cast<size_t>(
         ceil(2.0 * 16 * 100 / 1000 * n_pt_dets * (N_CHUNKS * 16 + 16) / pt_mem_avail));
-    if (n_batches == 0) n_batches = 1;
+    if (n_batches < 8) n_batches = 8;
     if (Parallel::is_master()) {
       printf("Number of batches chosen: %zu\n", n_batches);
     }
