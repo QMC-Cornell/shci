@@ -33,7 +33,7 @@ for eps_var, energy_var in energy_vars.iteritems():
     y.append(energy_total)
     x.append(energy_var - energy_total)
 
-# Fit and plot
+# Fit
 def model_aug(x):
     x_aug = np.column_stack((x, x**2))
     x_aug = sm.add_constant(x_aug)
@@ -43,11 +43,18 @@ x = np.array(x)
 y = np.array(y)
 x_aug = model_aug(x)
 fit = sm.OLS(y, x_aug).fit()
+print(fit.summary())
+alpha = 0.05
+predict = fit.get_prediction(np.array([1.0, 0.0, 0.0])).summary_frame(alpha=alpha)
+print(predict)
+predict = predict.iloc[0]
+ci = predict['mean_ci_upper'] - predict['mean']
+print('(%.2f Conf.) Extrapolated Energy: %.10f +- %.10f' % ((1.0 - alpha, fit.params[0], ci)))
+
+# Plot
 x_fit = np.linspace(0, np.max(x * 1.2), 50)
 x_fit_aug = model_aug(x_fit)
 y_fit = fit.predict(x_fit_aug)
-print(fit.summary())
-print('Extrapolated energy: %.10f +- %.10f' % (fit.params[0], fit.bse[0]))
 params = {'mathtext.default': 'regular' }
 plt.rcParams.update(params)
 plt.plot(x, y, marker='o', ls='')

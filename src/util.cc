@@ -47,6 +47,19 @@ double Util::dot_omp(const std::vector<double>& a, const std::vector<double>& b)
   double sum = 0.0;
   const size_t n = a.size();
   const int n_threads = omp_get_max_threads();
+#ifdef __INTEL_COMPILER
+  const size_t n_per_thread = n / n_threads + 1;
+#pragma omp parallel
+{
+  const int thread_id = omp_get_thread_num();
+  double sum_thread = 0.0;
+  for (size_t i = thread_id * n_per_thread; i < n && i < (thread_id + 1) * n_per_thread; i++) {
+    sum_thread += a[i] * b[i]; 
+  } 
+#pragma omp atomic
+  sum += sum_thread;
+}
+#else
   std::vector<double> sum_thread(n_threads, 0.0);
 #pragma omp parallel for
   for (size_t i = 0; i < n; i++) {
@@ -54,6 +67,7 @@ double Util::dot_omp(const std::vector<double>& a, const std::vector<double>& b)
     sum_thread[thread_id] += a[i] * b[i];
   }
   for (int i = 0; i < n_threads; i++) sum += sum_thread[i];
+#endif
   return sum;
 }
 
