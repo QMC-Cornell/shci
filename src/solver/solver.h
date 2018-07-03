@@ -247,9 +247,9 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
 template <class S>
 void Solver<S>::run_perturbation(const double eps_var) {
   // If result already exists, return.
-  eps_pt = Config::get<double>("eps_pt", eps_var / 1000);
-  eps_pt_psto = Config::get<double>("eps_pt_psto", eps_var / 100);
-  eps_pt_dtm = Config::get<double>("eps_pt_dtm", eps_var / 10);
+  eps_pt = Config::get<double>("eps_pt", eps_var / 5000);
+  eps_pt_psto = Config::get<double>("eps_pt_psto", eps_var / 500);
+  eps_pt_dtm = Config::get<double>("eps_pt_dtm", eps_var / 50);
 
   const auto& value_entry = Util::str_printf("energy_total/%#.2e/%#.2e/value", eps_var, eps_pt);
   const auto& uncert_entry = Util::str_printf("energy_total/%#.2e/%#.2e/uncert", eps_var, eps_pt);
