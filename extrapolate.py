@@ -45,13 +45,10 @@ x = np.array(x)
 y = np.array(y)
 x_aug = model_aug(x)
 weights = 1.0 / x**2
-print(x)
-print(weights)
 fit = sm.WLS(y, x_aug, weights).fit()
 print(fit.summary())
 alpha = 0.05
 predict = fit.get_prediction(np.array([1.0, 0.0, 0.0])).summary_frame(alpha=alpha)
-print(predict)
 predict = predict.iloc[0]
 energy = fit.params[0]
 uncert = predict['mean_ci_upper'] - predict['mean']
