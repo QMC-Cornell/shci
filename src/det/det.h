@@ -21,6 +21,13 @@ class Det {
     return a.up > b.up || (a.up == b.up && a.dn > b.dn);
   }
 
+  void reverse_spin() {
+    if (up == dn) return;
+    HalfDet tmp = up;
+    up = dn;
+    dn = tmp;
+  }
+
   template <class B>
   void serialize(B& buf) const {
     buf << up << dn;

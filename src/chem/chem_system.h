@@ -28,10 +28,6 @@ class ChemSystem : public BaseSystem {
  private:
   unsigned n_orbs;
 
-  bool time_sym;
-
-  int z;  // reflection (parity).
-
   std::vector<unsigned> orb_sym;
 
   double max_hci_queue_elem;

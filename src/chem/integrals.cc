@@ -9,13 +9,13 @@
 #include <string>
 #include "../config.h"
 #include "../parallel.h"
+#include "../timer.h"
 #include "../util.h"
 #include "dooh_util.h"
-#include "../timer.h"
 
 void Integrals::load() {
   const std::string& cache_filename = "integrals_cache.dat";
-  if (load_from_cache(cache_filename)) return;
+  if (Config::get<bool>("load_integrals_cache", false) && load_from_cache(cache_filename)) return;
   read_fcidump();
   Timer::checkpoint("load fcidump");
   generate_det_hf();
@@ -32,7 +32,7 @@ void Integrals::read_fcidump() {
   }
 
   // Read head.
-  std::regex words("([^\\s,=]+)");
+  std::regex words("([\\-]?[^\\s,=\\-]+)");
   std::string line;
   enum class State { NONE, ORBSYM, END };
   State state = State::NONE;
@@ -142,9 +142,10 @@ void Integrals::generate_det_hf() {
   n_up = Config::get<unsigned>("n_up");
   n_dn = Config::get<unsigned>("n_dn");
   assert(n_up + n_dn == n_elecs);
-  std::vector<unsigned> irreps = Config::get<std::vector<unsigned>>("chem/irreps", std::vector<unsigned>());
+  std::vector<unsigned> irreps =
+      Config::get<std::vector<unsigned>>("chem/irreps", std::vector<unsigned>());
   if (irreps.size() == 0) {
-    // Fill lowest. 
+    // Fill lowest.
     for (unsigned i = 0; i < n_up; i++) det_hf.up.set(i);
     for (unsigned i = 0; i < n_dn; i++) det_hf.dn.set(i);
   } else {
