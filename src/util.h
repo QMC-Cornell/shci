@@ -17,8 +17,6 @@ class Util {
 
   static bool str_equals_ci(const std::string& a, const std::string& b);
 
-  static void error_handler(const int sig);
-
   static double avg(const std::vector<double>& vec);
 
   static double stdev(const std::vector<double>& vec);

@@ -2,13 +2,14 @@
 #include <algorithm>
 #include <cmath>
 #include <eigen/Eigen/Dense>
+#include "../config.h"
 
 void Davidson::diagonalize(
     const SparseMatrix& matrix,
     const std::vector<double>& initial_vector,
-    const bool verbose,
-    const bool until_converged) {
-  const double TOLERANCE = until_converged ? 2.0e-7 : 2.0e-6;
+    const double target_error,
+    const bool verbose) {
+  const double TOLERANCE = target_error;
   const size_t N_ITERATIONS_STORE = 5;
 
   const size_t dim = initial_vector.size();
