@@ -2,9 +2,11 @@
 
 #include <fgpl/src/hash_map.h>
 #include <stdio.h>
+#include <math.h>
 #include <eigen/Eigen/Dense>
 #include "../parallel.h"
 #include "../timer.h"
+#include "../util.h"
 
 void RDM::get_1rdm(
     const std::vector<Det>& dets, const std::vector<double>& coefs, const Integrals& integrals) {
@@ -13,7 +15,36 @@ void RDM::get_1rdm(
   //
   // Created: Y. Yao, June 2018
   //=====================================================
+/*
+  double z=1.;
+  std::vector<Det> dets;
+  std::vector<double> coefs;  
 
+  if (time_sym) {
+
+    
+    for (size_t idet=0; idet<dets_in.size(); idet++) {
+      Det this_det = dets_in[idet];
+      double this_coef = coefs_in[idet];
+      
+      dets.push_back(this_det);
+      if (this_det.up == this_det.dn) {
+        coefs.push_back(this_coef);
+      } else {
+        coefs.push_back(this_coef/sqrt(2.));
+        
+        Det new_det;
+        new_det.up = this_det.dn;
+        new_det.dn = this_det.up;
+        dets.push_back(new_det);
+        coefs.push_back(this_coef*z/sqrt(2.));
+      }
+    }
+  } else {
+    dets = dets_in;
+    coefs = coefs_in;
+  }
+*/
   unsigned n_orbs = integrals.n_orbs;
   unsigned n_up = integrals.n_up;
   unsigned n_dn = integrals.n_dn;
@@ -78,6 +109,7 @@ void RDM::get_1rdm(
       }  // r
     }  // i_elec
   }  // idet
+
 }
 
 void RDM::generate_natorb_integrals(const Integrals& integrals) const {
@@ -783,3 +815,4 @@ unsigned RDM::combine4_2rdm(unsigned p, unsigned q, unsigned r, unsigned s, unsi
     return (b * (b + 1)) / 2 + a;
   }
 }
+

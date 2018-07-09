@@ -5,6 +5,7 @@
 #include "integrals.h"
 #include "point_group.h"
 
+
 using namespace Eigen;
 
 class RDM {
@@ -28,4 +29,5 @@ class RDM {
   MatrixXd two_rdm;
 
   unsigned combine4_2rdm(unsigned, unsigned, unsigned, unsigned, unsigned) const;
+
 };

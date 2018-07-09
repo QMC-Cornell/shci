@@ -21,7 +21,9 @@ class HalfDet {
   std::vector<unsigned> get_occupied_orbs() const;
 
   DiffResult diff(const HalfDet& rhs) const;
-
+  
+  unsigned bit_till(unsigned p) const; 
+  
   size_t get_hash_value() const;
 
   void print() const;
