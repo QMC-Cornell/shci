@@ -113,7 +113,7 @@ void Solver<S>::run_all_variations() {
   for (const double eps_var : eps_vars) {
     Timer::start(Util::str_printf("eps_var %#.2e", eps_var));
     const auto& filename = get_wf_filename(eps_var);
-    if (!load_variation_result(filename)) {
+    if (Config::get<bool>("force_var", false) || !load_variation_result(filename)) {
       // Perform extra scheduled eps.
       while (it_schedule != eps_vars_schedule.end() && *it_schedule >= eps_var_prev) it_schedule++;
       while (it_schedule != eps_vars_schedule.end() && *it_schedule > eps_var) {
