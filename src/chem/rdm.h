@@ -2,9 +2,9 @@
 
 #include <eigen/Eigen/Dense>
 #include "../config.h"
+#include "../det/half_det.h"
 #include "integrals.h"
 #include "point_group.h"
-
 
 using namespace Eigen;
 
@@ -30,4 +30,5 @@ class RDM {
 
   unsigned combine4_2rdm(unsigned, unsigned, unsigned, unsigned, unsigned) const;
 
+  int permfac_ccaa(HalfDet halfket, unsigned p, unsigned q, unsigned r, unsigned s) const;
 };

@@ -445,9 +445,9 @@ double ChemSystem::get_two_body_double(const DiffResult& diff_up, const DiffResu
   return energy;
 }
 
-void ChemSystem::post_variation() { 
+void ChemSystem::post_variation() {
   if (time_sym) unpack_time_sym();
-  
+
   if (Config::get<bool>("s2", false)) {
     const double s2 = get_s2();
     Result::put("s2", s2);

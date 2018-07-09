@@ -1,8 +1,8 @@
 #include "rdm.h"
 
 #include <fgpl/src/hash_map.h>
-#include <stdio.h>
 #include <math.h>
+#include <stdio.h>
 #include <eigen/Eigen/Dense>
 #include "../parallel.h"
 #include "../timer.h"
@@ -15,36 +15,7 @@ void RDM::get_1rdm(
   //
   // Created: Y. Yao, June 2018
   //=====================================================
-/*
-  double z=1.;
-  std::vector<Det> dets;
-  std::vector<double> coefs;  
 
-  if (time_sym) {
-
-    
-    for (size_t idet=0; idet<dets_in.size(); idet++) {
-      Det this_det = dets_in[idet];
-      double this_coef = coefs_in[idet];
-      
-      dets.push_back(this_det);
-      if (this_det.up == this_det.dn) {
-        coefs.push_back(this_coef);
-      } else {
-        coefs.push_back(this_coef/sqrt(2.));
-        
-        Det new_det;
-        new_det.up = this_det.dn;
-        new_det.dn = this_det.up;
-        dets.push_back(new_det);
-        coefs.push_back(this_coef*z/sqrt(2.));
-      }
-    }
-  } else {
-    dets = dets_in;
-    coefs = coefs_in;
-  }
-*/
   unsigned n_orbs = integrals.n_orbs;
   unsigned n_up = integrals.n_up;
   unsigned n_dn = integrals.n_dn;
@@ -109,7 +80,6 @@ void RDM::get_1rdm(
       }  // r
     }  // i_elec
   }  // idet
-
 }
 
 void RDM::generate_natorb_integrals(const Integrals& integrals) const {
@@ -677,7 +647,7 @@ void RDM::get_2rdm(
 
             if (det2coef.count(new_det) == 1) {
               double coef = det2coef[new_det];
-              double element = this_coef * coef * this_det.up.diff(new_det.up).permutation_factor;
+              double element = this_coef * coef * permfac_ccaa(this_det.up, p, q, r, s);
 
 #pragma omp atomic
               two_rdm[combine4_2rdm(p, q, r, s, n_orbs)] += element;
@@ -712,7 +682,7 @@ void RDM::get_2rdm(
 
             if (det2coef.count(new_det) == 1) {
               double coef = det2coef[new_det];
-              double element = this_coef * coef * this_det.dn.diff(new_det.dn).permutation_factor;
+              double element = this_coef * coef * permfac_ccaa(this_det.dn, p, q, r, s);
 
 #pragma omp atomic
               two_rdm[combine4_2rdm(p, q, r, s, n_orbs)] += element;
@@ -753,8 +723,8 @@ void RDM::get_2rdm(
 #pragma omp atomic
               two_rdm[combine4_2rdm(p, q, r, s, n_orbs)] += element;
               if (p == q && s == r) {
-#pragma omp atomic              
-                two_rdm[combine4_2rdm(q, p, s, r, n_orbs)] += element;                
+#pragma omp atomic
+                two_rdm[combine4_2rdm(q, p, s, r, n_orbs)] += element;
               }
               // this line needed as a result of storing only half of 2RDM, (p,s) = (q,r)
             }
@@ -768,19 +738,7 @@ void RDM::get_2rdm(
     }  // i_elec
 
   }  // idet
-  /*
-  std::cout<<"before print\n";
-  for (unsigned p =0; p<n_orbs; p++) {
-    for (unsigned q=0; q<n_orbs; q++) {
-      for (unsigned s=0; s<n_orbs; s++) {
-        for (unsigned r=0; r<n_orbs; r++) {
-  if (std::abs(two_rdm[combine4_2rdm(p,q,r,s,n_orbs)]) > 1.e-6)
-  std::cout<<p<<"\t"<<q<<"\t"<<s<<"\t"<<r<<"\t"<<two_rdm[combine4_2rdm(p,q,r,s,n_orbs)]<<"\n";
-        } //r
-      } //s
-    }  //q
-  } // p
-  */
+
   std::cout << "writing out 2RDM\n";
 
   FILE* pFile;
@@ -816,3 +774,30 @@ unsigned RDM::combine4_2rdm(unsigned p, unsigned q, unsigned r, unsigned s, unsi
   }
 }
 
+int RDM::permfac_ccaa(HalfDet halfket, unsigned p, unsigned q, unsigned r, unsigned s) const {
+  // calculate the permutation factor of
+  // c^dag_p c^dag_q c_r c_s |halfket>
+
+  unsigned counter = 0;
+
+  // annihilation operators
+  std::vector<unsigned> orbs_a{s, r};
+  for (unsigned iorb = 0; iorb < 2; iorb++) {
+    unsigned orb = orbs_a[iorb];
+    counter += halfket.bit_till(orb);
+    halfket.unset(orb);
+  }
+
+  // creation operators
+  std::vector<unsigned> orbs_c{q, p};
+  for (unsigned iorb = 0; iorb < 2; iorb++) {
+    unsigned orb = orbs_c[iorb];
+    counter += halfket.bit_till(orb);
+    halfket.set(orb);
+  }
+
+  if (counter % 2 == 0)
+    return 1;
+  else
+    return -1;
+}
