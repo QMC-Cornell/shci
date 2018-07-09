@@ -5,7 +5,7 @@
 ## Compilation
 Make sure you have installed MPI.
 ```
-git clone https://github.com/jl2922/shci
+git clone --recursive https://github.com/jl2922/shci
 cd shci
 make -j
 ```
