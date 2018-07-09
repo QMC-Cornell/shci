@@ -47,7 +47,7 @@ double Util::dot_omp(const std::vector<double>& a, const std::vector<double>& b)
   double sum = 0.0;
   const size_t n = a.size();
   const int n_threads = omp_get_max_threads();
-#ifdef __INTEL_COMPILER
+#ifdef CRAY_KNIGHTS_LANDING
   const size_t n_per_thread = n / n_threads + 1;
 #pragma omp parallel
 {
