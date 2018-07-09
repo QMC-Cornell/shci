@@ -115,6 +115,20 @@ DiffResult HalfDet::diff(const HalfDet& rhs) const {
   return res;
 }
 
+unsigned HalfDet::bit_till(unsigned p) const {
+  // count the total number of set orbitals below orbital p
+
+  unsigned counter = 0;
+  const auto which_chunk = p >> 6;  // orb / 64;
+
+  for (unsigned chunk_id = 0; chunk_id < which_chunk; chunk_id++) {
+    counter += Util::popcnt(chunks[chunk_id]);
+  }
+  counter += Util::popcnt(((1ull << (p & 63)) - 1ull) & chunks[which_chunk]);
+
+  return counter;
+}
+
 bool operator==(const HalfDet& a, const HalfDet& b) {
   for (int chunk_id = 0; chunk_id < N_CHUNKS; chunk_id++) {
     if (a.chunks[chunk_id] != b.chunks[chunk_id]) return false;

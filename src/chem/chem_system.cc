@@ -446,12 +446,22 @@ double ChemSystem::get_two_body_double(const DiffResult& diff_up, const DiffResu
 }
 
 void ChemSystem::post_variation() {
+  bool unpacked = false;
+
   if (Config::get<bool>("s2", false)) {
+    if (time_sym && !unpacked) {
+      unpack_time_sym();
+      unpacked = true;
+    }
     const double s2 = get_s2();
     Result::put("s2", s2);
   }
 
   if (Config::get<bool>("natorb", false)) {
+    if (time_sym && !unpacked) {
+      unpack_time_sym();
+      unpacked = true;
+    }
     RDM rdm;
     rdm.get_1rdm(dets, coefs, integrals);
     Timer::checkpoint("get 1rdm");
@@ -460,6 +470,17 @@ void ChemSystem::post_variation() {
     Timer::checkpoint("generate natorb integrals");
 
     exit(0);
+  }
+
+  if (Config::get<bool>("2rdm", false)) {
+    if (time_sym && !unpacked) {
+      unpack_time_sym();
+      unpacked = true;
+    }
+    RDM rdm;
+    Timer::start("get_2rdm");
+    rdm.get_2rdm(dets, coefs, integrals);
+    Timer::end();
   }
 }
 
