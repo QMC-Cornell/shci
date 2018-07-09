@@ -179,8 +179,9 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
             double eps_min = eps_var / std::abs(coef);
             if (system.time_sym && det.up != det.dn) eps_min *= Util::SQRT2;
             if (eps_min >= eps_tried_prev[i] * 0.99) return;
+            Det connected_det_reg;
             const auto& connected_det_handler = [&](const Det& connected_det, const int n_excite) {
-              Det connected_det_reg = connected_det;
+              connected_det_reg = connected_det;
               if (system.time_sym && connected_det.up > connected_det.dn) {
                 connected_det_reg.reverse_spin();
               }
@@ -240,7 +241,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
     iteration++;
   }
   system.energy_var = energy_var_prev;
-  if (Parallel::is_master()) {
+  if (Parallel::is_master() && until_converged) {
     printf("Final iteration %zu ", var_iteration_global);
     printf("eps1= %#.2e ndets= %'zu energy= %.8f\n", eps_var, n_dets, system.energy_var);
   }
