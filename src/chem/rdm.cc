@@ -739,7 +739,6 @@ void RDM::get_2rdm(
 
   }  // idet
 
-
   std::cout << "writing out 2RDM\n";
 
   FILE* pFile;
@@ -815,36 +814,39 @@ void RDM::ComputeEnergyfromRDM(const Integrals& integrals) const {
   unsigned n_orbs = integrals.n_orbs;
   unsigned n_up = integrals.n_up;
   unsigned n_dn = integrals.n_dn;
-  
-  MatrixXd tmp_1rdm = MatrixXd::Zero(n_orbs,n_orbs);
-  
-  for (unsigned p = 0; p<n_orbs; p++) {
-    for (unsigned s = 0; s<n_orbs; s++) {
-      for (unsigned k=0; k<n_orbs; k++) {
-	  tmp_1rdm(p,s) += two_rdm[combine4_2rdm(p,k,k,s,n_orbs)]/(1.*(n_up+n_dn) - 1.);
+
+  MatrixXd tmp_1rdm = MatrixXd::Zero(n_orbs, n_orbs);
+
+  for (unsigned p = 0; p < n_orbs; p++) {
+    for (unsigned s = 0; s < n_orbs; s++) {
+      for (unsigned k = 0; k < n_orbs; k++) {
+        tmp_1rdm(p, s) += two_rdm[combine4_2rdm(p, k, k, s, n_orbs)] / (1. * (n_up + n_dn) - 1.);
       }
     }
   }
 
-  //std::cout<< "tmp_1rdm\n"<<tmp_1rdm<<"\n";
-  
-  double onebody =0., twobody= 0.;
-  
-  for (unsigned p = 0; p<n_orbs; p++) {
-    for (unsigned q = 0; q<n_orbs; q++) {
-      onebody += tmp_1rdm(p,q)*integrals.get_1b(p,q);
+  // std::cout<< "tmp_1rdm\n"<<tmp_1rdm<<"\n";
+
+  double onebody = 0., twobody = 0.;
+
+  for (unsigned p = 0; p < n_orbs; p++) {
+    for (unsigned q = 0; q < n_orbs; q++) {
+      onebody += tmp_1rdm(p, q) * integrals.get_1b(p, q);
     }
   }
-  
-  for (unsigned p = 0; p<n_orbs; p++) {
-    for (unsigned q = 0; q<n_orbs; q++) {
-      for (unsigned r = 0; r< n_orbs; r++) {
-        for (unsigned s = 0; s<n_orbs; s++) {
-          twobody += 0.5 * two_rdm[combine4_2rdm(p, q, r, s, n_orbs)]*integrals.get_2b(p,s,q,r);        
+
+  for (unsigned p = 0; p < n_orbs; p++) {
+    for (unsigned q = 0; q < n_orbs; q++) {
+      for (unsigned r = 0; r < n_orbs; r++) {
+        for (unsigned s = 0; s < n_orbs; s++) {
+          twobody +=
+              0.5 * two_rdm[combine4_2rdm(p, q, r, s, n_orbs)] * integrals.get_2b(p, s, q, r);
         }
       }
     }
   }
-  
-  std::cout<<"core energy: "<<integrals.energy_core<<"\none-body energy: "<<onebody<<"\ntwo-body energy: "<<twobody<<"\ntotal-energy: "<<onebody+twobody+integrals.energy_core<<"\n";
+
+  std::cout << "core energy: " << integrals.energy_core << "\none-body energy: " << onebody
+            << "\ntwo-body energy: " << twobody
+            << "\ntotal-energy: " << onebody + twobody + integrals.energy_core << "\n";
 }
