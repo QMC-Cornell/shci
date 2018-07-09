@@ -18,7 +18,7 @@ cp config.json.example config.json
 mpirun -n 1 ./shci
 ```
 To run other systems, you will have to obtain an `FCIDUMP` file and modify the values in `config.json` accordingly.
-Many software packages can generate `FCIDUMP`, such as `PySCF` and `Molpro`.
+Many software packages can generate `FCIDUMP`, such as [`PySCF`](https://github.com/sunqm/pyscf) and [`Molpro`](https://www.molpro.net/).
 
 ## Configurations
 ### General
