@@ -113,7 +113,7 @@ void Solver<S>::run_all_variations() {
   for (const double eps_var : eps_vars) {
     Timer::start(Util::str_printf("eps_var %#.2e", eps_var));
     const auto& filename = get_wf_filename(eps_var);
-    if (!load_variation_result(filename)) {
+    if (Config::get<bool>("force_var", false) || !load_variation_result(filename)) {
       // Perform extra scheduled eps.
       while (it_schedule != eps_vars_schedule.end() && *it_schedule >= eps_var_prev) it_schedule++;
       while (it_schedule != eps_vars_schedule.end() && *it_schedule > eps_var) {
@@ -172,27 +172,30 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
 
     // Random execution and broadcast.
     if (!dets_converged) {
-      fgpl::DistRange<size_t>(0, n_dets).for_each([&](const size_t i) {
-        const auto& det = system.dets[i];
-        const double coef = system.coefs[i];
-        double eps_min = eps_var / std::abs(coef);
-        if (system.time_sym && det.up != det.dn) eps_min *= Util::SQRT2;
-        if (eps_min >= eps_tried_prev[i] * 0.99) return;
-        const auto& connected_det_handler = [&](const Det& connected_det, const int n_excite) {
-          Det connected_det_reg = connected_det;
-          if (system.time_sym && connected_det.up > connected_det.dn) {
-            connected_det_reg.reverse_spin();
-          }
-          if (var_dets.has(connected_det_reg)) return;
-          if (n_excite == 1) {
-            const double h_ai = system.get_hamiltonian_elem(det, connected_det, 1);
-            if (std::abs(h_ai) < eps_min) return;  // Filter out small single excitation.
-          }
-          dist_new_dets.async_set(connected_det_reg);
-        };
-        system.find_connected_dets(det, eps_tried_prev[i], eps_min, connected_det_handler);
-        eps_tried_prev[i] = eps_min;
-      });
+      fgpl::DistRange<size_t>(0, n_dets).for_each(
+          [&](const size_t i) {
+            const auto& det = system.dets[i];
+            const double coef = system.coefs[i];
+            double eps_min = eps_var / std::abs(coef);
+            if (system.time_sym && det.up != det.dn) eps_min *= Util::SQRT2;
+            if (eps_min >= eps_tried_prev[i] * 0.99) return;
+            Det connected_det_reg;
+            const auto& connected_det_handler = [&](const Det& connected_det, const int n_excite) {
+              connected_det_reg = connected_det;
+              if (system.time_sym && connected_det.up > connected_det.dn) {
+                connected_det_reg.reverse_spin();
+              }
+              if (var_dets.has(connected_det_reg)) return;
+              if (n_excite == 1) {
+                const double h_ai = system.get_hamiltonian_elem(det, connected_det, 1);
+                if (std::abs(h_ai) < eps_min) return;  // Filter out small single excitation.
+              }
+              dist_new_dets.async_set(connected_det_reg);
+            };
+            system.find_connected_dets(det, eps_tried_prev[i], eps_min, connected_det_handler);
+            eps_tried_prev[i] = eps_min;
+          },
+          Parallel::is_master());
 
       dist_new_dets.sync();
       n_dets_new = n_dets + dist_new_dets.get_n_keys();
@@ -238,7 +241,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
     iteration++;
   }
   system.energy_var = energy_var_prev;
-  if (Parallel::is_master()) {
+  if (Parallel::is_master() && until_converged) {
     printf("Final iteration %zu ", var_iteration_global);
     printf("eps1= %#.2e ndets= %'zu energy= %.8f\n", eps_var, n_dets, system.energy_var);
   }
@@ -247,9 +250,9 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
 template <class S>
 void Solver<S>::run_perturbation(const double eps_var) {
   // If result already exists, return.
-  eps_pt = Config::get<double>("eps_pt", eps_var / 1000);
-  eps_pt_psto = Config::get<double>("eps_pt_psto", eps_var / 100);
-  eps_pt_dtm = Config::get<double>("eps_pt_dtm", eps_var / 10);
+  eps_pt = Config::get<double>("eps_pt", eps_var / 5000);
+  eps_pt_psto = Config::get<double>("eps_pt_psto", eps_var / 500);
+  eps_pt_dtm = Config::get<double>("eps_pt_dtm", eps_var / 50);
 
   const auto& value_entry = Util::str_printf("energy_total/%#.2e/%#.2e/value", eps_var, eps_pt);
   const auto& uncert_entry = Util::str_printf("energy_total/%#.2e/%#.2e/uncert", eps_var, eps_pt);
@@ -750,6 +753,19 @@ bool Solver<S>::load_variation_result(const std::string& filename) {
   hps::from_string(serialized, system);
   if (Parallel::is_master()) {
     printf("Loaded %'zu dets from: %s\n", system.get_n_dets(), filename.c_str());
+    if (system.time_sym) {
+      size_t n_eff_dets = 0;
+      for (const auto& det : system.dets) {
+        if (det.up == det.dn) {
+          n_eff_dets += 1;
+        } else if (det.up < det.dn) {
+          n_eff_dets += 2;
+        } else {
+          throw std::runtime_error("wf has unvalid det for time sym");
+        }
+      }
+      printf("Effect dets (without time sym): %'zu\n", n_eff_dets);
+    }
     printf("HF energy: " ENERGY_FORMAT "\n", system.energy_hf);
     printf("Variation energy: " ENERGY_FORMAT "\n", system.energy_var);
   }

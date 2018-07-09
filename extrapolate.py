@@ -10,6 +10,8 @@ import statsmodels.formula.api as smf
 # Parse arguments
 parser = argparse.ArgumentParser()
 parser.add_argument('--result_file', default='result.json')
+parser.add_argument('--save_figure', type=bool, default=True)
+parser.add_argument('--show_figure', type=bool, default=True)
 args = parser.parse_args()
 
 # Read JSON
@@ -42,14 +44,22 @@ def model_aug(x):
 x = np.array(x)
 y = np.array(y)
 x_aug = model_aug(x)
-fit = sm.OLS(y, x_aug).fit()
+weights = 1.0 / x**2
+fit = sm.WLS(y, x_aug, weights).fit()
 print(fit.summary())
 alpha = 0.05
 predict = fit.get_prediction(np.array([1.0, 0.0, 0.0])).summary_frame(alpha=alpha)
-print(predict)
 predict = predict.iloc[0]
-ci = predict['mean_ci_upper'] - predict['mean']
-print('(%.2f Conf.) Extrapolated Energy: %.10f +- %.10f' % ((1.0 - alpha, fit.params[0], ci)))
+energy = fit.params[0]
+uncert = predict['mean_ci_upper'] - predict['mean']
+print('(%.2f Conf.) Extrapolated Energy: %.10f +- %.10f' % ((1.0 - alpha, fit.params[0], uncert)))
+result['energy_total']['extrapolated'] = {
+    'value': energy,
+    'uncert': uncert
+}
+with open(args.result_file, 'w') as result_file:
+    json.dump(result, result_file, indent=2)
+
 
 # Plot
 x_fit = np.linspace(0, np.max(x * 1.2), 50)
@@ -61,10 +71,13 @@ plt.plot(x, y, marker='o', ls='')
 plt.plot(x_fit, y_fit, color='grey', ls='--', zorder=0.1)
 plt.xlabel('$E_{var} - E_{tot}$ (Ha)')
 plt.ylabel('$E_{tot}$ (Ha)')
-plt.title('Quadratic Extrapolation')
+plt.title('Weighted Quadratic Extrapolation')
 plt.xlim(0)
 ax = plt.gca()
 ax.ticklabel_format(useOffset=False)
 plt.tight_layout()
 plt.grid(True, ls=':')
-plt.show()
+if args.save_figure:
+    plt.savefig('extrapolate.eps')
+if args.show_figure:
+    plt.show()
