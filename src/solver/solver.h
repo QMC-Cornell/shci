@@ -192,7 +192,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
         };
         system.find_connected_dets(det, eps_tried_prev[i], eps_min, connected_det_handler);
         eps_tried_prev[i] = eps_min;
-      });
+      }, Parallel::is_master());
 
       dist_new_dets.sync();
       n_dets_new = n_dets + dist_new_dets.get_n_keys();
