@@ -614,7 +614,7 @@ void RDM::get_2rdm(
   unsigned n_dn = integrals.n_dn;
   std::vector<unsigned int> orb_sym = integrals.orb_sym;
 
-  std::vector<double> two_rdm(n_orbs * n_orbs * (n_orbs * n_orbs + 1) / 2);
+  two_rdm.resize((n_orbs * n_orbs * (n_orbs * n_orbs + 1) / 2), 0.);
 
   // Create hash table; used for looking up the coef of a det
   std::unordered_map<Det, double, DetHasher> det2coef;
@@ -739,6 +739,7 @@ void RDM::get_2rdm(
 
   }  // idet
 
+
   std::cout << "writing out 2RDM\n";
 
   FILE* pFile;
@@ -800,4 +801,50 @@ int RDM::permfac_ccaa(HalfDet halfket, unsigned p, unsigned q, unsigned r, unsig
     return 1;
   else
     return -1;
+}
+
+void RDM::ComputeEnergyfromRDM(const Integrals& integrals) const {
+  //=====================================================
+  // Reproduce variational energy from 2RDM.
+  // Currently not used in the program;
+  // Useful tool for verifying the 2RDM.
+  //
+  // Created: Y. Yao, July 2018
+  //=====================================================
+
+  unsigned n_orbs = integrals.n_orbs;
+  unsigned n_up = integrals.n_up;
+  unsigned n_dn = integrals.n_dn;
+  
+  MatrixXd tmp_1rdm = MatrixXd::Zero(n_orbs,n_orbs);
+  
+  for (unsigned p = 0; p<n_orbs; p++) {
+    for (unsigned s = 0; s<n_orbs; s++) {
+      for (unsigned k=0; k<n_orbs; k++) {
+	  tmp_1rdm(p,s) += two_rdm[combine4_2rdm(p,k,k,s,n_orbs)]/(1.*(n_up+n_dn) - 1.);
+      }
+    }
+  }
+
+  //std::cout<< "tmp_1rdm\n"<<tmp_1rdm<<"\n";
+  
+  double onebody =0., twobody= 0.;
+  
+  for (unsigned p = 0; p<n_orbs; p++) {
+    for (unsigned q = 0; q<n_orbs; q++) {
+      onebody += tmp_1rdm(p,q)*integrals.get_1b(p,q);
+    }
+  }
+  
+  for (unsigned p = 0; p<n_orbs; p++) {
+    for (unsigned q = 0; q<n_orbs; q++) {
+      for (unsigned r = 0; r< n_orbs; r++) {
+        for (unsigned s = 0; s<n_orbs; s++) {
+          twobody += 0.5 * two_rdm[combine4_2rdm(p, q, r, s, n_orbs)]*integrals.get_2b(p,s,q,r);        
+        }
+      }
+    }
+  }
+  
+  std::cout<<"core energy: "<<integrals.energy_core<<"\none-body energy: "<<onebody<<"\ntwo-body energy: "<<twobody<<"\ntotal-energy: "<<onebody+twobody+integrals.energy_core<<"\n";
 }

@@ -26,9 +26,11 @@ class RDM {
  private:
   MatrixXd one_rdm;
 
-  MatrixXd two_rdm;
+  std::vector<double> two_rdm;
 
   unsigned combine4_2rdm(unsigned, unsigned, unsigned, unsigned, unsigned) const;
 
   int permfac_ccaa(HalfDet halfket, unsigned p, unsigned q, unsigned r, unsigned s) const;
+  
+  void ComputeEnergyfromRDM(const Integrals& integrals) const ;
 };
