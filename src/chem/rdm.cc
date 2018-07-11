@@ -745,11 +745,30 @@ void RDM::get_2rdm(
   pFile = fopen("spatialRDM.txt", "w");
 
   fprintf(pFile, "%d\n", n_orbs);
+//  for (unsigned p = 0; p < n_orbs; p++) {
+//    for (unsigned q = 0; q < n_orbs; q++) {
+//      for (unsigned s = 0; s < n_orbs; s++) {
+//        for (unsigned r = 0; r < n_orbs; r++) {
+//          if (std::abs(two_rdm[combine4_2rdm(p, q, r, s, n_orbs)]) > 1.e-6)
+//            fprintf(
+//                pFile,
+//                "%3d   %3d   %3d   %3d   %10.8g\n",
+//                integrals.orb_order[p],
+//                integrals.orb_order[q],
+//                integrals.orb_order[s],
+//                integrals.orb_order[r],
+//                two_rdm[combine4_2rdm(p, q, r, s, n_orbs)]);
+//        }  // r
+//      }  // s
+//    }  // q
+//  }  // p
+
+
   for (unsigned p = 0; p < n_orbs; p++) {
     for (unsigned q = 0; q < n_orbs; q++) {
       for (unsigned s = 0; s < n_orbs; s++) {
         for (unsigned r = 0; r < n_orbs; r++) {
-          if (std::abs(two_rdm[combine4_2rdm(p, q, r, s, n_orbs)]) > 1.e-6)
+          if (std::abs(two_rdm[combine4_2rdm(integrals.orb_order_inv[p], integrals.orb_order_inv[q], integrals.orb_order_inv[r], integrals.orb_order_inv[s], n_orbs)]) > 1.e-6)
             fprintf(
                 pFile,
                 "%3d   %3d   %3d   %3d   %10.8g\n",
@@ -757,7 +776,7 @@ void RDM::get_2rdm(
                 q,
                 s,
                 r,
-                two_rdm[combine4_2rdm(p, q, r, s, n_orbs)]);
+                two_rdm[combine4_2rdm(integrals.orb_order_inv[p], integrals.orb_order_inv[q], integrals.orb_order_inv[r], integrals.orb_order_inv[s], n_orbs)]);
         }  // r
       }  // s
     }  // q
@@ -775,7 +794,7 @@ unsigned RDM::combine4_2rdm(unsigned p, unsigned q, unsigned r, unsigned s, unsi
 }
 
 int RDM::permfac_ccaa(HalfDet halfket, unsigned p, unsigned q, unsigned r, unsigned s) const {
-  // calculate the permutation factor of
+  // Calculate the permutation factor of
   // c^dag_p c^dag_q c_r c_s |halfket>
 
   unsigned counter = 0;
