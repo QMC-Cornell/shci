@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 #include "det/det.h"
+#include "util.h"
 
 class BaseSystem {
  public:
@@ -14,6 +15,8 @@ class BaseSystem {
   unsigned n_dn;
 
   unsigned n_elecs;
+
+  bool time_sym;
 
   double energy_hf;
 
@@ -43,6 +46,38 @@ class BaseSystem {
   virtual void post_variation(){};
 
   virtual void post_perturbation(){};
+
+  double get_hamiltonian_elem_time_sym(
+      const Det& det_i, const Det& det_j, const int n_excite) const {
+    double h = get_hamiltonian_elem(det_i, det_j, n_excite);
+    if (det_i.up == det_i.dn) {
+      if (det_j.up != det_j.dn) h *= Util::SQRT2;
+    } else {
+      if (det_j.up == det_j.dn) {
+        h *= Util::SQRT2;
+      } else {
+        Det det_i_rev = det_i;
+        det_i_rev.reverse_spin();
+        h += get_hamiltonian_elem(det_i_rev, det_j, -1);
+      }
+    }
+    return h;
+  }
+
+  void unpack_time_sym() {
+    const size_t n_dets_old = get_n_dets();
+    for (size_t i = 0; i < n_dets_old; i++) {
+      const auto& det = dets[i];
+      if (det.up < det.dn) {
+        Det det_rev = det;
+        det_rev.reverse_spin();
+        const double coef_new = coefs[i] * Util::SQRT2_INV;
+        coefs[i] = coef_new;
+        dets.push_back(det_rev);
+        coefs.push_back(coef_new);
+      }
+    }
+  }
 
   template <class B>
   void serialize(B& buf) const {

@@ -4,6 +4,7 @@
 #include <functional>
 #include <iostream>
 #include <json/single_include/nlohmann/json.hpp>
+#include "parallel.h"
 
 class Result {
  public:
@@ -12,9 +13,23 @@ class Result {
     return instance;
   }
 
+  static void init() {
+    auto& instance = get_instance();
+    std::ifstream result_file("result.json");
+    if (result_file) {
+      result_file >> instance.data;
+    }
+    instance.data["config"] = Config::get_instance().data;
+    result_file.close();
+    Parallel::barrier();
+    dump();
+  }
+
   static void dump() {
+    if (!Parallel::is_master()) return;
+    const auto& instance = get_instance();
     std::ofstream result_file("result.json");
-    result_file << get_instance().data.dump(2) << std::endl;
+    result_file << instance.data.dump(2) << std::endl;
   }
 
   template <class T>
@@ -54,16 +69,11 @@ class Result {
       }
     }
     node_ref.get() = value;
+    dump();
   }
 
  private:
-  Result() {
-    std::ifstream result_file("result.json");
-    if (result_file) {
-      result_file >> data;
-    }
-    data["config"] = Config::get_instance().data;
-  }
+  Result() {}
 
   nlohmann::json data;
 };

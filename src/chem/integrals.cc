@@ -9,16 +9,19 @@
 #include <string>
 #include "../config.h"
 #include "../parallel.h"
+#include "../timer.h"
 #include "../util.h"
 #include "dooh_util.h"
 
 void Integrals::load() {
   const std::string& cache_filename = "integrals_cache.dat";
-  if (load_from_cache(cache_filename)) return;
+  if (Config::get<bool>("load_integrals_cache", false) && load_from_cache(cache_filename)) return;
   read_fcidump();
+  Timer::checkpoint("load fcidump");
   generate_det_hf();
   const auto& orb_energies = get_orb_energies();
   reorder_orbs(orb_energies);
+  Timer::checkpoint("reorder orbitals");
   save_to_cache(cache_filename);
 }
 
@@ -29,7 +32,7 @@ void Integrals::read_fcidump() {
   }
 
   // Read head.
-  std::regex words("([^\\s,=]+)");
+  std::regex words("([\\-]?[^\\s,=\\-]+)");
   std::string line;
   enum class State { NONE, ORBSYM, END };
   State state = State::NONE;
@@ -135,38 +138,46 @@ std::vector<unsigned> Integrals::get_adams_syms(const std::vector<int>& orb_syms
 }
 
 void Integrals::generate_det_hf() {
-  std::vector<unsigned> irreps = Config::get<std::vector<unsigned>>("chem/irreps");
-  std::vector<unsigned> irrep_occs_up = Config::get<std::vector<unsigned>>("chem/irrep_occs_up");
-  std::vector<unsigned> irrep_occs_dn = Config::get<std::vector<unsigned>>("chem/irrep_occs_dn");
+  det_hf = Det();
   n_up = Config::get<unsigned>("n_up");
   n_dn = Config::get<unsigned>("n_dn");
-  assert(std::accumulate(irrep_occs_up.begin(), irrep_occs_up.end(), 0u) == n_up);
-  assert(std::accumulate(irrep_occs_dn.begin(), irrep_occs_dn.end(), 0u) == n_dn);
   assert(n_up + n_dn == n_elecs);
-  det_hf = Det();
-  const unsigned n_irreps = irreps.size();
-  for (unsigned i = 0; i < n_irreps; i++) {
-    const unsigned irrep = irreps[i];
-    unsigned irrep_occ_up = irrep_occs_up[i];
-    unsigned irrep_occ_dn = irrep_occs_dn[i];
-    for (unsigned j = 0; j < n_orbs; j++) {
-      if (orb_sym[j] != irrep) continue;
-      if (irrep_occ_up > 0) {
-        det_hf.up.set(j);
-        irrep_occ_up--;
-      } else {
-        det_hf.up.unset(j);
+  std::vector<unsigned> irreps =
+      Config::get<std::vector<unsigned>>("chem/irreps", std::vector<unsigned>());
+  if (irreps.size() == 0) {
+    // Fill lowest.
+    for (unsigned i = 0; i < n_up; i++) det_hf.up.set(i);
+    for (unsigned i = 0; i < n_dn; i++) det_hf.dn.set(i);
+  } else {
+    // Fill according to irreps.
+    std::vector<unsigned> irrep_occs_up = Config::get<std::vector<unsigned>>("chem/irrep_occs_up");
+    std::vector<unsigned> irrep_occs_dn = Config::get<std::vector<unsigned>>("chem/irrep_occs_dn");
+    assert(std::accumulate(irrep_occs_up.begin(), irrep_occs_up.end(), 0u) == n_up);
+    assert(std::accumulate(irrep_occs_dn.begin(), irrep_occs_dn.end(), 0u) == n_dn);
+    const unsigned n_irreps = irreps.size();
+    for (unsigned i = 0; i < n_irreps; i++) {
+      const unsigned irrep = irreps[i];
+      unsigned irrep_occ_up = irrep_occs_up[i];
+      unsigned irrep_occ_dn = irrep_occs_dn[i];
+      for (unsigned j = 0; j < n_orbs; j++) {
+        if (orb_sym[j] != irrep) continue;
+        if (irrep_occ_up > 0) {
+          det_hf.up.set(j);
+          irrep_occ_up--;
+        } else {
+          det_hf.up.unset(j);
+        }
+        if (irrep_occ_dn > 0) {
+          det_hf.dn.set(j);
+          irrep_occ_dn--;
+        } else {
+          det_hf.dn.unset(j);
+        }
+        if (irrep_occ_up == 0 && irrep_occ_dn == 0 && j >= n_up && j >= n_dn) break;
       }
-      if (irrep_occ_dn > 0) {
-        det_hf.dn.set(j);
-        irrep_occ_dn--;
-      } else {
-        det_hf.dn.unset(j);
+      if (irrep_occ_up > 0 || irrep_occ_dn > 0) {
+        throw std::runtime_error("unable to construct hf with given irrep");
       }
-      if (irrep_occ_up == 0 && irrep_occ_dn == 0 && j >= n_up && j >= n_dn) break;
-    }
-    if (irrep_occ_up > 0 || irrep_occ_dn > 0) {
-      throw std::runtime_error("unable to construct hf with given irrep");
     }
   }
   if (Parallel::is_master()) {
@@ -208,12 +219,12 @@ std::vector<double> Integrals::get_orb_energies() const {
 }
 
 void Integrals::reorder_orbs(const std::vector<double>& orb_energies) {
-  std::vector<unsigned> orb_order(n_orbs);
+  orb_order.resize(n_orbs);
+  orb_order_inv.resize(n_orbs);
   std::iota(orb_order.begin(), orb_order.end(), 0);
   std::stable_sort(orb_order.begin(), orb_order.end(), [&](const unsigned a, const unsigned b) {
     return orb_energies[a] < orb_energies[b] - Util::EPS;
   });
-  std::vector<unsigned> orb_order_inv(n_orbs);
 
   // Reorder orb_sym.
   std::vector<unsigned> orb_syms_new(n_orbs);

@@ -28,10 +28,6 @@ class ChemSystem : public BaseSystem {
  private:
   unsigned n_orbs;
 
-  bool time_sym;
-
-  int z;  // reflection (parity).
-
   std::vector<unsigned> orb_sym;
 
   double max_hci_queue_elem;
@@ -64,6 +60,7 @@ class ChemSystem : public BaseSystem {
       const Det& det_i, const DiffResult& diff_up, const DiffResult& diff_dn) const;
 
   double get_two_body_double(const DiffResult& diff_up, const DiffResult& diff_dn) const;
-  
+
   double get_s2() const;
+
 };

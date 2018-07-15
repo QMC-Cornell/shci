@@ -3,11 +3,13 @@
 #include <fgpl/src/concurrent_hash_map.h>
 #include <cfloat>
 #include <cmath>
+#include <cstdio>
 #include "../parallel.h"
 #include "../result.h"
 #include "../timer.h"
 #include "../util.h"
 #include "dooh_util.h"
+#include "rdm.h"
 
 void ChemSystem::setup() {
   n_up = Config::get<unsigned>("n_up");
@@ -17,6 +19,7 @@ void ChemSystem::setup() {
 
   point_group = get_point_group(Config::get<std::string>("chem/point_group"));
   product_table.set_point_group(point_group);
+  time_sym = Config::get<bool>("time_sym", false);
 
   Timer::start("load integrals");
   integrals.load();
@@ -443,13 +446,52 @@ double ChemSystem::get_two_body_double(const DiffResult& diff_up, const DiffResu
 }
 
 void ChemSystem::post_variation() {
-  Timer::start("post variation");
-  const double s2 = get_s2();
-  Result::put("s2", s2);
-  Timer::end();
+  bool unpacked = false;
+
+  if (Config::get<bool>("s2", false)) {
+    if (time_sym && !unpacked) {
+      unpack_time_sym();
+      unpacked = true;
+    }
+    const double s2 = get_s2();
+    Result::put("s2", s2);
+  }
+
+  if (Config::get<bool>("natorb", false)) {
+    if (time_sym && !unpacked) {
+      unpack_time_sym();
+      unpacked = true;
+    }
+    RDM rdm;
+    rdm.get_1rdm(dets, coefs, integrals);
+    Timer::checkpoint("get 1rdm");
+
+    rdm.generate_natorb_integrals(integrals);
+    Timer::checkpoint("generate natorb integrals");
+
+    exit(0);
+  }
+
+  if (Config::get<bool>("2rdm", false)) {
+    if (time_sym && !unpacked) {
+      unpack_time_sym();
+      unpacked = true;
+    }
+    RDM rdm;
+    Timer::start("get_2rdm");
+    rdm.get_2rdm(dets, coefs, integrals);
+    Timer::end();
+  }
 }
 
+//======================================================
 double ChemSystem::get_s2() const {
+  // Calculates <S^2> of the variation wf.
+  // s^2 = n_up -n_doub - 1/2*(n_up-n_dn) + 1/4*(n_up - n_dn)^2
+  //  - sum_{p != q} c_{q,dn}^{+} c_{p,dn} c_{p,up}^{+} c_{q,up}
+  //
+  // Created: Y. Yao, May 2018
+  //======================================================
   double s2 = 0.;
 
   // Create hash table; used for looking up the coef of a det

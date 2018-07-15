@@ -2,12 +2,13 @@
 /build
 /local.mk
 /shci
-/shci_test
+/shci_*
 /local.mk
 
 # Runtime files.
 /run
-FCIDUMP
+FCIDUMP*
+!FCIDUMP.example
 *.json
 *.dat
 i_*

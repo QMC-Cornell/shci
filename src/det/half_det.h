@@ -22,6 +22,8 @@ class HalfDet {
 
   DiffResult diff(const HalfDet& rhs) const;
 
+  unsigned bit_till(unsigned p) const;
+
   size_t get_hash_value() const;
 
   void print() const;
