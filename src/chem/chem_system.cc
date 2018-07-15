@@ -131,7 +131,7 @@ PointGroup ChemSystem::get_point_group(const std::string& str) const {
   } else if (Util::str_equals_ci("Dooh", str) || Util::str_equals_ci("Dih", str)) {
     return PointGroup::Dooh;
   }
-  return PointGroup::None;
+  return PointGroup::C1v;
 }
 
 double ChemSystem::get_hci_queue_elem(
