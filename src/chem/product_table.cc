@@ -13,12 +13,16 @@ const static unsigned D2h[][8] = {{1, 2, 3, 4, 5, 6, 7, 8},
 
 const static unsigned C2v[][4] = {{1, 2, 3, 4}, {2, 1, 4, 3}, {3, 4, 1, 2}, {4, 3, 2, 1}};
 
+const static unsigned C1v[][1] = {{1}};
+
 void ProductTable::set_point_group(const PointGroup point_group) {
   this->point_group = point_group;
   if (point_group == PointGroup::D2h) {
     set_table_elems<8>(D2h);
   } else if (point_group == PointGroup::C2v) {
     set_table_elems<4>(C2v);
+  } else if (point_group == PointGroup::C1v) {
+    set_table_elems<1>(C1v);
   }
 };
 
@@ -30,6 +34,6 @@ unsigned ProductTable::get_product(const unsigned a, const unsigned b) const {
 }
 
 unsigned ProductTable::get_n_syms() const {
-  if (point_group == PointGroup::Dooh) return 32;  // Estimate.
+  if (point_group == PointGroup::Dooh) return 64;  // Estimate.
   return product_table_elems.size();
 }
