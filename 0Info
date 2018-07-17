@@ -1,0 +1,13 @@
+To get the code:
+git clone --recursive https://github.com/QMC-Cornell/shci
+
+
+To contribute:
+Fork the main repository above to your own Github account and then do:
+git clone --recursive https:://github.com/[username]/shci
+After finish editing, commit your changes with
+git commit [options]
+Then push to your Github forked repository:
+git push
+Then send a pull request to the main repository by click on the 'Pull Request' button.
+
