@@ -11,3 +11,6 @@ Then push to your Github forked repository:
 git push
 Then send a pull request to the main repository by click on the 'Pull Request' button.
 
+To contribute when the main repository is newer than you fork:
+Follow the guides here:
+https://help.github.com/articles/syncing-a-fork/
