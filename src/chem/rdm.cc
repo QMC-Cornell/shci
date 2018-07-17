@@ -738,6 +738,8 @@ void RDM::get_2rdm(
     }  // i_elec
 
   }  // i_det
+  
+  Timer::checkpoint("computing 2RDM");
 
   std::cout << "writing out 2RDM\n";
 
