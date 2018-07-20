@@ -622,7 +622,7 @@ void RDM::get_2rdm(
     det2coef[dets[i]] = coefs[i];
   }
 
-#pragma omp parallel for
+//#pragma omp parallel for
   for (size_t i_det = 0; i_det < dets.size(); i_det++) {
     Det this_det = dets[i_det];
     double this_coef = coefs[i_det];
@@ -649,9 +649,9 @@ void RDM::get_2rdm(
               double coef = det2coef[new_det];
               double element = this_coef * coef * permfac_ccaa(this_det.up, p, q, r, s);
 
-#pragma omp atomic
+//#pragma omp atomic
               two_rdm[combine4_2rdm(p, q, r, s, n_orbs)] += element;
-#pragma omp atomic
+//#pragma omp atomic
               two_rdm[combine4_2rdm(p, q, s, r, n_orbs)] -= element;  // since p<q, r>s
               // exclude (q,p,r,s,-=) and (q,p,s,r,+=) since we are taking advantage of
               // the symmetry (p,s) <-> (q,r) and only constructing half of the 2RDM
@@ -684,9 +684,9 @@ void RDM::get_2rdm(
               double coef = det2coef[new_det];
               double element = this_coef * coef * permfac_ccaa(this_det.dn, p, q, r, s);
 
-#pragma omp atomic
+//#pragma omp atomic
               two_rdm[combine4_2rdm(p, q, r, s, n_orbs)] += element;
-#pragma omp atomic
+//#pragma omp atomic
               two_rdm[combine4_2rdm(p, q, s, r, n_orbs)] -= element;
             }
 
@@ -720,10 +720,10 @@ void RDM::get_2rdm(
                              this_det.dn.diff(new_det.dn).permutation_factor;
               double element = this_coef * coef * perm_fac;
 
-#pragma omp atomic
+//#pragma omp atomic
               two_rdm[combine4_2rdm(p, q, r, s, n_orbs)] += element;
               if (p == q && s == r) {
-#pragma omp atomic
+//#pragma omp atomic
                 two_rdm[combine4_2rdm(q, p, s, r, n_orbs)] += element;
               }
               // this line needed as a result of storing only half of 2RDM, (p,s) = (q,r)
@@ -747,24 +747,6 @@ void RDM::get_2rdm(
   pFile = fopen("spatialRDM.txt", "w");
 
   fprintf(pFile, "%d\n", n_orbs);
-//  for (unsigned p = 0; p < n_orbs; p++) {
-//    for (unsigned q = 0; q < n_orbs; q++) {
-//      for (unsigned s = 0; s < n_orbs; s++) {
-//        for (unsigned r = 0; r < n_orbs; r++) {
-//          if (std::abs(two_rdm[combine4_2rdm(p, q, r, s, n_orbs)]) > 1.e-6)
-//            fprintf(
-//                pFile,
-//                "%3d   %3d   %3d   %3d   %10.8g\n",
-//                integrals.orb_order[p],
-//                integrals.orb_order[q],
-//                integrals.orb_order[s],
-//                integrals.orb_order[r],
-//                two_rdm[combine4_2rdm(p, q, r, s, n_orbs)]);
-//        }  // r
-//      }  // s
-//    }  // q
-//  }  // p
-
 
   for (unsigned p = 0; p < n_orbs; p++) {
     for (unsigned q = 0; q < n_orbs; q++) {
