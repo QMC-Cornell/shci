@@ -5,7 +5,7 @@
 
 class ProductTable {
  public:
-  ProductTable() : point_group(PointGroup::None) {}
+  ProductTable() : point_group() {}
 
   unsigned get_product(const unsigned a, const unsigned b) const;
 

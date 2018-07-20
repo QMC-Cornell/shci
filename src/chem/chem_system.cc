@@ -127,14 +127,22 @@ void ChemSystem::setup_hci_queue() {
 }
 
 PointGroup ChemSystem::get_point_group(const std::string& str) const {
-  if (Util::str_equals_ci("D2h", str)) {
-    return PointGroup::D2h;
+  if (Util::str_equals_ci("C1", str)) {
+    return PointGroup::C1;
+  } else if (Util::str_equals_ci("Cs", str)) {
+    return PointGroup::Cs;
+  } else if (Util::str_equals_ci("Ci", str)) {
+    return PointGroup::Ci;
   } else if (Util::str_equals_ci("C2v", str)) {
     return PointGroup::C2v;
+  } else if (Util::str_equals_ci("C2h", str)) {
+    return PointGroup::C2h;
+  } else if (Util::str_equals_ci("D2h", str)) {
+    return PointGroup::D2h;
   } else if (Util::str_equals_ci("Dooh", str) || Util::str_equals_ci("Dih", str)) {
     return PointGroup::Dooh;
   }
-  return PointGroup::None;
+  throw new std::runtime_error("No point group provided");
 }
 
 double ChemSystem::get_hci_queue_elem(
