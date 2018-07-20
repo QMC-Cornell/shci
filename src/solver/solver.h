@@ -513,7 +513,7 @@ UncertResult Solver<S>::get_energy_pt_psto(const double eps_var, const double en
     hc_sums.clear();
     Timer::end();  // batch
 
-    if (energy_pt_psto.uncert <= target_error * 0.2 && batch_id < n_batches - 2) break;
+    if (energy_pt_psto.uncert <= target_error * 0.5 && batch_id < n_batches - 2) break;
     if (eps_pt_psto <= eps_pt && energy_pt_psto.uncert <= target_error) break;
   }
 
