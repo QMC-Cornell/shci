@@ -81,7 +81,7 @@ void Solver<S>::run() {
   Timer::start("setup");
   std::setlocale(LC_ALL, "en_US.UTF-8");
   system.setup();
-  target_error = Config::get<double>("target_error", 1.0e-5);
+  target_error = Config::get<double>("target_error", 5.0e-5);
   Result::put("energy_hf", system.energy_hf);
   Timer::end();
 
@@ -227,7 +227,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
       printf("Iteration %zu ", var_iteration_global);
       printf("eps1= %#.2e ndets= %'zu energy= %.8f\n", eps_var, n_dets_new, energy_var_new);
     }
-    if (std::abs(energy_var_new - energy_var_prev) < target_error / 50) {
+    if (std::abs(energy_var_new - energy_var_prev) < target_error * 0.01) {
       converged = true;
     }
     if (n_dets_new < n_dets * 1.001) {
@@ -253,6 +253,7 @@ void Solver<S>::run_perturbation(const double eps_var) {
   eps_pt = Config::get<double>("eps_pt", eps_var / 5000);
   eps_pt_psto = Config::get<double>("eps_pt_psto", eps_var / 500);
   eps_pt_dtm = Config::get<double>("eps_pt_dtm", eps_var / 50);
+  if (eps_pt_dtm < 1.0e-6) eps_pt_dtm = 1.0e-6;
 
   const auto& value_entry = Util::str_printf("energy_total/%#.2e/%#.2e/value", eps_var, eps_pt);
   const auto& uncert_entry = Util::str_printf("energy_total/%#.2e/%#.2e/uncert", eps_var, eps_pt);
