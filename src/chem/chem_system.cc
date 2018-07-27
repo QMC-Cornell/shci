@@ -480,14 +480,26 @@ void ChemSystem::post_variation() {
     exit(0);
   }
 
-  if (Config::get<bool>("2rdm", false)) {
+  if (Config::get<bool>("get_1rdm_csv", false)) {
+    if (time_sym && !unpacked) {
+      unpack_time_sym();
+      unpacked = true;
+    }
+    RDM rdm;
+    Timer::start("get_1rdm");
+    rdm.get_1rdm(dets, coefs, integrals, true);
+    Timer::end();
+  }
+
+  const bool get_2rdm_csv = Config::get<bool>("get_2rdm_csv", false);
+  if (Config::get<bool>("2rdm", false) || get_2rdm_csv) {
     if (time_sym && !unpacked) {
       unpack_time_sym();
       unpacked = true;
     }
     RDM rdm;
     Timer::start("get_2rdm");
-    rdm.get_2rdm(dets, coefs, integrals);
+    rdm.get_2rdm(dets, coefs, integrals, get_2rdm_csv);
     Timer::end();
   }
 }
