@@ -10,7 +10,11 @@ using namespace Eigen;
 
 class RDM {
  public:
-  void get_1rdm(const std::vector<Det>&, const std::vector<double>&, const Integrals&);
+  void get_1rdm(
+      const std::vector<Det>&,
+      const std::vector<double>&,
+      const Integrals&,
+      const bool dump_csv = false);
 
   void generate_natorb_integrals(const Integrals&) const;
 
@@ -21,7 +25,11 @@ class RDM {
     size_t nonsym_combine4(const size_t, const size_t, const size_t, const size_t) const;
   */
 
-  void get_2rdm(const std::vector<Det>&, const std::vector<double>&, const Integrals&);
+  void get_2rdm(
+      const std::vector<Det>&,
+      const std::vector<double>&,
+      const Integrals&,
+      const bool dump_csv = false);
 
  private:
   MatrixXd one_rdm;
@@ -31,6 +39,6 @@ class RDM {
   unsigned combine4_2rdm(unsigned, unsigned, unsigned, unsigned, unsigned) const;
 
   int permfac_ccaa(HalfDet halfket, unsigned p, unsigned q, unsigned r, unsigned s) const;
-  
-  void compute_energy_from_rdm(const Integrals& integrals) const ;
+
+  void compute_energy_from_rdm(const Integrals& integrals) const;
 };

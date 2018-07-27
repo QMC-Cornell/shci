@@ -13,6 +13,7 @@ FCIDUMP*
 *.dat
 i_*
 o_*
+*rdm.csv
 
 # OS and editor files.
 .vscode
