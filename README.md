@@ -42,7 +42,7 @@ Many software packages can generate `FCIDUMP`, such as [`PySCF`](https://github.
 * `load_integrals_cache`: whether loads FCIDUMP information from integrals_cache, default to false.
 
 ### Chemistry Block `chem`
-* `point_group`: supports `dih`, `d2h`, `c2v` or `none`, default to `none`.
+* `point_group` (required): supports `C1`, `Cs`, `Ci`, `C2v`, `C2h`, `D2h`, and `Dooh`.
 * `irreps`: an array of irreducible representations. If occupations are also given, they together determine the starting determinant, otherwise, the lowest orbitals are filled.
 * `irrep_occs_up` and `irrep_occs_dn`: occupation of each irreducible representation for up and down electrons respectively, the lowest orbitals satisfying which constitute the starting determinant. Ignored if `irreps` is not given.
 
