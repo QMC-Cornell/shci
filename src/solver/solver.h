@@ -68,6 +68,8 @@ class Solver {
 
   void save_variation_result(const std::string& filename);
 
+  void print_dets_info() const;
+
   std::string get_wf_filename(const double eps_var) const;
 
   template <class C>
@@ -244,6 +246,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
   if (Parallel::is_master() && until_converged) {
     printf("Final iteration %zu ", var_iteration_global);
     printf("eps1= %#.2e ndets= %'zu energy= %.8f\n", eps_var, n_dets, system.energy_var);
+    print_dets_info();
   }
 }
 
@@ -754,19 +757,7 @@ bool Solver<S>::load_variation_result(const std::string& filename) {
   hps::from_string(serialized, system);
   if (Parallel::is_master()) {
     printf("Loaded %'zu dets from: %s\n", system.get_n_dets(), filename.c_str());
-    if (system.time_sym) {
-      size_t n_eff_dets = 0;
-      for (const auto& det : system.dets) {
-        if (det.up == det.dn) {
-          n_eff_dets += 1;
-        } else if (det.up < det.dn) {
-          n_eff_dets += 2;
-        } else {
-          throw std::runtime_error("wf has unvalid det for time sym");
-        }
-      }
-      printf("Effect dets (without time sym): %'zu\n", n_eff_dets);
-    }
+    print_dets_info();
     printf("HF energy: " ENERGY_FORMAT "\n", system.energy_hf);
     printf("Variation energy: " ENERGY_FORMAT "\n", system.energy_var);
   }
@@ -779,6 +770,43 @@ void Solver<S>::save_variation_result(const std::string& filename) {
     std::ofstream file(filename, std::ofstream::binary);
     hps::to_stream(system, file);
     printf("Variation results saved to: %s\n", filename.c_str());
+  }
+}
+
+template <class S>
+void Solver<S>::print_dets_info() const {
+  if (system.time_sym) {
+    // Print effective dets for unpacked time sym.
+    size_t n_eff_dets = 0;
+    for (const auto& det : system.dets) {
+      if (det.up == det.dn) {
+        n_eff_dets += 1;
+      } else if (det.up < det.dn) {
+        n_eff_dets += 2;
+      } else {
+        throw std::runtime_error("wf has unvalid det for time sym");
+      }
+    }
+    printf("Effect dets (without time sym): %'zu\n", n_eff_dets);
+  }
+  
+  // Print excitations.
+  std::unordered_map<unsigned, size_t> excitations;
+  unsigned highest_excitation = 0;
+  const auto& det_hf = system.dets[0];
+  for (const auto& det : system.dets) {
+    const unsigned n_excite = det_hf.up.n_diffs(det.up) + det_hf.dn.n_diffs(det.dn);
+    if (det.up != det.dn && system.time_sym) {
+      excitations[n_excite] += 2;
+    } else {
+      excitations[n_excite] += 1;
+    }
+    if (highest_excitation < n_excite) highest_excitation = n_excite;
+  }
+  printf("%-10s%20s\n", "Excit Lv", "# dets");
+  for (unsigned i = 0; i <= highest_excitation; i++) {
+    if (excitations.count(i) == 0) excitations[i] = 0;
+    printf("%-10u%'20zu\n", i, excitations[i]);
   }
 }
 
