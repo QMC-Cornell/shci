@@ -53,6 +53,8 @@ predict = predict.iloc[0]
 energy = fit.params[0]
 uncert = predict['mean_ci_upper'] - predict['mean']
 print('(%.2f Conf.) Extrapolated Energy: %.10f +- %.10f' % ((1.0 - alpha, fit.params[0], uncert)))
+if np.isnan(uncert):
+    uncert = 9999
 result['energy_total']['extrapolated'] = {
     'value': energy,
     'uncert': uncert
