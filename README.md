@@ -1,6 +1,6 @@
 # SHCI
 
-[![Build Status](https://travis-ci.org/jl2922/shci.svg?branch=master)](https://travis-ci.org/jl2922/shci)
+[![Build Status](https://travis-ci.com/QMC-Cornell/shci.svg?token=Gy8pVWtUBHq57qdtpAKN&branch=master)](https://travis-ci.com/QMC-Cornell/shci)
 
 ## Compilation
 Make sure you have installed MPI.
