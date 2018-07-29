@@ -633,6 +633,9 @@ UncertResult Solver<S>::get_energy_pt_sto(
     }
     fgpl::broadcast(sample_dets);
     fgpl::broadcast(sample_dets_list);
+    if (Parallel::is_master()) {
+      printf("Number of unique samples chosen: %'zu\n", sample_dets_list.size());
+    }
 
     // Select random batch.
     size_t batch_id = rand() % n_batches;
