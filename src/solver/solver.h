@@ -789,24 +789,31 @@ void Solver<S>::print_dets_info() const {
     }
     printf("Effect dets (without time sym): %'zu\n", n_eff_dets);
   }
-  
+
   // Print excitations.
   std::unordered_map<unsigned, size_t> excitations;
+  std::unordered_map<unsigned, double> weights;
   unsigned highest_excitation = 0;
   const auto& det_hf = system.dets[0];
-  for (const auto& det : system.dets) {
+  for (size_t i = 0; i < system.dets.size(); i++) {
+    const auto& det = system.dets[i];
+    const double coef = system.coefs[i];
     const unsigned n_excite = det_hf.up.n_diffs(det.up) + det_hf.dn.n_diffs(det.dn);
     if (det.up != det.dn && system.time_sym) {
       excitations[n_excite] += 2;
     } else {
       excitations[n_excite] += 1;
     }
+    weights[n_excite] += coef * coef;
     if (highest_excitation < n_excite) highest_excitation = n_excite;
   }
-  printf("%-10s%20s\n", "Excit Lv", "# dets");
+  printf("%-10s%12s%16s\n", "Excite Lv", "# dets", "sum c^2");
   for (unsigned i = 0; i <= highest_excitation; i++) {
-    if (excitations.count(i) == 0) excitations[i] = 0;
-    printf("%-10u%'20zu\n", i, excitations[i]);
+    if (excitations.count(i) == 0) {
+      excitations[i] = 0;
+      weights[i] = 0.0;
+    }
+    printf("%-10u%12zu%16.8f\n", i, excitations[i], weights[i]);
   }
 }
 
