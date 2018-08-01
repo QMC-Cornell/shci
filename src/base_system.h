@@ -13,6 +13,8 @@ class BaseSystem {
   unsigned n_up;
 
   unsigned n_dn;
+  
+  unsigned n_orbs;
 
   unsigned n_elecs;
 

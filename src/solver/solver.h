@@ -21,6 +21,7 @@
 #include "../timer.h"
 #include "../util.h"
 #include "davidson.h"
+#include "green.h"
 #include "hamiltonian.h"
 #include "uncert_result.h"
 
@@ -93,6 +94,13 @@ void Solver<S>::run() {
   Timer::end();
 
   Timer::start("post variation");
+  if (Config::get<bool>("get_green", false)) {
+    if (system.time_sym) throw std::invalid_argument("time sym green not implemented");
+    Timer::start("green");
+    Green<S> green(system, hamiltonian);
+    green.run();
+    Timer::end();
+  }
   system.post_variation();
   Timer::end();
 
