@@ -170,7 +170,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
 
   while (!converged) {
     eps_tried_prev.resize(n_dets, Util::INF);
-    if (until_converged) Timer::start(Util::str_printf("#%zu", iteration));
+    if (until_converged) Timer::start(Util::str_printf("#%zu", iteration + 1));
 
     // Random execution and broadcast.
     if (!dets_converged) {
@@ -226,7 +226,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
     Timer::checkpoint("diagonalize sparse hamiltonian");
     var_iteration_global++;
     if (Parallel::is_master()) {
-      printf("Iteration %zu ", var_iteration_global);
+      printf("Iteration %zu ", var_iteration_global + 1);
       printf("eps1= %#.2e ndets= %'zu energy= %.8f\n", eps_var, n_dets_new, energy_var_new);
     }
     if (std::abs(energy_var_new - energy_var_prev) < target_error * 0.01) {
@@ -244,7 +244,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
   }
   system.energy_var = energy_var_prev;
   if (Parallel::is_master() && until_converged) {
-    printf("Final iteration %zu ", var_iteration_global);
+    printf("Final iteration %zu ", var_iteration_global + 1);
     printf("eps1= %#.2e ndets= %'zu energy= %.8f\n", eps_var, n_dets, system.energy_var);
     print_dets_info();
   }
@@ -347,7 +347,7 @@ double Solver<S>::get_energy_pt_dtm(const double eps_var) {
   UncertResult energy_pt_dtm;
 
   for (size_t batch_id = 0; batch_id < n_batches; batch_id++) {
-    Timer::start(Util::str_printf("#%zu/%zu", batch_id, n_batches));
+    Timer::start(Util::str_printf("#%zu/%zu", batch_id + 1, n_batches));
 
     for (size_t j = 0; j < 5; j++) {
       fgpl::DistRange<size_t>(j, n_var_dets, 5).for_each([&](const size_t i) {
@@ -457,7 +457,7 @@ UncertResult Solver<S>::get_energy_pt_psto(const double eps_var, const double en
   UncertResult energy_pt_psto;
 
   for (size_t batch_id = 0; batch_id < n_batches; batch_id++) {
-    Timer::start(Util::str_printf("#%zu/%zu", batch_id, n_batches));
+    Timer::start(Util::str_printf("#%zu/%zu", batch_id + 1, n_batches));
 
     for (size_t j = 0; j < 5; j++) {
       fgpl::DistRange<size_t>(j, n_var_dets, 5).for_each([&](const size_t i) {
@@ -623,7 +623,7 @@ UncertResult Solver<S>::get_energy_pt_sto(
   }
 
   while (iteration < max_pt_iterations) {
-    Timer::start(Util::str_printf("#%zu", iteration));
+    Timer::start(Util::str_printf("#%zu", iteration + 1));
 
     // Generate random sample
     for (size_t i = 0; i < n_samples; i++) {
