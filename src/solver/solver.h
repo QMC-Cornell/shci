@@ -595,8 +595,9 @@ UncertResult Solver<S>::get_energy_pt_sto(
     hc_sums.clear();
     const size_t n_pt_dets_batch = n_pt_dets * 16 / n_batches;
     const size_t bytes_per_det = N_CHUNKS * 16 + 24;
+    const double mem_usage = Config::get<double>("pt_sto_mem_usage", 1.0);
     size_t n_unique_target =
-        pt_mem_avail * 1000 * n_unique_samples / bytes_per_det / 3.0 / n_pt_dets_batch;
+        pt_mem_avail * mem_usage * 1000 * n_unique_samples / bytes_per_det / 3.0 / n_pt_dets_batch;
     const size_t max_unique_targets = n_var_dets / 8 + 1;
     if (n_unique_target >= max_unique_targets) n_unique_target = max_unique_targets;
     sample_dets.clear();
