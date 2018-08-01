@@ -170,7 +170,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
 
   while (!converged) {
     eps_tried_prev.resize(n_dets, Util::INF);
-    if (until_converged) Timer::start(Util::str_printf("#%zu", iteration));
+    if (until_converged) Timer::start(Util::str_printf("#%zu", iteration + 1));
 
     // Random execution and broadcast.
     if (!dets_converged) {
@@ -253,7 +253,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
 template <class S>
 void Solver<S>::run_perturbation(const double eps_var) {
   // If result already exists, return.
-  eps_pt = Config::get<double>("eps_pt", eps_var / 5000);
+  eps_pt = Config::get<double>("eps_pt", eps_var * 1e-6);
   eps_pt_psto = Config::get<double>("eps_pt_psto", eps_var / 500);
   eps_pt_dtm = Config::get<double>("eps_pt_dtm", eps_var / 50);
   if (eps_pt_dtm < 1.0e-6) eps_pt_dtm = 1.0e-6;
@@ -347,7 +347,7 @@ double Solver<S>::get_energy_pt_dtm(const double eps_var) {
   UncertResult energy_pt_dtm;
 
   for (size_t batch_id = 0; batch_id < n_batches; batch_id++) {
-    Timer::start(Util::str_printf("#%zu/%zu", batch_id, n_batches));
+    Timer::start(Util::str_printf("#%zu/%zu", batch_id + 1, n_batches));
 
     for (size_t j = 0; j < 5; j++) {
       fgpl::DistRange<size_t>(j, n_var_dets, 5).for_each([&](const size_t i) {
@@ -443,7 +443,7 @@ UncertResult Solver<S>::get_energy_pt_psto(const double eps_var, const double en
     const size_t n_pt_dets = hc_sums.get_n_keys();
     n_batches = static_cast<size_t>(
         ceil(2.0 * 16 * 100 / 1000 * n_pt_dets * (N_CHUNKS * 16 + 16) / pt_mem_avail));
-    if (n_batches < 8) n_batches = 8;
+    if (n_batches < 16) n_batches = 16;
     if (Parallel::is_master()) {
       printf("Number of batches chosen: %zu\n", n_batches);
     }
@@ -457,7 +457,7 @@ UncertResult Solver<S>::get_energy_pt_psto(const double eps_var, const double en
   UncertResult energy_pt_psto;
 
   for (size_t batch_id = 0; batch_id < n_batches; batch_id++) {
-    Timer::start(Util::str_printf("#%zu/%zu", batch_id, n_batches));
+    Timer::start(Util::str_printf("#%zu/%zu", batch_id + 1, n_batches));
 
     for (size_t j = 0; j < 5; j++) {
       fgpl::DistRange<size_t>(j, n_var_dets, 5).for_each([&](const size_t i) {
@@ -517,7 +517,7 @@ UncertResult Solver<S>::get_energy_pt_psto(const double eps_var, const double en
     hc_sums.clear();
     Timer::end();  // batch
 
-    if (energy_pt_psto.uncert <= target_error * 0.5 && batch_id < n_batches - 2) break;
+    if (energy_pt_psto.uncert <= target_error * 0.4 && batch_id < n_batches - 2) break;
     if (eps_pt_psto <= eps_pt && energy_pt_psto.uncert <= target_error) break;
   }
 
@@ -533,8 +533,8 @@ UncertResult Solver<S>::get_energy_pt_sto(
   const size_t max_pt_iterations = Config::get<size_t>("max_pt_iterations", 100);
   fgpl::DistHashMap<Det, MathVector<double, 3>, DetHasher> hc_sums;
   const size_t n_var_dets = system.get_n_dets();
-  size_t n_batches = Config::get<size_t>("n_batches_pt_sto", 16);
-  if (n_batches == 0) n_batches = 16;
+  size_t n_batches = Config::get<size_t>("n_batches_pt_sto", 0);
+  if (n_batches == 0) n_batches = 128;
   size_t n_samples = Config::get<size_t>("n_samples_pt_sto", 0);
   std::vector<double> probs(n_var_dets);
   std::vector<double> cum_probs(n_var_dets);  // For sampling.
@@ -595,9 +595,11 @@ UncertResult Solver<S>::get_energy_pt_sto(
     hc_sums.clear();
     const size_t n_pt_dets_batch = n_pt_dets * 16 / n_batches;
     const size_t bytes_per_det = N_CHUNKS * 16 + 24;
+    const double mem_usage = Config::get<double>("pt_sto_mem_usage", 1.0);
     size_t n_unique_target =
-        pt_mem_avail * 1000 * n_unique_samples / bytes_per_det / 3.0 / n_pt_dets_batch;
-    if (n_unique_target >= n_var_dets / 2) n_unique_target = n_var_dets / 2;
+        pt_mem_avail * mem_usage * 1000 * n_unique_samples / bytes_per_det / 3.0 / n_pt_dets_batch;
+    const size_t max_unique_targets = n_var_dets / 8 + 1;
+    if (n_unique_target >= max_unique_targets) n_unique_target = max_unique_targets;
     sample_dets.clear();
     sample_dets_list.clear();
     n_samples = 0;
@@ -621,7 +623,7 @@ UncertResult Solver<S>::get_energy_pt_sto(
   }
 
   while (iteration < max_pt_iterations) {
-    Timer::start(Util::str_printf("#%zu", iteration));
+    Timer::start(Util::str_printf("#%zu", iteration + 1));
 
     // Generate random sample
     for (size_t i = 0; i < n_samples; i++) {
@@ -701,10 +703,10 @@ UncertResult Solver<S>::get_energy_pt_sto(
     hc_sums.clear();
     Timer::end();
     iteration++;
-    if (iteration >= 4 && (energy_pt_sto + energy_pt_psto).uncert <= target_error * 0.5) {
+    if (iteration >= 6 && (energy_pt_sto + energy_pt_psto).uncert <= target_error * 0.5) {
       break;
     }
-    if (iteration >= 8 && (energy_pt_sto + energy_pt_psto).uncert <= target_error) {
+    if (iteration >= 10 && (energy_pt_sto + energy_pt_psto).uncert <= target_error) {
       break;
     }
   }
