@@ -224,11 +224,11 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
     const double energy_var_new = davidson.get_lowest_eigenvalue();
     system.coefs = davidson.get_lowest_eigenvector();
     Timer::checkpoint("diagonalize sparse hamiltonian");
-    var_iteration_global++;
     if (Parallel::is_master()) {
       printf("Iteration %zu ", var_iteration_global + 1);
       printf("eps1= %#.2e ndets= %'zu energy= %.8f\n", eps_var, n_dets_new, energy_var_new);
     }
+    var_iteration_global++;
     if (std::abs(energy_var_new - energy_var_prev) < target_error * 0.01) {
       converged = true;
     }
