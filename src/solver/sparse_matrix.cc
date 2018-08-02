@@ -35,6 +35,34 @@ std::vector<double> SparseMatrix::mul(const std::vector<double>& vec) const {
   return res;
 }
 
+std::vector<std::complex<double>> SparseMatrix::mul_green(const std::vector<std::complex<double>>& vec) const {
+  const size_t dim = rows.size();
+  std::vector<std::complex<double>> res(dim, 0.0);
+
+  std::vector<double> tmp(dim, 0.0);
+  std::vector<double> vec_tmp(dim, 0.0);
+
+  // First calculate the real part.
+  for (size_t i = 0; i < dim; i++) {
+    vec_tmp[i] = vec[i].real();
+  }
+  tmp = mul(vec_tmp);
+  for (size_t i = 0; i < dim; i++) {
+    res[i] += tmp[i] + (green_offset - 2 * diag[i]) * vec_tmp[i];
+  }
+
+  // Calculate the imag part.
+  for (size_t i = 0; i < dim; i++) {
+    vec_tmp[i] = vec[i].imag();
+  }
+  tmp = mul(vec_tmp);
+  for (size_t i = 0; i < dim; i++) {
+    res[i] += (tmp[i] + (green_offset - 2 * diag[i]) * vec_tmp[i]) * std::complex<double>(0, 1);
+  }
+  
+  return res;
+}
+
 void SparseMatrix::set_dim(const size_t dim) {
   rows.resize(dim);
   diag_local.resize(dim, 0.0);

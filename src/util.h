@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <complex>
 #include <cstdio>
 #include <memory>
 #include <string>
@@ -22,6 +23,12 @@ class Util {
   static double stdev(const std::vector<double>& vec);
 
   static double dot_omp(const std::vector<double>& a, const std::vector<double>& b);
+
+  static std::complex<double> dot_omp(
+      const std::vector<double>& a, const std::vector<std::complex<double>>& b);
+
+  static std::complex<double> dot_omp(
+      const std::vector<std::complex<double>>& a, const std::vector<std::complex<double>>& b);
 
   static size_t rehash(const size_t a);
 

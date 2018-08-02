@@ -28,6 +28,14 @@ class SparseVector {
     printf("n elems: %zu\n", size());
   }
 
+  // transform each element to a * x + b.
+  void transform(const double a, const double b) {
+    const size_t n = size();
+    for (size_t i = 0; i < n; i++) {
+      values[i] = values[i] * a + b;
+    }
+  }
+
  private:
   std::vector<size_t> indices;
 
