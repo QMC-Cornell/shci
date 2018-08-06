@@ -82,6 +82,7 @@ void Integrals::read_fcidump() {
   }
   fcidump.close();
 
+  energy_core = 0.0;
   for (const auto& item : raw_integrals) {
     const unsigned p = item.p;
     const unsigned q = item.q;

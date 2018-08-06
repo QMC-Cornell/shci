@@ -206,7 +206,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
       dist_new_dets.for_each_serial([&](const Det& connected_det, const size_t) {
         var_dets.set(connected_det);
         system.dets.push_back(connected_det);
-        system.coefs.push_back(0.0);
+        system.coefs.push_back(1.0e-6);
       });
       dist_new_dets.clear_and_shrink();
 

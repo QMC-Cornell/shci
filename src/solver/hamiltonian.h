@@ -92,12 +92,15 @@ void Hamiltonian<S>::update(const S& system) {
 
   update_abdet(system);
   Timer::checkpoint("update unique ab");
-  update_abm1(system);
-  Timer::checkpoint("create abm1");
-  update_absingles(system);
-  abm1_to_ab_ids.clear();
-  Util::free(abm1_to_ab_ids);
-  Timer::checkpoint("create absingles");
+
+  if (system.has_double_excitation) {
+    update_abm1(system);
+    Timer::checkpoint("create abm1");
+    update_absingles(system);
+    abm1_to_ab_ids.clear();
+    Util::free(abm1_to_ab_ids);
+    Timer::checkpoint("create absingles");
+  }
   update_matrix(system);
   alpha_id_to_single_ids.clear();
   alpha_id_to_single_ids.shrink_to_fit();
@@ -461,6 +464,7 @@ void Hamiltonian<S>::update_matrix(const S& system) {
         }
 
         // Mixed double excitation.
+        if (!system.has_double_excitation && !system.time_sym) return;
         const auto& alpha_singles = alpha_id_to_single_ids[alpha_id];
         const auto& beta_singles =
             time_sym ? alpha_id_to_single_ids[beta_id] : beta_id_to_single_ids[beta_id];

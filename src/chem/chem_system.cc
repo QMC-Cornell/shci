@@ -20,6 +20,7 @@ void ChemSystem::setup() {
   point_group = get_point_group(Config::get<std::string>("chem/point_group"));
   product_table.set_point_group(point_group);
   time_sym = Config::get<bool>("time_sym", false);
+  has_double_excitation = Config::get<bool>("has_double_excitation", true);
 
   Timer::start("load integrals");
   integrals.load();
@@ -206,6 +207,7 @@ void ChemSystem::find_connected_dets(
   }
 
   // Add double excitations.
+  if (!has_double_excitation) return;
   if (eps_min > max_hci_queue_elem) return;
   for (unsigned p_id = 0; p_id < n_elecs; p_id++) {
     for (unsigned q_id = p_id + 1; q_id < n_elecs; q_id++) {
