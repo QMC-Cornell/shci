@@ -20,6 +20,8 @@ class BaseSystem {
 
   bool time_sym;
 
+  bool has_double_excitation;
+
   double energy_hf;
 
   double energy_var;
