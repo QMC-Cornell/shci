@@ -257,6 +257,7 @@ void Solver<S>::run_perturbation(const double eps_var) {
   eps_pt_psto = Config::get<double>("eps_pt_psto", eps_var / 500);
   eps_pt_dtm = Config::get<double>("eps_pt_dtm", eps_var / 50);
   if (eps_pt_dtm < 1.0e-6) eps_pt_dtm = 1.0e-6;
+  if (eps_pt_psto < 1.0e-7) eps_pt_dtm = 1.0e-7;
 
   const auto& value_entry = Util::str_printf("energy_total/%#.2e/%#.2e/value", eps_var, eps_pt);
   const auto& uncert_entry = Util::str_printf("energy_total/%#.2e/%#.2e/uncert", eps_var, eps_pt);
@@ -441,8 +442,9 @@ UncertResult Solver<S>::get_energy_pt_psto(const double eps_var, const double en
     });
     hc_sums.sync();
     const size_t n_pt_dets = hc_sums.get_n_keys();
+    const double mem_usage = Config::get<double>("pt_sto_mem_usage", 1.0);
     n_batches = static_cast<size_t>(
-        ceil(2.0 * 16 * 100 / 1000 * n_pt_dets * (N_CHUNKS * 16 + 16) / pt_mem_avail));
+        ceil(2.0 * 16 * 100 / 1000 * n_pt_dets * (N_CHUNKS * 16 + 16) / (pt_mem_avail * mem_usage)));
     if (n_batches < 16) n_batches = 16;
     if (Parallel::is_master()) {
       printf("Number of batches chosen: %zu\n", n_batches);
