@@ -256,8 +256,10 @@ void Solver<S>::run_perturbation(const double eps_var) {
   eps_pt = Config::get<double>("eps_pt", eps_var * 1e-6);
   eps_pt_psto = Config::get<double>("eps_pt_psto", eps_var / 500);
   eps_pt_dtm = Config::get<double>("eps_pt_dtm", eps_var / 50);
-  if (eps_pt_dtm < 1.0e-6) eps_pt_dtm = 1.0e-6;
-  if (eps_pt_psto < 1.0e-7) eps_pt_dtm = 1.0e-7;
+  double min_eps_pt_dtm = Config::get<double>("min_eps_pt_dtm", 1.0e-6);
+  double min_eps_pt_psto = Config::get<double>("min_eps_pt_psto", 1.0e-7);
+  if (eps_pt_dtm < min_eps_pt_dtm) eps_pt_dtm = min_eps_pt_dtm;
+  if (eps_pt_psto < min_eps_pt_psto) eps_pt_psto = min_eps_pt_psto;
 
   const auto& value_entry = Util::str_printf("energy_total/%#.2e/%#.2e/value", eps_var, eps_pt);
   const auto& uncert_entry = Util::str_printf("energy_total/%#.2e/%#.2e/uncert", eps_var, eps_pt);
