@@ -11,6 +11,8 @@
 class SparseMatrix {
  public:
   double get_diag(const size_t i) const { return diag[i]; }
+  
+  std::complex<double> get_diag_green(const size_t i) const { return green_offset - diag[i]; }
 
   void cache_diag();
 

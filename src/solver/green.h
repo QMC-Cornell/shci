@@ -24,6 +24,8 @@ class Green {
 
   double n;
 
+  bool advanced;
+
   std::vector<Det> dets_store;
 
   std::vector<double> coefs_store;
@@ -42,7 +44,10 @@ class Green {
 
   void green_ham();
 
-  std::vector<std::complex<double>> cg(const SparseMatrix& matrix, const std::vector<double>& b, const std::vector<std::complex<double>>& x0); 
+  std::vector<std::complex<double>> cg(
+      const SparseMatrix& matrix,
+      const std::vector<double>& b,
+      const std::vector<std::complex<double>>& x0);
 
   void output_green();
 };
@@ -58,11 +63,21 @@ void Green<S>::run() {
   // Construct new dets.
   system.dets.clear();
   system.coefs.clear();
+  advanced = Config::get<bool>("advanced_green", false);
+  if (Parallel::is_master()) printf("Calculating G-\n");
   construct_pdets();
+
 
   // Construct hamiltonian.
   hamiltonian.clear();
   hamiltonian.update(system);
+
+  for (int i = 0; i < n_pdets; i++) {
+    system.dets[i].up.print();
+    system.dets[i].dn.print();
+    hamiltonian.matrix.print_row(i);
+  }
+
   green_ham();
 
   // Initialize G.
@@ -78,10 +93,20 @@ void Green<S>::run() {
 
     // Generate initial x.
 
-    std::vector<std::complex<double>> x0(n_pdets, sqrt(1.0 / n_pdets));
-    //
+    std::vector<std::complex<double>> x0(n_pdets, 1.0e-6);
+    for (size_t k = 0; k < n_pdets; k++) {
+      if (std::abs(bj[k]) > 1.0e-6) {
+        x0[k] = bj[k] / hamiltonian.matrix.get_diag_green(k);
+      }
+    }
+
     // Iteratively get H^{-1}bj
     const auto& x = cg(hamiltonian.matrix, bj, x0);
+
+    printf("k: x b\n");
+    for (size_t k = 0; k < n_pdets; k++) {
+      printf("%zu: %.6f\n", k, x[k]);
+    }
 
     for (unsigned i = 0; i < n_orbs * 2; i++) {
       // Dot with bi
@@ -100,22 +125,41 @@ void Green<S>::construct_pdets() {
   for (size_t i = 0; i < n_dets; i++) {
     Det det = dets_store[i];
     for (unsigned k = 0; k < n_orbs; k++) {
-      if (!det.up.has(k)) {
-        det.up.set(k);
-        if (pdet_to_id.count(det) == 0) {
-          pdet_to_id[det] = system.dets.size();
-          system.dets.push_back(det);
+      if (advanced) { // G-.
+        if (det.up.has(k)) {
+          det.up.unset(k);
+          if (pdet_to_id.count(det) == 0) {
+            pdet_to_id[det] = system.dets.size();
+            system.dets.push_back(det);
+          }
+          det.up.set(k);
         }
-        det.up.unset(k);
-      }
-      if (!det.dn.has(k)) {
-        det.dn.set(k);
-        if (pdet_to_id.count(det) == 0) {
-          pdet_to_id[det] = system.dets.size();
-          system.dets.push_back(det);
+        if (det.dn.has(k)) {
+          det.dn.unset(k);
+          if (pdet_to_id.count(det) == 0) {
+            pdet_to_id[det] = system.dets.size();
+            system.dets.push_back(det);
+          }
+          det.dn.set(k);
         }
-        det.dn.unset(k);
-      }
+      } else {  // G+.
+        if (!det.up.has(k)) {
+          det.up.set(k);
+          if (pdet_to_id.count(det) == 0) {
+            pdet_to_id[det] = system.dets.size();
+            system.dets.push_back(det);
+          }
+          det.up.unset(k);
+        }
+        if (!det.dn.has(k)) {
+          det.dn.set(k);
+          if (pdet_to_id.count(det) == 0) {
+            pdet_to_id[det] = system.dets.size();
+            system.dets.push_back(det);
+          }
+          det.dn.unset(k);
+        }
+      }  // Advanced.
     }
   }
   n_pdets = system.dets.size();
@@ -128,13 +172,23 @@ std::vector<double> Green<S>::construct_b(const unsigned j) {
 #pragma omp parallel for schedule(static, 1)
   for (size_t det_id = 0; det_id < n_dets; det_id++) {
     Det det = dets_store[det_id];
-    if (j < n_orbs && !det.up.has(j)) {
-      det.up.set(j);
-    } else if (j >= n_orbs && !det.dn.has(j - n_orbs)) {
-      det.dn.set(j - n_orbs);
-    } else {
-      continue;
-    }
+    if (advanced) { // G-.
+      if (j < n_orbs && det.up.has(j)) {
+        det.up.unset(j);
+      } else if (j >= n_orbs && det.dn.has(j - n_orbs)) {
+        det.dn.unset(j - n_orbs);
+      } else {
+        continue;
+      }
+    } else {  // G+.
+      if (j < n_orbs && !det.up.has(j)) {
+        det.up.set(j);
+      } else if (j >= n_orbs && !det.dn.has(j - n_orbs)) {
+        det.dn.set(j - n_orbs);
+      } else {
+        continue;
+      }
+    }  // Advanced.
     const size_t pdet_id = pdet_to_id[det];
     b[pdet_id] = coefs_store[det_id];
   }
@@ -145,6 +199,7 @@ template <class S>
 void Green<S>::green_ham() {
   w = Config::get<double>("w_green", 1.0);
   n = Config::get<double>("n_green", 1.0);
+
   const double energy_var = system.energy_var;
   const std::complex<double> offset(w + energy_var, n);
   hamiltonian.matrix.set_green(offset);
@@ -157,7 +212,7 @@ void Green<S>::output_green() {
   fprintf(file, "i,j,G\n");
   for (unsigned i = 0; i < n_orbs * 2; i++) {
     for (unsigned j = 0; j < n_orbs * 2; j++) {
-      fprintf(file, "%u,%u,%g%+gj\n", i, j, G[i][j].real(), G[i][j].imag());
+      fprintf(file, "%u,%u,%+.10f%+.10fj\n", i, j, G[i][j].real(), G[i][j].imag());
     }
   }
   fclose(file);
@@ -165,7 +220,10 @@ void Green<S>::output_green() {
 }
 
 template <class S>
-std::vector<std::complex<double>> Green<S>::cg(const SparseMatrix& matrix, const std::vector<double>& b, const std::vector<std::complex<double>>& x0) {
+std::vector<std::complex<double>> Green<S>::cg(
+    const SparseMatrix& matrix,
+    const std::vector<double>& b,
+    const std::vector<std::complex<double>>& x0) {
   std::vector<std::complex<double>> x(n_pdets, 0.0);
   std::vector<std::complex<double>> r(n_pdets, 0.0);
   std::vector<std::complex<double>> p(n_pdets, 0.0);
@@ -199,9 +257,9 @@ std::vector<std::complex<double>> Green<S>::cg(const SparseMatrix& matrix, const
     residual = std::abs(rTr);
     iter++;
     if (iter % 10 == 0) printf("Iteration %d: r = %g\n", iter, residual);
-    if (iter > 100) throw std::runtime_error("cg does not converge");
+    if (iter > 500) throw std::runtime_error("cg does not converge");
   }
   printf("Final iteration %d: r = %g\n", iter, residual);
 
   return x;
-} 
+}

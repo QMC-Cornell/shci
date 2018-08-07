@@ -148,7 +148,13 @@ void Integrals::generate_det_hf() {
   if (irreps.size() == 0) {
     // Fill lowest.
     for (unsigned i = 0; i < n_up; i++) det_hf.up.set(i);
-    for (unsigned i = 0; i < n_dn; i++) det_hf.dn.set(i);
+    bool allow_doubly_occupy = Config::get<bool>("allow_doubly_occupy_hf", true);
+    if (allow_doubly_occupy) {
+      for (unsigned i = 0; i < n_dn; i++) det_hf.dn.set(i);
+    } else {
+      assert(n_up + n_up <= n_orbs);
+      for (unsigned i = 0; i < n_dn; i++) det_hf.dn.set(i + n_up);
+    }
   } else {
     // Fill according to irreps.
     std::vector<unsigned> irrep_occs_up = Config::get<std::vector<unsigned>>("chem/irrep_occs_up");
