@@ -1,6 +1,8 @@
-# SHCI
+# SHCI Arrow  
 
-[![Build Status](https://travis-ci.com/QMC-Cornell/shci.svg?token=Gy8pVWtUBHq57qdtpAKN&branch=master)](https://travis-ci.com/QMC-Cornell/shci)
+` >>>====> ` Fast Semistochastic Heat Bath Configuration Interaction Solver for accurate quantum treatment.
+
+[![Build Status](https://travis-ci.com/QMC-Cornell/shci.svg?token=Gy8pVWtUBHq57qdtpAKN&branch=master)](https://travis-ci.com/QMC-Cornell/shci) 
 
 ## Compilation
 Make sure you have installed MPI.
