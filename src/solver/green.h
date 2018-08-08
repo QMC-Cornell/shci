@@ -71,13 +71,6 @@ void Green<S>::run() {
   // Construct hamiltonian.
   hamiltonian.clear();
   hamiltonian.update(system);
-
-  for (int i = 0; i < n_pdets; i++) {
-    system.dets[i].up.print();
-    system.dets[i].dn.print();
-    hamiltonian.matrix.print_row(i);
-  }
-
   green_ham();
 
   // Initialize G.
@@ -103,11 +96,6 @@ void Green<S>::run() {
     // Iteratively get H^{-1}bj
     const auto& x = cg(hamiltonian.matrix, bj, x0);
 
-    printf("k: x b\n");
-    for (size_t k = 0; k < n_pdets; k++) {
-      printf("%zu: %.6f\n", k, x[k]);
-    }
-
     for (unsigned i = 0; i < n_orbs * 2; i++) {
       // Dot with bi
       const auto& bi = construct_b(i);
@@ -120,8 +108,6 @@ void Green<S>::run() {
 
 template <class S>
 void Green<S>::construct_pdets() {
-  printf("n_dets: %zu\n", n_dets);
-  printf("n_orbs: %u\n", n_orbs);
   for (size_t i = 0; i < n_dets; i++) {
     Det det = dets_store[i];
     for (unsigned k = 0; k < n_orbs; k++) {
@@ -169,7 +155,7 @@ void Green<S>::construct_pdets() {
 template <class S>
 std::vector<double> Green<S>::construct_b(const unsigned j) {
   std::vector<double> b(n_pdets, 0.0);
-#pragma omp parallel for schedule(static, 1)
+// #pragma omp parallel for schedule(static, 1)
   for (size_t det_id = 0; det_id < n_dets; det_id++) {
     Det det = dets_store[det_id];
     if (advanced) { // G-.
@@ -190,7 +176,9 @@ std::vector<double> Green<S>::construct_b(const unsigned j) {
       }
     }  // Advanced.
     const size_t pdet_id = pdet_to_id[det];
-    b[pdet_id] = coefs_store[det_id];
+    const double coef = coefs_store[det_id];
+// #pragma omp atomic
+    b[pdet_id] = coef;
   }
   return b;
 }
@@ -229,7 +217,8 @@ std::vector<std::complex<double>> Green<S>::cg(
   std::vector<std::complex<double>> p(n_pdets, 0.0);
 
   const auto& Ax0 = matrix.mul_green(x0);
-#pragma omp parallel for
+
+// #pragma omp parallel for
   for (size_t i = 0; i < n_pdets; i++) {
     r[i] = b[i] - Ax0[i];
   }
@@ -243,14 +232,14 @@ std::vector<std::complex<double>> Green<S>::cg(
     const auto& Ap = matrix.mul_green(p);
     const std::complex<double>& pTAp = Util::dot_omp(p, Ap);
     const std::complex<double>& a = rTr / pTAp;
-#pragma omp parallel for
+// #pragma omp parallel for
     for (size_t j = 0; j < n_pdets; j++) {
       x[j] += a * p[j];
       r[j] -= a * Ap[j];
     }
     const std::complex<double>& rTr_new = Util::dot_omp(r, r);
     const std::complex<double>& beta = rTr_new / rTr;
-#pragma omp parallel for
+// #pragma omp parallel for
     for (size_t j = 0; j < n_pdets; j++) {
       p[j] = r[j] + beta * p[j];
     }

@@ -1,5 +1,7 @@
 #include "sparse_matrix.h"
 
+#include <iostream>
+
 void SparseMatrix::append_elem(const size_t i, const size_t j, const double& elem) {
   rows[i].append(j, elem);
   if (i == j) diag_local[i] = elem;
@@ -48,8 +50,9 @@ std::vector<std::complex<double>> SparseMatrix::mul_green(const std::vector<std:
   }
   tmp = mul(vec_tmp);
   for (size_t i = 0; i < dim; i++) {
-    res[i] += tmp[i] + (green_offset - 2 * diag[i]) * vec_tmp[i];
+    res[i] = -tmp[i] + green_offset * vec_tmp[i];
   }
+
 
   // Calculate the imag part.
   for (size_t i = 0; i < dim; i++) {
@@ -57,7 +60,7 @@ std::vector<std::complex<double>> SparseMatrix::mul_green(const std::vector<std:
   }
   tmp = mul(vec_tmp);
   for (size_t i = 0; i < dim; i++) {
-    res[i] += (tmp[i] + (green_offset - 2 * diag[i]) * vec_tmp[i]) * std::complex<double>(0, 1);
+    res[i] += (-tmp[i] + green_offset * vec_tmp[i]) * std::complex<double>(0, 1);
   }
   
   return res;
