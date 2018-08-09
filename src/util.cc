@@ -71,6 +71,34 @@ double Util::dot_omp(const std::vector<double>& a, const std::vector<double>& b)
   return sum;
 }
 
+std::complex<double> Util::dot_omp(const std::vector<double>& a, const std::vector<std::complex<double>>& b) {
+  std::complex<double> sum = 0.0;
+  const size_t n = a.size();
+  const int n_threads = omp_get_max_threads();
+  std::vector<std::complex<double>> sum_thread(n_threads, 0.0);
+#pragma omp parallel for
+  for (size_t i = 0; i < n; i++) {
+    const int thread_id = omp_get_thread_num();
+    sum_thread[thread_id] += a[i] * b[i];
+  }
+  for (int i = 0; i < n_threads; i++) sum += sum_thread[i];
+  return sum;
+}
+
+std::complex<double> Util::dot_omp(const std::vector<std::complex<double>>& a, const std::vector<std::complex<double>>& b) {
+  std::complex<double> sum = 0.0;
+  const size_t n = a.size();
+  const int n_threads = omp_get_max_threads();
+  std::vector<std::complex<double>> sum_thread(n_threads, 0.0);
+#pragma omp parallel for
+  for (size_t i = 0; i < n; i++) {
+    const int thread_id = omp_get_thread_num();
+    sum_thread[thread_id] += a[i] * b[i];
+  }
+  for (int i = 0; i < n_threads; i++) sum += sum_thread[i];
+  return sum;
+}
+
 size_t Util::rehash(const size_t a) {
   size_t hash = a;
   hash += (hash << 10);
