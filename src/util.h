@@ -50,6 +50,8 @@ class Util {
 
   constexpr static double INF = 1.0e100;
 
+  constexpr static std::complex<double> I = std::complex<double>(0, 1);
+
   constexpr static double SQRT2 = 1.4142135623730951;
 
   constexpr static double SQRT2_INV = 0.7071067811865475;

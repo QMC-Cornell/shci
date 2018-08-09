@@ -42,12 +42,10 @@ class Green {
 
   std::vector<double> construct_b(const unsigned orb);
 
-  void green_ham();
+  std::vector<std::complex<double>> mul_green(const std::vector<std::complex<double>>& vec) const;
 
   std::vector<std::complex<double>> cg(
-      const SparseMatrix& matrix,
-      const std::vector<double>& b,
-      const std::vector<std::complex<double>>& x0);
+      const std::vector<double>& b, const std::vector<std::complex<double>>& x0);
 
   void output_green();
 };
@@ -60,23 +58,30 @@ void Green<S>::run() {
   n_dets = dets_store.size();
   n_orbs = system.n_orbs;
 
+  w = Config::get<double>("w_green");
+  n = Config::get<double>("n_green");
+
   // Construct new dets.
   system.dets.clear();
   system.coefs.clear();
   advanced = Config::get<bool>("advanced_green", false);
-  if (Parallel::is_master()) printf("Calculating G-\n");
+  if (Parallel::is_master()) {
+    if (advanced) {
+      printf("Calculating G-\n");
+    } else {
+      printf("Calculating G+\n");
+    }
+  }
   construct_pdets();
-
 
   // Construct hamiltonian.
   hamiltonian.clear();
   hamiltonian.update(system);
-  green_ham();
 
   // Initialize G.
-  G.resize(n_pdets);
+  G.resize(n_orbs * 2);
   for (unsigned i = 0; i < n_orbs * 2; i++) {
-    G[i].assign(n_pdets, 0.0);
+    G[i].assign(n_orbs * 2, 0.0);
   }
 
   for (unsigned j = 0; j < n_orbs * 2; j++) {
@@ -84,17 +89,23 @@ void Green<S>::run() {
     // Construct bj
     const auto& bj = construct_b(j);
 
-    // Generate initial x.
-
+    // Generate initial x0.
     std::vector<std::complex<double>> x0(n_pdets, 1.0e-6);
+
     for (size_t k = 0; k < n_pdets; k++) {
       if (std::abs(bj[k]) > 1.0e-6) {
-        x0[k] = bj[k] / hamiltonian.matrix.get_diag_green(k);
+        std::complex<double> diag = hamiltonian.matrix.get_diag(k);
+        if (advanced) {
+          diag = w + n * Util::I - (diag - system.energy_var);
+        } else {
+          diag = w + n * Util::I + (diag - system.energy_var);
+        }
+        x0[k] = bj[k] / diag;
       }
     }
 
     // Iteratively get H^{-1}bj
-    const auto& x = cg(hamiltonian.matrix, bj, x0);
+    const auto& x = cg(bj, x0);
 
     for (unsigned i = 0; i < n_orbs * 2; i++) {
       // Dot with bi
@@ -111,7 +122,7 @@ void Green<S>::construct_pdets() {
   for (size_t i = 0; i < n_dets; i++) {
     Det det = dets_store[i];
     for (unsigned k = 0; k < n_orbs; k++) {
-      if (advanced) { // G-.
+      if (advanced) {  // G-.
         if (det.up.has(k)) {
           det.up.unset(k);
           if (pdet_to_id.count(det) == 0) {
@@ -155,10 +166,9 @@ void Green<S>::construct_pdets() {
 template <class S>
 std::vector<double> Green<S>::construct_b(const unsigned j) {
   std::vector<double> b(n_pdets, 0.0);
-// #pragma omp parallel for schedule(static, 1)
   for (size_t det_id = 0; det_id < n_dets; det_id++) {
     Det det = dets_store[det_id];
-    if (advanced) { // G-.
+    if (advanced) {  // G-.
       if (j < n_orbs && det.up.has(j)) {
         det.up.unset(j);
       } else if (j >= n_orbs && det.dn.has(j - n_orbs)) {
@@ -177,48 +187,40 @@ std::vector<double> Green<S>::construct_b(const unsigned j) {
     }  // Advanced.
     const size_t pdet_id = pdet_to_id[det];
     const double coef = coefs_store[det_id];
-// #pragma omp atomic
     b[pdet_id] = coef;
   }
   return b;
 }
 
 template <class S>
-void Green<S>::green_ham() {
-  w = Config::get<double>("w_green", 1.0);
-  n = Config::get<double>("n_green", 1.0);
-
-  const double energy_var = system.energy_var;
-  const std::complex<double> offset(w + energy_var, n);
-  hamiltonian.matrix.set_green(offset);
-}
-
-template <class S>
 void Green<S>::output_green() {
   const auto& filename = Util::str_printf("green_%#.2e_%#.2ei.csv", w, n);
+
   FILE* file = fopen(filename.c_str(), "w");
+
   fprintf(file, "i,j,G\n");
   for (unsigned i = 0; i < n_orbs * 2; i++) {
     for (unsigned j = 0; j < n_orbs * 2; j++) {
       fprintf(file, "%u,%u,%+.10f%+.10fj\n", i, j, G[i][j].real(), G[i][j].imag());
     }
   }
+
   fclose(file);
+
   printf("Green's function saved to: %s\n", filename.c_str());
 }
 
 template <class S>
 std::vector<std::complex<double>> Green<S>::cg(
-    const SparseMatrix& matrix,
     const std::vector<double>& b,
     const std::vector<std::complex<double>>& x0) {
   std::vector<std::complex<double>> x(n_pdets, 0.0);
   std::vector<std::complex<double>> r(n_pdets, 0.0);
   std::vector<std::complex<double>> p(n_pdets, 0.0);
 
-  const auto& Ax0 = matrix.mul_green(x0);
+  const auto& Ax0 = mul_green(x0);
 
-// #pragma omp parallel for
+#pragma omp parallel for
   for (size_t i = 0; i < n_pdets; i++) {
     r[i] = b[i] - Ax0[i];
   }
@@ -229,26 +231,43 @@ std::vector<std::complex<double>> Green<S>::cg(
   int iter = 0;
   while (residual > 1.0e-15) {
     const std::complex<double>& rTr = Util::dot_omp(r, r);
-    const auto& Ap = matrix.mul_green(p);
+    const auto& Ap = mul_green(p);
     const std::complex<double>& pTAp = Util::dot_omp(p, Ap);
     const std::complex<double>& a = rTr / pTAp;
-// #pragma omp parallel for
+#pragma omp parallel for
     for (size_t j = 0; j < n_pdets; j++) {
       x[j] += a * p[j];
       r[j] -= a * Ap[j];
     }
     const std::complex<double>& rTr_new = Util::dot_omp(r, r);
     const std::complex<double>& beta = rTr_new / rTr;
-// #pragma omp parallel for
+#pragma omp parallel for
     for (size_t j = 0; j < n_pdets; j++) {
       p[j] = r[j] + beta * p[j];
     }
+
     residual = std::abs(rTr);
     iter++;
     if (iter % 10 == 0) printf("Iteration %d: r = %g\n", iter, residual);
-    if (iter > 500) throw std::runtime_error("cg does not converge");
+    if (iter > 100) throw std::runtime_error("cg does not converge");
   }
   printf("Final iteration %d: r = %g\n", iter, residual);
 
   return x;
+}
+
+
+template <class S>
+std::vector<std::complex<double>> Green<S>::mul_green(const std::vector<std::complex<double>>& vec) const {
+  auto G_vec = hamiltonian.matrix.mul(vec);
+
+  for (size_t i = 0; i < n_pdets; i++) {
+    if (advanced) {
+      G_vec[i] = (w + n * Util::I + system.energy_var) * vec[i] - G_vec[i];
+    } else {
+      G_vec[i] = (w + n * Util::I - system.energy_var) * vec[i] + G_vec[i];
+    }
+  } 
+
+  return G_vec;
 }
