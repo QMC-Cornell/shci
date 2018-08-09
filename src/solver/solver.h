@@ -88,10 +88,12 @@ void Solver<S>::run() {
   Result::put("energy_hf", system.energy_hf);
   Timer::end();
 
-  Timer::start("variation");
-  run_all_variations();
-  hamiltonian.clear();
-  Timer::end();
+  if (!Config::get<bool>("skip_var", false)) {
+    Timer::start("variation");
+    run_all_variations();
+    hamiltonian.clear();
+    Timer::end();
+  }
 
   Timer::start("post variation");
   if (Config::get<bool>("get_green", false)) {
