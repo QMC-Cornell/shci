@@ -1,5 +1,9 @@
 #include "sparse_matrix.h"
 
+#include <iostream>
+
+#include "../util.h"
+
 void SparseMatrix::append_elem(const size_t i, const size_t j, const double& elem) {
   rows[i].append(j, elem);
   if (i == j) diag_local[i] = elem;
@@ -32,6 +36,34 @@ std::vector<double> SparseMatrix::mul(const std::vector<double>& vec) const {
 
   const auto& res = reduce_sum(res_local);
 
+  return res;
+}
+
+std::vector<std::complex<double>> SparseMatrix::mul(const std::vector<std::complex<double>>& vec) const {
+  const size_t dim = rows.size();
+  std::vector<std::complex<double>> res(dim);
+  std::vector<double> tmp(dim);
+  std::vector<double> vec_tmp(dim);
+
+  // First calculate the real part.
+  for (size_t i = 0; i < dim; i++) {
+    vec_tmp[i] = vec[i].real();
+  }
+  tmp = mul(vec_tmp);
+  for (size_t i = 0; i < dim; i++) {
+    res[i] = tmp[i];
+  }
+
+  // Calculate the imag part.
+  for (size_t i = 0; i < dim; i++) {
+    vec_tmp[i] = vec[i].imag();
+  }
+  tmp = mul(vec_tmp);
+#pragma omp parallel for
+  for (size_t i = 0; i < dim; i++) {
+    res[i] += tmp[i] * Util::I;
+  }
+  
   return res;
 }
 

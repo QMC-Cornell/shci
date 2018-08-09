@@ -26,8 +26,6 @@ class ChemSystem : public BaseSystem {
   void post_variation() override;
 
  private:
-  unsigned n_orbs;
-
   std::vector<unsigned> orb_sym;
 
   double max_hci_queue_elem;

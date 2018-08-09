@@ -1,6 +1,7 @@
 #pragma once
 
 #include <climits>
+#include <complex>
 #include <vector>
 #include "../parallel.h"
 #include "../timer.h"
@@ -15,6 +16,8 @@ class SparseMatrix {
 
   std::vector<double> mul(const std::vector<double>& vec) const;
 
+  std::vector<std::complex<double>> mul(const std::vector<std::complex<double>>& vec) const;
+
   void append_elem(const size_t i, const size_t j, const double& elem);
 
   void set_dim(const size_t dim);
@@ -22,7 +25,7 @@ class SparseMatrix {
   void clear();
 
   void sort_row(const size_t i);
-  
+
   void print_row(const size_t i) { rows[i].print(); }
 
  private:
