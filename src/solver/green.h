@@ -45,7 +45,9 @@ class Green {
   std::vector<std::complex<double>> mul_green(const std::vector<std::complex<double>>& vec) const;
 
   std::vector<std::complex<double>> cg(
-      const std::vector<double>& b, const std::vector<std::complex<double>>& x0);
+      const std::vector<double>& b,
+      const std::vector<std::complex<double>>& x0,
+      const double tol = 1.0e-15);
 
   void output_green();
 };
@@ -212,8 +214,7 @@ void Green<S>::output_green() {
 
 template <class S>
 std::vector<std::complex<double>> Green<S>::cg(
-    const std::vector<double>& b,
-    const std::vector<std::complex<double>>& x0) {
+    const std::vector<double>& b, const std::vector<std::complex<double>>& x0, const double tol) {
   std::vector<std::complex<double>> x(n_pdets, 0.0);
   std::vector<std::complex<double>> r(n_pdets, 0.0);
   std::vector<std::complex<double>> p(n_pdets, 0.0);
@@ -229,7 +230,7 @@ std::vector<std::complex<double>> Green<S>::cg(
 
   double residual = 1.0;
   int iter = 0;
-  while (residual > 1.0e-15) {
+  while (residual > tol) {
     const std::complex<double>& rTr = Util::dot_omp(r, r);
     const auto& Ap = mul_green(p);
     const std::complex<double>& pTAp = Util::dot_omp(p, Ap);
@@ -251,14 +252,15 @@ std::vector<std::complex<double>> Green<S>::cg(
     if (iter % 10 == 0) printf("Iteration %d: r = %g\n", iter, residual);
     if (iter > 100) throw std::runtime_error("cg does not converge");
   }
+
   printf("Final iteration %d: r = %g\n", iter, residual);
 
   return x;
 }
 
-
 template <class S>
-std::vector<std::complex<double>> Green<S>::mul_green(const std::vector<std::complex<double>>& vec) const {
+std::vector<std::complex<double>> Green<S>::mul_green(
+    const std::vector<std::complex<double>>& vec) const {
   auto G_vec = hamiltonian.matrix.mul(vec);
 
   for (size_t i = 0; i < n_pdets; i++) {
@@ -267,7 +269,7 @@ std::vector<std::complex<double>> Green<S>::mul_green(const std::vector<std::com
     } else {
       G_vec[i] = (w + n * Util::I - system.energy_var) * vec[i] + G_vec[i];
     }
-  } 
+  }
 
   return G_vec;
 }

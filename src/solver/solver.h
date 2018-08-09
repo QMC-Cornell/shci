@@ -226,15 +226,6 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
       hamiltonian.update(system);
     }
 
-    if (system.dets.size() == 4) {
-      for (int i = 0; i < 4; i++) {
-        printf("%.6f\n", system.coefs[i]);
-        system.dets[i].up.print();
-        system.dets[i].dn.print();
-        hamiltonian.matrix.print_row(i);
-      }
-    }
-
     const double davidson_target_error = until_converged ? target_error / 5000 : target_error / 50;
     davidson.diagonalize(
         hamiltonian.matrix, system.coefs, davidson_target_error, Parallel::is_master());
