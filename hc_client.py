@@ -43,6 +43,9 @@ class HcClient(object):
 
         raise RuntimeError('Server failed to start.')
 
+    def getN(self):
+        return self.n
+
     def getCoefs(self):
         self._server.send('getCoefs')
         coefs = self._recvDoubleArr()
