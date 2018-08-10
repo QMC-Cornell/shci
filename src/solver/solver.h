@@ -13,6 +13,7 @@
 #include <cstdlib>
 #include <functional>
 #include <unordered_set>
+
 #include "../config.h"
 #include "../det/det.h"
 #include "../math_vector.h"
@@ -23,6 +24,7 @@
 #include "davidson.h"
 #include "green.h"
 #include "hamiltonian.h"
+#include "hc_server.h"
 #include "uncert_result.h"
 
 template <class S>
@@ -42,6 +44,8 @@ class Solver {
   size_t pt_mem_avail;
 
   size_t var_iteration_global;
+
+  double eps_var_min;
 
   double eps_pt;
 
@@ -96,6 +100,17 @@ void Solver<S>::run() {
   }
 
   Timer::start("post variation");
+
+  if (Config::get<bool>("hc_server_mode", false)) {
+    if (system.time_sym) throw std::invalid_argument("time sym hc server not implemented");
+    const auto& wf_filename = get_wf_filename(eps_var_min);
+    if (!load_variation_result(wf_filename)) throw std::runtime_error("failed to load wf");
+    hamiltonian.update(system);
+    HcServer<S> server(system, hamiltonian);
+    server.run();
+    return;
+  }
+
   if (Config::get<bool>("get_green", false)) {
     if (system.time_sym) throw std::invalid_argument("time sym green not implemented");
     Timer::start("green");
@@ -103,7 +118,9 @@ void Solver<S>::run() {
     green.run();
     Timer::end();
   }
+
   system.post_variation();
+
   Timer::end();
 
   if (Config::get<bool>("var_only", false)) return;
@@ -122,6 +139,7 @@ void Solver<S>::run_all_variations() {
   for (const auto& det : system.dets) var_dets.set(det);
   auto it_schedule = eps_vars_schedule.begin();
   var_iteration_global = 0;
+  eps_var_min = eps_vars.back();
   for (const double eps_var : eps_vars) {
     Timer::start(Util::str_printf("eps_var %#.2e", eps_var));
     const auto& filename = get_wf_filename(eps_var);
@@ -455,8 +473,8 @@ UncertResult Solver<S>::get_energy_pt_psto(const double eps_var, const double en
     hc_sums.sync();
     const size_t n_pt_dets = hc_sums.get_n_keys();
     const double mem_usage = Config::get<double>("pt_sto_mem_usage", 1.0);
-    n_batches = static_cast<size_t>(
-        ceil(2.0 * 128 * 100 / 1000 * n_pt_dets * (N_CHUNKS * 16 + 16) / (pt_mem_avail * mem_usage)));
+    n_batches = static_cast<size_t>(ceil(
+        2.0 * 128 * 100 / 1000 * n_pt_dets * (N_CHUNKS * 16 + 16) / (pt_mem_avail * mem_usage)));
     if (n_batches < 16) n_batches = 16;
     if (Parallel::is_master()) {
       printf("Number of batches chosen: %zu\n", n_batches);
