@@ -34,7 +34,7 @@ class HcClient(object):
             if line == 'Hc server ready':
                 ready = True
             elif ready is True:
-                self._n= int(line)
+                self._n = int(line)
                 print('n:', self._n)
                 self._server = socket.socket(
                     socket.AF_INET, socket.SOCK_STREAM)
@@ -72,7 +72,7 @@ class HcClient(object):
     def _recvDoubleArr(self):
         res = self._server.recv(8 * self._n)
         while len(res) < 8 * self._n:
-            res += self._server.recv(8 * self._n- len(res))
+            res += self._server.recv(8 * self._n - len(res))
         res = np.frombuffer(res, dtype=np.float64)
         return res
 
