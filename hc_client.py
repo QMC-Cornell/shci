@@ -9,11 +9,12 @@ import sys
 class HcClient(object):
     """RPC client for H*c with SHCI"""
 
-    def __init__(self, nProcs=1, shciPath='./shci', port=2018, verbose=True):
+    def __init__(self, nProcs=1, runtimePath='.', shciPath='./shci', port=2018, verbose=True):
         self.nProcs = nProcs
         self.shciPath = shciPath
         self.port = port
         self.verbose = verbose
+        self.runtimePath = runtimePath
 
     def startServer(self):
         print('Preparing SHCI Hc server...')
@@ -24,7 +25,7 @@ class HcClient(object):
             json.dump(config, config_file, indent=2)
         cmd = 'mpirun -n %d %s' % (self.nProcs, self.shciPath)
         serverProcess = subprocess.Popen(
-            cmd, shell=True, stdout=subprocess.PIPE, universal_newlines=True)
+            cmd, cwd=self.runtimePath, shell=True, stdout=subprocess.PIPE, universal_newlines=True)
         ready = False
         for line in iter(serverProcess.stdout.readline, ''):
             line = line.strip()
