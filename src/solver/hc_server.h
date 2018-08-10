@@ -35,6 +35,7 @@ class HcServer {
 
 template <class S>
 void HcServer<S>::run() {
+  n = system.coefs.size();
   if (Parallel::is_master()) {
     start_server();
   }
@@ -72,10 +73,13 @@ void HcServer<S>::run() {
         output = read_double_array(log_file);
       }
       Parallel::barrier();
-      fgpl::broadcast(output);
-      for (int i = 0; i < 5; i++) log_file <<  std::setprecision(15) << output[i] << std::endl;
-      for (int i = n - 5; i < n; i++) log_file << output[i] << std::endl;
-      log_file.flush();
+      size_t n_cast = 0;
+      const size_t TRUNK_SIZE = 1 << 20;
+      while (n - n_cast > TRUNK_SIZE) {
+        MPI_Bcast(output.data() + n_cast, TRUNK_SIZE, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        n_cast += TRUNK_SIZE;
+      }
+      MPI_Bcast(output.data() + n_cast, n - n_cast, MPI_DOUBLE, 0, MPI_COMM_WORLD);
       output = hamiltonian.matrix.mul(output);
       if (Parallel::is_master()) {
         send(new_socket, output.data(), sizeof(double) * n, 0);
@@ -121,7 +125,6 @@ void HcServer<S>::start_server() {
   }
 
   printf("Hc server ready\n");
-  n = system.coefs.size();
   printf("%zu\n", n);
 
   if ((new_socket = accept(server_fd, (struct sockaddr*)&address, (socklen_t*)&addrlen)) < 0) {
@@ -133,7 +136,7 @@ void HcServer<S>::start_server() {
 template <class S>
 std::vector<double> HcServer<S>::read_double_array(std::ofstream& log_file) const {
   long long total = sizeof(double) * n;
-  std::vector<double> result(total);
+  std::vector<double> result(n);
 
   long long n_read = read(new_socket, reinterpret_cast<char*>(result.data()), total);
   while (n_read < total) {
