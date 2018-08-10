@@ -39,7 +39,8 @@ std::vector<double> SparseMatrix::mul(const std::vector<double>& vec) const {
   return res;
 }
 
-std::vector<std::complex<double>> SparseMatrix::mul(const std::vector<std::complex<double>>& vec) const {
+std::vector<std::complex<double>> SparseMatrix::mul(
+    const std::vector<std::complex<double>>& vec) const {
   const size_t dim = rows.size();
   std::vector<std::complex<double>> res(dim);
   std::vector<double> tmp(dim);
@@ -63,7 +64,7 @@ std::vector<std::complex<double>> SparseMatrix::mul(const std::vector<std::compl
   for (size_t i = 0; i < dim; i++) {
     res[i] += tmp[i] * Util::I;
   }
-  
+
   return res;
 }
 
