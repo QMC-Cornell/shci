@@ -35,15 +35,18 @@ class HcServer {
 
 template <class S>
 void HcServer<S>::run() {
-  start_server();
+  if (Parallel::is_master()) {
+    start_server();
+  }
+  Parallel::barrier();
 
   char cmd_buffer[32];
   memset(cmd_buffer, 0, sizeof(cmd_buffer));
   std::vector<double> output(n);
-  std::string cmd(cmd_buffer);
+  std::string cmd;
 
   std::ofstream log_file;
-  log_file.open("hc_server.log");
+  log_file.open("hc_server.log" + std::to_string(Parallel::get_proc_id()));
 
   const char* ack = "ACK";
 
@@ -53,10 +56,11 @@ void HcServer<S>::run() {
       read(new_socket, cmd_buffer, 32);
       cmd = std::string(cmd_buffer);
       memset(cmd_buffer, 0, sizeof(cmd_buffer));
-      log_file << cmd << std::endl;
     }
     Parallel::barrier();
     fgpl::broadcast(cmd);
+    log_file << cmd << std::endl;
+    log_file.flush();
 
     if (cmd == "getCoefs") {
       if (Parallel::is_master()) {
@@ -67,11 +71,16 @@ void HcServer<S>::run() {
         send(new_socket, ack, strlen(ack), 0);
         output = read_double_array(log_file);
       }
+      Parallel::barrier();
       fgpl::broadcast(output);
+      for (int i = 0; i < 5; i++) log_file <<  std::setprecision(15) << output[i] << std::endl;
+      for (int i = n - 5; i < n; i++) log_file << output[i] << std::endl;
+      log_file.flush();
       output = hamiltonian.matrix.mul(output);
       if (Parallel::is_master()) {
         send(new_socket, output.data(), sizeof(double) * n, 0);
       }
+      log_file << "H applied" << std::endl;
     } else if (cmd == "exit") {
       return;
     }
@@ -80,10 +89,6 @@ void HcServer<S>::run() {
 
 template <class S>
 void HcServer<S>::start_server() {
-  if (!Parallel::is_master()) {
-    Parallel::barrier();
-  }
-
   int server_fd;
   struct sockaddr_in address;
   int opt = 1;
@@ -123,8 +128,6 @@ void HcServer<S>::start_server() {
     perror("accept");
     exit(EXIT_FAILURE);
   }
-
-  Parallel::barrier();
 }
 
 template <class S>

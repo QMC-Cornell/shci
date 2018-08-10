@@ -3,6 +3,8 @@ import socket
 import subprocess
 import time
 import json
+import sys
+
 
 class HcClient(object):
     """RPC client for H*c with SHCI"""
@@ -12,7 +14,7 @@ class HcClient(object):
         self.shciPath = shciPath
         self.port = port
         self.verbose = verbose
-        self.n = 0 # number of dets.
+        self.n = 0  # number of dets.
 
     def startServer(self):
         print('Preparing SHCI Hc server...')
@@ -34,7 +36,8 @@ class HcClient(object):
             elif ready is True:
                 self.n = int(line)
                 print('n:', self.n)
-                self._server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self._server = socket.socket(
+                    socket.AF_INET, socket.SOCK_STREAM)
                 self._server.connect(('127.0.0.1', self.port))
                 return
 
@@ -73,7 +76,7 @@ class HcClient(object):
 
 if __name__ == '__main__':
     # Test Hc = lam * c
-    client = HcClient()
+    client = HcClient(nProcs=2)
     client.startServer()
 
     coefs = client.getCoefs()
@@ -86,7 +89,13 @@ if __name__ == '__main__':
 
     eigenValue = Hc[0] / coefs[0]
     HcExpected = coefs * eigenValue
-    np.testing.assert_allclose(Hc, HcExpected, atol=1e-5)
+
+    try:
+        np.testing.assert_allclose(Hc, HcExpected, atol=1e-2)
+    except:
+        print("Hc beyond threshold")
+        client.exit()
+        exit(0)
 
     for i in range(100):
         Hc = client.Hc(Hc)
@@ -94,5 +103,3 @@ if __name__ == '__main__':
     print(Hc)
 
     client.exit()
-
-
