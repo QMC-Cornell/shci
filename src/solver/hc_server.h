@@ -47,7 +47,7 @@ void HcServer<S>::run() {
   std::string cmd;
 
   std::ofstream log_file;
-  log_file.open("hc_server.log" + std::to_string(Parallel::get_proc_id()));
+  log_file.open("hc_server." + std::to_string(Parallel::get_proc_id()) + ".log");
 
   const char* ack = "ACK";
 
@@ -84,7 +84,6 @@ void HcServer<S>::run() {
       if (Parallel::is_master()) {
         send(new_socket, output.data(), sizeof(double) * n, 0);
       }
-      log_file << "H applied" << std::endl;
     } else if (cmd == "exit") {
       return;
     }
