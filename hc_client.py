@@ -14,7 +14,6 @@ class HcClient(object):
         self.shciPath = shciPath
         self.port = port
         self.verbose = verbose
-        self.n = 0  # number of dets.
 
     def startServer(self):
         print('Preparing SHCI Hc server...')
@@ -34,8 +33,8 @@ class HcClient(object):
             if line == 'Hc server ready':
                 ready = True
             elif ready is True:
-                self.n = int(line)
-                print('n:', self.n)
+                self._n= int(line)
+                print('n:', self._n)
                 self._server = socket.socket(
                     socket.AF_INET, socket.SOCK_STREAM)
                 self._server.connect(('127.0.0.1', self.port))
@@ -44,7 +43,7 @@ class HcClient(object):
         raise RuntimeError('Server failed to start.')
 
     def getN(self):
-        return self.n
+        return self._n
 
     def getCoefs(self):
         self._server.send('getCoefs')
@@ -70,9 +69,9 @@ class HcClient(object):
         self._server.close()
 
     def _recvDoubleArr(self):
-        res = self._server.recv(8 * self.n)
-        while len(res) < 8 * self.n:
-            res += self._server.recv(8 * self.n - len(res))
+        res = self._server.recv(8 * self._n)
+        while len(res) < 8 * self._n:
+            res += self._server.recv(8 * self._n- len(res))
         res = np.frombuffer(res, dtype=np.float64)
         return res
 
