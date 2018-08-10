@@ -76,7 +76,7 @@ class HcClient(object):
 
 if __name__ == '__main__':
     # Test Hc = lam * c
-    client = HcClient(nProcs=2)
+    client = HcClient(nProcs=1)
     client.startServer()
 
     coefs = client.getCoefs()
