@@ -3,6 +3,7 @@
 #include <string>
 #include "../base_system.h"
 #include "../config.h"
+#include "../solver/sparse_matrix.h"
 #include "hrs.h"
 #include "integrals.h"
 #include "point_group.h"
@@ -23,7 +24,7 @@ class ChemSystem : public BaseSystem {
 
   void update_diag_helper() override;
 
-  void post_variation() override;
+  void post_variation(const SparseMatrix& connections) override;
 
  private:
   unsigned n_orbs;
@@ -62,5 +63,4 @@ class ChemSystem : public BaseSystem {
   double get_two_body_double(const DiffResult& diff_up, const DiffResult& diff_dn) const;
 
   double get_s2() const;
-
 };

@@ -22,12 +22,12 @@ class SparseMatrix {
   void clear();
 
   void sort_row(const size_t i);
-  
+
   void print_row(const size_t i) { rows[i].print(); }
 
- private:
   std::vector<SparseVector> rows;
 
+ private:
   std::vector<double> diag_local;
 
   std::vector<double> diag;

@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 #include "det/det.h"
+#include "solver/sparse_matrix.h"
 #include "util.h"
 
 class BaseSystem {
@@ -43,7 +44,7 @@ class BaseSystem {
 
   virtual void update_diag_helper() = 0;
 
-  virtual void post_variation(){};
+  virtual void post_variation(const SparseMatrix& connections){};
 
   virtual void post_perturbation(){};
 

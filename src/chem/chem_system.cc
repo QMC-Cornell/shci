@@ -453,7 +453,18 @@ double ChemSystem::get_two_body_double(const DiffResult& diff_up, const DiffResu
   return energy;
 }
 
-void ChemSystem::post_variation() {
+void ChemSystem::post_variation(const SparseMatrix& connections) {
+  if (Config::get<bool>("2rdm", false)) {
+    //    if (time_sym && !unpacked) {
+    //      unpack_time_sym();
+    //      unpacked = true;
+    //    }
+    RDM rdm;
+    Timer::start("get_2rdm");
+    rdm.get_2rdm(dets, coefs, integrals, connections);
+    Timer::end();
+  }
+
   bool unpacked = false;
 
   if (Config::get<bool>("s2", false)) {
@@ -480,16 +491,17 @@ void ChemSystem::post_variation() {
     exit(0);
   }
 
-  if (Config::get<bool>("2rdm", false)) {
-    if (time_sym && !unpacked) {
-      unpack_time_sym();
-      unpacked = true;
-    }
-    RDM rdm;
-    Timer::start("get_2rdm");
-    rdm.get_2rdm(dets, coefs, integrals);
-    Timer::end();
-  }
+  /*
+    if (Config::get<bool>("2rdm", false)) {
+      if (time_sym && !unpacked) {
+        unpack_time_sym();
+        unpacked = true;
+      }
+      RDM rdm;
+      Timer::start("get_2rdm");
+      rdm.get_2rdm(dets, coefs, integrals);
+      Timer::end();
+    } */
 }
 
 //======================================================

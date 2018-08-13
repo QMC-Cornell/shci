@@ -28,8 +28,8 @@ class SparseVector {
     printf("n elems: %zu\n", size());
   }
 
- private:
   std::vector<size_t> indices;
 
+ private:
   std::vector<double> values;
 };

@@ -87,11 +87,13 @@ void Solver<S>::run() {
 
   Timer::start("variation");
   run_all_variations();
+  SparseMatrix connections = hamiltonian.matrix;  // TODO: fix this
+
   hamiltonian.clear();
   Timer::end();
 
   Timer::start("post variation");
-  system.post_variation();
+  system.post_variation(connections);
   Timer::end();
 
   if (Config::get<bool>("var_only", false)) return;
@@ -133,13 +135,14 @@ void Solver<S>::run_all_variations() {
       eps_tried_prev.clear();
       var_dets.clear();
       for (const auto& det : system.dets) var_dets.set(det);
-      hamiltonian.clear();
+      //      hamiltonian.clear();
       Result::put<double>(Util::str_printf("energy_var/%#.2e", eps_var), system.energy_var);
     }
     eps_var_prev = eps_var;
     Timer::end();
   }
-  hamiltonian.clear();
+
+  //  hamiltonian.clear();
   eps_tried_prev.clear();
   eps_tried_prev.shrink_to_fit();
   var_dets.clear_and_shrink();
