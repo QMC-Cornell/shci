@@ -11,7 +11,11 @@ using namespace Eigen;
 
 class RDM {
  public:
-  void get_1rdm(const std::vector<Det>&, const std::vector<double>&, const Integrals&);
+  void get_1rdm(
+      const std::vector<Det>&,
+      const std::vector<double>&,
+      const Integrals&,
+      const bool dump_csv = false);
 
   void generate_natorb_integrals(const Integrals&) const;
 
@@ -28,7 +32,8 @@ class RDM {
       const std::vector<Det>&,
       const std::vector<double>&,
       const Integrals&,
-      const SparseMatrix& connections);
+      const SparseMatrix& connections,
+      const bool dump_csv = false);
 
  private:
   unsigned n_orbs, n_up, n_dn;

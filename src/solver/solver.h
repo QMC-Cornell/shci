@@ -13,6 +13,7 @@
 #include <cstdlib>
 #include <functional>
 #include <unordered_set>
+
 #include "../config.h"
 #include "../det/det.h"
 #include "../math_vector.h"
@@ -21,7 +22,9 @@
 #include "../timer.h"
 #include "../util.h"
 #include "davidson.h"
+#include "green.h"
 #include "hamiltonian.h"
+#include "hc_server.h"
 #include "uncert_result.h"
 
 template <class S>
@@ -41,6 +44,8 @@ class Solver {
   size_t pt_mem_avail;
 
   size_t var_iteration_global;
+
+  double eps_var_min;
 
   double eps_pt;
 
@@ -68,6 +73,8 @@ class Solver {
 
   void save_variation_result(const std::string& filename);
 
+  void print_dets_info() const;
+
   std::string get_wf_filename(const double eps_var) const;
 
   template <class C>
@@ -81,19 +88,44 @@ void Solver<S>::run() {
   Timer::start("setup");
   std::setlocale(LC_ALL, "en_US.UTF-8");
   system.setup();
-  target_error = Config::get<double>("target_error", 1.0e-5);
+  target_error = Config::get<double>("target_error", 5.0e-5);
   Result::put("energy_hf", system.energy_hf);
   Timer::end();
 
-  Timer::start("variation");
-  run_all_variations();
-  SparseMatrix connections = hamiltonian.matrix;  // TODO: fix this
+  SparseMatrix connections;
 
-  hamiltonian.clear();
-  Timer::end();
+  if (!Config::get<bool>("skip_var", false)) {
+    Timer::start("variation");
+    run_all_variations();
+
+    if (Config::get<bool>("2rdm", false)) connections = hamiltonian.matrix;
+
+    hamiltonian.clear();
+    Timer::end();
+  }
 
   Timer::start("post variation");
+
+  if (Config::get<bool>("hc_server_mode", false)) {
+    if (system.time_sym) throw std::invalid_argument("time sym hc server not implemented");
+    const auto& wf_filename = get_wf_filename(eps_var_min);
+    if (!load_variation_result(wf_filename)) throw std::runtime_error("failed to load wf");
+    hamiltonian.update(system);
+    HcServer<S> server(system, hamiltonian);
+    server.run();
+    return;
+  }
+
+  if (Config::get<bool>("get_green", false)) {
+    if (system.time_sym) throw std::invalid_argument("time sym green not implemented");
+    Timer::start("green");
+    Green<S> green(system, hamiltonian);
+    green.run();
+    Timer::end();
+  }
+
   system.post_variation(connections);
+
   Timer::end();
 
   if (Config::get<bool>("var_only", false)) return;
@@ -112,6 +144,7 @@ void Solver<S>::run_all_variations() {
   for (const auto& det : system.dets) var_dets.set(det);
   auto it_schedule = eps_vars_schedule.begin();
   var_iteration_global = 0;
+  eps_var_min = eps_vars.back();
   for (const double eps_var : eps_vars) {
     Timer::start(Util::str_printf("eps_var %#.2e", eps_var));
     const auto& filename = get_wf_filename(eps_var);
@@ -171,7 +204,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
 
   while (!converged) {
     eps_tried_prev.resize(n_dets, Util::INF);
-    if (until_converged) Timer::start(Util::str_printf("#%zu", iteration));
+    if (until_converged) Timer::start(Util::str_printf("#%zu", iteration + 1));
 
     // Random execution and broadcast.
     if (!dets_converged) {
@@ -207,7 +240,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
       dist_new_dets.for_each_serial([&](const Det& connected_det, const size_t) {
         var_dets.set(connected_det);
         system.dets.push_back(connected_det);
-        system.coefs.push_back(0.0);
+        system.coefs.push_back(1.0e-6);
       });
       dist_new_dets.clear_and_shrink();
 
@@ -219,7 +252,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
       hamiltonian.update(system);
     }
 
-    const double davidson_target_error = until_converged ? target_error / 200 : target_error / 20;
+    const double davidson_target_error = until_converged ? target_error / 5000 : target_error / 50;
     davidson.diagonalize(
         hamiltonian.matrix, system.coefs, davidson_target_error, Parallel::is_master());
     const double energy_var_new = davidson.get_lowest_eigenvalue();
@@ -230,7 +263,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
       printf("Iteration %zu ", var_iteration_global);
       printf("eps1= %#.2e ndets= %'zu energy= %.8f\n", eps_var, n_dets_new, energy_var_new);
     }
-    if (std::abs(energy_var_new - energy_var_prev) < target_error / 50) {
+    if (std::abs(energy_var_new - energy_var_prev) < target_error * 0.001) {
       converged = true;
     }
     if (n_dets_new < n_dets * 1.001) {
@@ -247,15 +280,20 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
   if (Parallel::is_master() && until_converged) {
     printf("Final iteration %zu ", var_iteration_global);
     printf("eps1= %#.2e ndets= %'zu energy= %.8f\n", eps_var, n_dets, system.energy_var);
+    print_dets_info();
   }
 }
 
 template <class S>
 void Solver<S>::run_perturbation(const double eps_var) {
   // If result already exists, return.
-  eps_pt = Config::get<double>("eps_pt", eps_var / 5000);
+  eps_pt = Config::get<double>("eps_pt", eps_var * 1e-6);
   eps_pt_psto = Config::get<double>("eps_pt_psto", eps_var / 500);
   eps_pt_dtm = Config::get<double>("eps_pt_dtm", eps_var / 50);
+  double min_eps_pt_dtm = Config::get<double>("min_eps_pt_dtm", 1.0e-6);
+  double min_eps_pt_psto = Config::get<double>("min_eps_pt_psto", 1.0e-7);
+  if (eps_pt_dtm < min_eps_pt_dtm) eps_pt_dtm = min_eps_pt_dtm;
+  if (eps_pt_psto < min_eps_pt_psto) eps_pt_psto = min_eps_pt_psto;
 
   const auto& value_entry = Util::str_printf("energy_total/%#.2e/%#.2e/value", eps_var, eps_pt);
   const auto& uncert_entry = Util::str_printf("energy_total/%#.2e/%#.2e/uncert", eps_var, eps_pt);
@@ -317,7 +355,7 @@ double Solver<S>::get_energy_pt_dtm(const double eps_var) {
         if (var_dets.has(det_a)) return;
         const size_t det_a_hash = det_hasher(det_a);
         const size_t batch_hash = Util::rehash(det_a_hash);
-        if ((batch_hash & 15) != 0) return;  // use 1st of 16 batches.
+        if ((batch_hash & 127) != 0) return;  // use 1st of 16 batches.
         if (n_excite == 1) {
           const double h_ai = system.get_hamiltonian_elem(det, det_a, n_excite);
           const double hc = h_ai * coef;
@@ -331,7 +369,7 @@ double Solver<S>::get_energy_pt_dtm(const double eps_var) {
     hc_sums.sync();
     const size_t n_pt_dets = hc_sums.get_n_keys();
     n_batches = static_cast<size_t>(
-        ceil(2.0 * 16 * 100 / 1000 * n_pt_dets * (N_CHUNKS * 16 + 16) / pt_mem_avail));
+        ceil(2.0 * 128 * 100 / 1000 * n_pt_dets * (N_CHUNKS * 16 + 16) / pt_mem_avail));
     if (n_batches == 0) n_batches = 1;
     if (Parallel::is_master()) {
       printf("Number of batches chosen: %zu\n", n_batches);
@@ -346,7 +384,7 @@ double Solver<S>::get_energy_pt_dtm(const double eps_var) {
   UncertResult energy_pt_dtm;
 
   for (size_t batch_id = 0; batch_id < n_batches; batch_id++) {
-    Timer::start(Util::str_printf("#%zu/%zu", batch_id, n_batches));
+    Timer::start(Util::str_printf("#%zu/%zu", batch_id + 1, n_batches));
 
     for (size_t j = 0; j < 5; j++) {
       fgpl::DistRange<size_t>(j, n_var_dets, 5).for_each([&](const size_t i) {
@@ -427,7 +465,7 @@ UncertResult Solver<S>::get_energy_pt_psto(const double eps_var, const double en
         if (var_dets.has(det_a)) return;
         const size_t det_a_hash = det_hasher(det_a);
         const size_t batch_hash = Util::rehash(det_a_hash);
-        if ((batch_hash & 15) != 0) return;  // use 1st of 16 batches.
+        if ((batch_hash & 127) != 0) return;  // use 1st of 16 batches.
         if (n_excite == 1) {
           const double h_ai = system.get_hamiltonian_elem(det, det_a, n_excite);
           const double hc = h_ai * coef;
@@ -440,9 +478,12 @@ UncertResult Solver<S>::get_energy_pt_psto(const double eps_var, const double en
     });
     hc_sums.sync();
     const size_t n_pt_dets = hc_sums.get_n_keys();
+    const double mem_usage = Config::get<double>("pt_sto_mem_usage", 1.0);
     n_batches = static_cast<size_t>(
-        ceil(2.0 * 16 * 100 / 1000 * n_pt_dets * (N_CHUNKS * 16 + 16) / pt_mem_avail));
-    if (n_batches < 8) n_batches = 8;
+        ceil(
+            2.0 * 128 * 100 / 1000 * n_pt_dets * (N_CHUNKS * 16 + 16) /
+            (pt_mem_avail * mem_usage)));
+    if (n_batches < 16) n_batches = 16;
     if (Parallel::is_master()) {
       printf("Number of batches chosen: %zu\n", n_batches);
     }
@@ -456,7 +497,7 @@ UncertResult Solver<S>::get_energy_pt_psto(const double eps_var, const double en
   UncertResult energy_pt_psto;
 
   for (size_t batch_id = 0; batch_id < n_batches; batch_id++) {
-    Timer::start(Util::str_printf("#%zu/%zu", batch_id, n_batches));
+    Timer::start(Util::str_printf("#%zu/%zu", batch_id + 1, n_batches));
 
     for (size_t j = 0; j < 5; j++) {
       fgpl::DistRange<size_t>(j, n_var_dets, 5).for_each([&](const size_t i) {
@@ -516,7 +557,7 @@ UncertResult Solver<S>::get_energy_pt_psto(const double eps_var, const double en
     hc_sums.clear();
     Timer::end();  // batch
 
-    if (energy_pt_psto.uncert <= target_error * 0.2 && batch_id < n_batches - 2) break;
+    if (energy_pt_psto.uncert <= target_error * 0.4 && batch_id < n_batches - 2) break;
     if (eps_pt_psto <= eps_pt && energy_pt_psto.uncert <= target_error) break;
   }
 
@@ -532,8 +573,8 @@ UncertResult Solver<S>::get_energy_pt_sto(
   const size_t max_pt_iterations = Config::get<size_t>("max_pt_iterations", 100);
   fgpl::DistHashMap<Det, MathVector<double, 3>, DetHasher> hc_sums;
   const size_t n_var_dets = system.get_n_dets();
-  size_t n_batches = Config::get<size_t>("n_batches_pt_sto", 16);
-  if (n_batches == 0) n_batches = 16;
+  size_t n_batches = Config::get<size_t>("n_batches_pt_sto", 0);
+  if (n_batches == 0) n_batches = 128;
   size_t n_samples = Config::get<size_t>("n_samples_pt_sto", 0);
   std::vector<double> probs(n_var_dets);
   std::vector<double> cum_probs(n_var_dets);  // For sampling.
@@ -578,7 +619,7 @@ UncertResult Solver<S>::get_energy_pt_sto(
         if (var_dets.has(det_a)) return;
         const size_t det_a_hash = det_hasher(det_a);
         const size_t batch_hash = Util::rehash(det_a_hash);
-        if ((batch_hash & 15) != 0) return;
+        if ((batch_hash & 127) != 0) return;
         if (n_excite == 1) {
           const double h_ai = system.get_hamiltonian_elem(det, det_a, n_excite);
           const double hc = h_ai * coef;
@@ -592,11 +633,13 @@ UncertResult Solver<S>::get_energy_pt_sto(
     hc_sums.sync();
     const size_t n_pt_dets = hc_sums.get_n_keys();
     hc_sums.clear();
-    const size_t n_pt_dets_batch = n_pt_dets * 16 / n_batches;
+    const size_t n_pt_dets_batch = n_pt_dets * 128 / n_batches;
     const size_t bytes_per_det = N_CHUNKS * 16 + 24;
+    const double mem_usage = Config::get<double>("pt_sto_mem_usage", 1.0);
     size_t n_unique_target =
-        pt_mem_avail * 1000 * n_unique_samples / bytes_per_det / 3.0 / n_pt_dets_batch;
-    if (n_unique_target >= n_var_dets / 2) n_unique_target = n_var_dets / 2;
+        pt_mem_avail * mem_usage * 1000 * n_unique_samples / bytes_per_det / 3.0 / n_pt_dets_batch;
+    const size_t max_unique_targets = n_var_dets / 8 + 1;
+    if (n_unique_target >= max_unique_targets) n_unique_target = max_unique_targets;
     sample_dets.clear();
     sample_dets_list.clear();
     n_samples = 0;
@@ -620,7 +663,7 @@ UncertResult Solver<S>::get_energy_pt_sto(
   }
 
   while (iteration < max_pt_iterations) {
-    Timer::start(Util::str_printf("#%zu", iteration));
+    Timer::start(Util::str_printf("#%zu", iteration + 1));
 
     // Generate random sample
     for (size_t i = 0; i < n_samples; i++) {
@@ -632,6 +675,9 @@ UncertResult Solver<S>::get_energy_pt_sto(
     }
     fgpl::broadcast(sample_dets);
     fgpl::broadcast(sample_dets_list);
+    if (Parallel::is_master()) {
+      printf("Number of unique samples chosen: %'zu\n", sample_dets_list.size());
+    }
 
     // Select random batch.
     size_t batch_id = rand() % n_batches;
@@ -697,10 +743,10 @@ UncertResult Solver<S>::get_energy_pt_sto(
     hc_sums.clear();
     Timer::end();
     iteration++;
-    if (iteration >= 4 && (energy_pt_sto + energy_pt_psto).uncert <= target_error * 0.5) {
+    if (iteration >= 6 && (energy_pt_sto + energy_pt_psto).uncert <= target_error * 0.5) {
       break;
     }
-    if (iteration >= 8 && (energy_pt_sto + energy_pt_psto).uncert <= target_error) {
+    if (iteration >= 10 && (energy_pt_sto + energy_pt_psto).uncert <= target_error) {
       break;
     }
   }
@@ -756,19 +802,7 @@ bool Solver<S>::load_variation_result(const std::string& filename) {
   hps::from_string(serialized, system);
   if (Parallel::is_master()) {
     printf("Loaded %'zu dets from: %s\n", system.get_n_dets(), filename.c_str());
-    if (system.time_sym) {
-      size_t n_eff_dets = 0;
-      for (const auto& det : system.dets) {
-        if (det.up == det.dn) {
-          n_eff_dets += 1;
-        } else if (det.up < det.dn) {
-          n_eff_dets += 2;
-        } else {
-          throw std::runtime_error("wf has unvalid det for time sym");
-        }
-      }
-      printf("Effect dets (without time sym): %'zu\n", n_eff_dets);
-    }
+    print_dets_info();
     printf("HF energy: " ENERGY_FORMAT "\n", system.energy_hf);
     printf("Variation energy: " ENERGY_FORMAT "\n", system.energy_var);
   }
@@ -781,6 +815,50 @@ void Solver<S>::save_variation_result(const std::string& filename) {
     std::ofstream file(filename, std::ofstream::binary);
     hps::to_stream(system, file);
     printf("Variation results saved to: %s\n", filename.c_str());
+  }
+}
+
+template <class S>
+void Solver<S>::print_dets_info() const {
+  if (system.time_sym) {
+    // Print effective dets for unpacked time sym.
+    size_t n_eff_dets = 0;
+    for (const auto& det : system.dets) {
+      if (det.up == det.dn) {
+        n_eff_dets += 1;
+      } else if (det.up < det.dn) {
+        n_eff_dets += 2;
+      } else {
+        throw std::runtime_error("wf has unvalid det for time sym");
+      }
+    }
+    printf("Effect dets (without time sym): %'zu\n", n_eff_dets);
+  }
+
+  // Print excitations.
+  std::unordered_map<unsigned, size_t> excitations;
+  std::unordered_map<unsigned, double> weights;
+  unsigned highest_excitation = 0;
+  const auto& det_hf = system.dets[0];
+  for (size_t i = 0; i < system.dets.size(); i++) {
+    const auto& det = system.dets[i];
+    const double coef = system.coefs[i];
+    const unsigned n_excite = det_hf.up.n_diffs(det.up) + det_hf.dn.n_diffs(det.dn);
+    if (det.up != det.dn && system.time_sym) {
+      excitations[n_excite] += 2;
+    } else {
+      excitations[n_excite] += 1;
+    }
+    weights[n_excite] += coef * coef;
+    if (highest_excitation < n_excite) highest_excitation = n_excite;
+  }
+  printf("%-10s%12s%16s\n", "Excite Lv", "# dets", "sum c^2");
+  for (unsigned i = 0; i <= highest_excitation; i++) {
+    if (excitations.count(i) == 0) {
+      excitations[i] = 0;
+      weights[i] = 0.0;
+    }
+    printf("%-10u%12zu%16.8f\n", i, excitations[i], weights[i]);
   }
 }
 

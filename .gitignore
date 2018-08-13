@@ -11,8 +11,11 @@ FCIDUMP*
 !FCIDUMP.example
 *.json
 *.dat
+*.eps
 i_*
 o_*
+*rdm.csv
+green*.csv
 
 # OS and editor files.
 .vscode

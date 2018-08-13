@@ -20,6 +20,8 @@ class HalfDet {
 
   std::vector<unsigned> get_occupied_orbs() const;
 
+  unsigned n_diffs(const HalfDet& rhs) const;
+
   DiffResult diff(const HalfDet& rhs) const;
 
   unsigned bit_till(unsigned p) const;

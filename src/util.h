@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <complex>
 #include <cstdio>
 #include <memory>
 #include <string>
@@ -23,6 +24,12 @@ class Util {
 
   static double dot_omp(const std::vector<double>& a, const std::vector<double>& b);
 
+  static std::complex<double> dot_omp(
+      const std::vector<double>& a, const std::vector<std::complex<double>>& b);
+
+  static std::complex<double> dot_omp(
+      const std::vector<std::complex<double>>& a, const std::vector<std::complex<double>>& b);
+
   static size_t rehash(const size_t a);
 
   static int ctz(unsigned long long x);
@@ -42,6 +49,8 @@ class Util {
   constexpr static double EPS = 1.0e-12;
 
   constexpr static double INF = 1.0e100;
+
+  constexpr static std::complex<double> I = std::complex<double>(0, 1);
 
   constexpr static double SQRT2 = 1.4142135623730951;
 
