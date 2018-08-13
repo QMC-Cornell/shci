@@ -9,7 +9,10 @@
 #include "../util.h"
 
 void RDM::get_1rdm(
-    const std::vector<Det>& dets, const std::vector<double>& coefs, const Integrals& integrals) {
+    const std::vector<Det>& dets,
+    const std::vector<double>& coefs,
+    const Integrals& integrals,
+    const bool dump_csv) {
   //=====================================================
   // Create 1RDM using the variational wavefunction
   //
@@ -82,10 +85,24 @@ void RDM::get_1rdm(
           one_rdm(p, r) += this_det.dn.diff(new_det.dn).permutation_factor * coef * coefs[i_det];
         }  // r
       }  // i_elec
-    }  
+    }
   }  // i_det
 
   if (time_sym) one_rdm *= 2.;
+
+  if (dump_csv) {
+    FILE* pFile;
+    pFile = fopen("1rdm.csv", "w");
+    fprintf(pFile, "p,r,1rdm\n");
+    for (unsigned p = 0; p < n_orbs; p++) {
+      for (unsigned r = p; r < n_orbs; r++) {
+        const double rdm_pr = one_rdm(p, r);
+        if (std::abs(rdm_pr) < 1e-9) continue;
+        fprintf(pFile, "%d,%d,%#.15g\n", p, r, rdm_pr);
+      }
+    }
+    fclose(pFile);
+  }
 }
 
 void RDM::generate_natorb_integrals(const Integrals& integrals) const {
@@ -836,7 +853,8 @@ void RDM::get_2rdm(
     const std::vector<Det>& dets,
     const std::vector<double>& coefs,
     const Integrals& integrals,
-    const SparseMatrix& connections) {
+    const SparseMatrix& connections,
+    const bool dump_csv) {
   //=====================================================
   // Create spatial 2RDM using the variational wavefunction
   // and Hamiltonian connections.
@@ -920,39 +938,58 @@ void RDM::get_2rdm(
 
   std::cout << "writing out 2RDM\n";
 
-  FILE* pFile;
-  pFile = fopen("spatialRDM.txt", "w");
+  if (dump_csv) {
+    FILE* pFile = fopen("2rdm.csv", "w");
+    fprintf(pFile, "p,q,r,s,2rdm\n");
+    for (unsigned p = 0; p < n_orbs; p++) {
+      for (unsigned q = p; q < n_orbs; q++) {
+        for (unsigned s = 0; s < n_orbs; s++) {
+          for (unsigned r = 0; r < n_orbs; r++) {
+            if (p == q && s > r) continue;
+            const double rdm_pqrs = two_rdm[combine4_2rdm(p, q, r, s, n_orbs)];
+            if (std::abs(rdm_pqrs) < 1.0e-9) continue;
+            fprintf(pFile, "%d,%d,%d,%d,%#.15g\n", p, q, r, s, rdm_pqrs);
+          }
+        }
+      }
+    }
+    fclose(pFile);
+  } else {
+    FILE* pFile;
+    pFile = fopen("spatialRDM.txt", "w");
 
-  fprintf(pFile, "%d\n", n_orbs);
+    fprintf(pFile, "%d\n", n_orbs);
 
-  for (unsigned p = 0; p < n_orbs; p++) {
-    for (unsigned q = 0; q < n_orbs; q++) {
-      for (unsigned s = 0; s < n_orbs; s++) {  // r and s switched in keeping with Dice conventions
-        for (unsigned r = 0; r < n_orbs; r++) {
-          if (std::abs(
+    for (unsigned p = 0; p < n_orbs; p++) {
+      for (unsigned q = 0; q < n_orbs; q++) {
+        for (unsigned s = 0; s < n_orbs;
+             s++) {  // r and s switched in keeping with Dice conventions
+          for (unsigned r = 0; r < n_orbs; r++) {
+            if (std::abs(
+                    two_rdm[combine4_2rdm(
+                        integrals.orb_order_inv[p],
+                        integrals.orb_order_inv[q],
+                        integrals.orb_order_inv[r],
+                        integrals.orb_order_inv[s],
+                        n_orbs)]) > 1.e-6)
+              fprintf(
+                  pFile,
+                  "%3d   %3d   %3d   %3d   %10.8g\n",
+                  p,
+                  q,
+                  s,
+                  r,
                   two_rdm[combine4_2rdm(
                       integrals.orb_order_inv[p],
                       integrals.orb_order_inv[q],
                       integrals.orb_order_inv[r],
                       integrals.orb_order_inv[s],
-                      n_orbs)]) > 1.e-6)
-            fprintf(
-                pFile,
-                "%3d   %3d   %3d   %3d   %10.8g\n",
-                p,
-                q,
-                s,
-                r,
-                two_rdm[combine4_2rdm(
-                    integrals.orb_order_inv[p],
-                    integrals.orb_order_inv[q],
-                    integrals.orb_order_inv[r],
-                    integrals.orb_order_inv[s],
-                    n_orbs)]);
-        }  // r
-      }  // s
-    }  // q
-  }  // p
+                      n_orbs)]);
+          }  // r
+        }  // s
+      }  // q
+    }  // p
+  }
 }
 
 void RDM::get_2rdm_elements(

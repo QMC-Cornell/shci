@@ -1,6 +1,7 @@
 #pragma once
 
 #include <climits>
+#include <complex>
 #include <vector>
 #include "../parallel.h"
 #include "../timer.h"
@@ -14,6 +15,14 @@ class SparseMatrix {
   void cache_diag();
 
   std::vector<double> mul(const std::vector<double>& vec) const;
+
+  std::vector<std::complex<double>> mul(const std::vector<std::complex<double>>& vec) const;
+
+  void mul(
+      const std::vector<double>& input_real,
+      const std::vector<double>& input_imag,
+      std::vector<double>& output_real,
+      std::vector<double>& output_imag) const;
 
   void append_elem(const size_t i, const size_t j, const double& elem);
 

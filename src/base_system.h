@@ -14,10 +14,14 @@ class BaseSystem {
   unsigned n_up;
 
   unsigned n_dn;
+  
+  unsigned n_orbs;
 
   unsigned n_elecs;
 
   bool time_sym;
+
+  bool has_double_excitation;
 
   double energy_hf;
 

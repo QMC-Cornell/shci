@@ -58,6 +58,18 @@ void HalfDet::print() const {
   printf("\n");
 }
 
+unsigned HalfDet::n_diffs(const HalfDet& rhs) const {
+  unsigned n_diffs = 0;
+  for (int chunk_id = 0; chunk_id < N_CHUNKS; chunk_id++) {
+    uint64_t chunk_left = chunks[chunk_id];
+    uint64_t chunk_right = rhs.chunks[chunk_id];
+    if (chunk_left == chunk_right) continue;
+    uint64_t chunk_left_only = chunk_left & (~chunk_right);
+    n_diffs += Util::popcnt(chunk_left_only);
+  }
+  return n_diffs;
+}
+
 DiffResult HalfDet::diff(const HalfDet& rhs) const {
   DiffResult res;
   unsigned n_left_only = 0;
