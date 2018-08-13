@@ -42,11 +42,16 @@ Many software packages can generate `FCIDUMP`, such as [`PySCF`](https://github.
 * `s2`: whether calculates s squared, default to false.
 * `natorb`: whether generates natural orbitals FCIDUMP, default to false.
 * `load_integrals_cache`: whether loads FCIDUMP information from integrals_cache, default to false.
+* `get_1rdm_csv`, `get_2rdm_csv`: :seedling: whether calculates the density matrices, default to false.
+* `get_green`: :seedling: whether calculates the green's function, default to false. If it is true, `w_green` gives the real part of the frequency and `n_green` gives the imaginary part.
+* `hc_server_mode`: :seedling: operates as an hc server, default to false. If it is true, the program serves as an RPC server for performing H * c matrix-vector multiplication server after finishing matrix reconstruction. A python client interface is provided via `hc_client.py`. `hc_client` exposes a class `HcClient`, which has three public methods: `getN` for getting the number of determinants, `getCoefs` for getting the coefficients array as a numpy array, and `Hc(arr)` which performs the matrix-vector multiplication on a numpy array of `dtype` either `np.float64` or `np.complex64` and returns the resulting numpy array of the same type. 
 
 ### Chemistry Block `chem`
 * `point_group` (required): supports `C1`, `Cs`, `Ci`, `C2v`, `C2h`, `D2h`, and `Dooh`.
 * `irreps`: an array of irreducible representations. If occupations are also given, they together determine the starting determinant, otherwise, the lowest orbitals are filled.
 * `irrep_occs_up` and `irrep_occs_dn`: occupation of each irreducible representation for up and down electrons respectively, the lowest orbitals satisfying which constitute the starting determinant. Ignored if `irreps` is not given.
+
+
 
 ### Citation
 TBA
