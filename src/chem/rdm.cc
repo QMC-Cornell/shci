@@ -92,7 +92,7 @@ void RDM::get_1rdm(
       for (unsigned r = p; r < n_orbs; r++) {
         const double rdm_pr = one_rdm(p, r);
         if (std::abs(rdm_pr) < 1e-9) continue;
-        fprintf(pFile, "%d,%d,%#.15g\n", p, r, rdm_pr);
+        fprintf(pFile, "%d,%d,%#.15g\n", integrals.orb_order[p], integrals.orb_order[r], rdm_pr);
       }
     }
     fclose(pFile);
@@ -771,7 +771,14 @@ void RDM::get_2rdm(
             if (p == q && s > r) continue;
             const double rdm_pqrs = two_rdm[combine4_2rdm(p, q, r, s, n_orbs)];
             if (std::abs(rdm_pqrs) < 1.0e-9) continue;
-            fprintf(pFile, "%d,%d,%d,%d,%#.15g\n", p, q, r, s, rdm_pqrs);
+            fprintf(
+                pFile,
+                "%d,%d,%d,%d,%#.15g\n",
+                integrals.orb_order[p],
+                integrals.orb_order[q],
+                integrals.orb_order[r],
+                integrals.orb_order[s],
+                rdm_pqrs);
           }
         }
       }
