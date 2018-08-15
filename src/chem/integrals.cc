@@ -229,9 +229,15 @@ void Integrals::reorder_orbs(const std::vector<double>& orb_energies) {
   orb_order.resize(n_orbs);
   orb_order_inv.resize(n_orbs);
   std::iota(orb_order.begin(), orb_order.end(), 0);
-  std::stable_sort(orb_order.begin(), orb_order.end(), [&](const unsigned a, const unsigned b) {
-    return orb_energies[a] < orb_energies[b] - Util::EPS;
-  });
+  if (Config::get<bool>("reorder_orbs", true)) {
+    std::stable_sort(orb_order.begin(), orb_order.end(), [&](const unsigned a, const unsigned b) {
+      return orb_energies[a] < orb_energies[b] - Util::EPS;
+    });
+  } else {
+    if (Parallel::is_master()) {
+      printf("Reorder skipped.\n");
+    }
+  }
 
   // Reorder orb_sym.
   std::vector<unsigned> orb_syms_new(n_orbs);
@@ -240,7 +246,7 @@ void Integrals::reorder_orbs(const std::vector<double>& orb_energies) {
   }
   orb_sym = std::move(orb_syms_new);
 
-  if (Parallel::is_master()) printf("\nOrbitals reordered by energy:\n");
+  if (Parallel::is_master()) printf("Orbitals energy:\n");
   for (unsigned i = 0; i < n_orbs; i++) {
     orb_order_inv[orb_order[i]] = i;
     const unsigned ori_id = orb_order[i];
