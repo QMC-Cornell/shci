@@ -145,7 +145,16 @@ void Integrals::generate_det_hf() {
   assert(n_up + n_dn == n_elecs);
   std::vector<unsigned> irreps =
       Config::get<std::vector<unsigned>>("chem/irreps", std::vector<unsigned>());
-  if (irreps.size() == 0) {
+  std::vector<unsigned> occs_up =
+      Config::get<std::vector<unsigned>>("occs_up", std::vector<unsigned>());
+  std::vector<unsigned> occs_dn =
+      Config::get<std::vector<unsigned>>("occs_dn", std::vector<unsigned>());
+  if (occs_up.size() > 0 || occs_dn.size() > 0) {
+    if (occs_up.size() != n_up) throw std::invalid_argument("occs_up does not match n_up");
+    if (occs_dn.size() != n_dn) throw std::invalid_argument("occs_dn does not match n_dn");
+    for (unsigned i = 0; i < n_up; i++) det_hf.up.set(occs_up[i]);
+    for (unsigned i = 0; i < n_dn; i++) det_hf.dn.set(occs_dn[i]);
+  } else if (irreps.size() == 0) {
     // Fill lowest.
     for (unsigned i = 0; i < n_up; i++) det_hf.up.set(i);
     bool allow_doubly_occupy = Config::get<bool>("allow_doubly_occupy_hf", true);
