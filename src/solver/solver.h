@@ -473,8 +473,10 @@ UncertResult Solver<S>::get_energy_pt_psto(const double eps_var, const double en
     hc_sums.sync();
     const size_t n_pt_dets = hc_sums.get_n_keys();
     const double mem_usage = Config::get<double>("pt_sto_mem_usage", 1.0);
-    n_batches = static_cast<size_t>(ceil(
-        2.0 * 128 * 100 / 1000 * n_pt_dets * (N_CHUNKS * 16 + 16) / (pt_mem_avail * mem_usage)));
+    n_batches = static_cast<size_t>(
+        ceil(
+            2.0 * 128 * 100 / 1000 * n_pt_dets * (N_CHUNKS * 16 + 16) /
+            (pt_mem_avail * mem_usage)));
     if (n_batches < 16) n_batches = 16;
     if (Parallel::is_master()) {
       printf("Number of batches chosen: %zu\n", n_batches);
@@ -844,13 +846,41 @@ void Solver<S>::print_dets_info() const {
     weights[n_excite] += coef * coef;
     if (highest_excitation < n_excite) highest_excitation = n_excite;
   }
-  printf("%-10s%12s%16s\n", "Excite Lv", "# dets", "sum c^2");
+  printf("%-10s%12s%16s\n", "Excite Lv", "# dets", "Sum c^2");
   for (unsigned i = 0; i <= highest_excitation; i++) {
     if (excitations.count(i) == 0) {
       excitations[i] = 0;
       weights[i] = 0.0;
     }
     printf("%-10u%12zu%16.8f\n", i, excitations[i], weights[i]);
+  }
+
+  // Print most important dets.
+  printf("Most important dets:\n");
+  std::vector<size_t> det_order(system.dets.size());
+  for (size_t i = 0; i < system.dets.size(); i++) {
+    det_order[i] = i;
+  }
+  std::stable_sort(det_order.begin(), det_order.end(), [&](const size_t a, const size_t b) {
+    return std::abs(system.coefs[a]) > std::abs(system.coefs[b]);
+  });
+  printf("%-10s%12s      %-12s\n", "Excite Lv", "Coef", "Det (Reordered orb)");
+  for (size_t i = 0; i < 20; i++) {
+    const double coef = system.coefs[det_order[i]];
+    const auto& det = system.dets[det_order[i]];
+    const auto& occs_up = det.up.get_occupied_orbs();
+    const auto& occs_dn = det.dn.get_occupied_orbs();
+    const unsigned n_excite = det_hf.up.n_diffs(det.up) + det_hf.dn.n_diffs(det.dn);
+    printf("%-10u%12.8f", n_excite, coef);
+    printf("      | ");
+    for (unsigned j = 0; j < system.n_up; j++) {
+      printf("%2u ", occs_up[j]);
+    }
+    printf("| ");
+    for (unsigned j = 0; j < system.n_dn; j++) {
+      printf("%2u ", occs_dn[j]);
+    }
+    printf("|\n");
   }
 }
 
