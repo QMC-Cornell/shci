@@ -15,6 +15,8 @@ constexpr double Util::SQRT2;
 
 constexpr double Util::SQRT2_INV;
 
+constexpr std::complex<double> Util::I;
+
 bool Util::str_equals_ci(const std::string& a, const std::string& b) {
   size_t size = a.size();
   if (b.size() != size) return false;
@@ -50,15 +52,15 @@ double Util::dot_omp(const std::vector<double>& a, const std::vector<double>& b)
 #ifdef CRAY_KNIGHTS_LANDING
   const size_t n_per_thread = n / n_threads + 1;
 #pragma omp parallel
-{
-  const int thread_id = omp_get_thread_num();
-  double sum_thread = 0.0;
-  for (size_t i = thread_id * n_per_thread; i < n && i < (thread_id + 1) * n_per_thread; i++) {
-    sum_thread += a[i] * b[i]; 
-  } 
+  {
+    const int thread_id = omp_get_thread_num();
+    double sum_thread = 0.0;
+    for (size_t i = thread_id * n_per_thread; i < n && i < (thread_id + 1) * n_per_thread; i++) {
+      sum_thread += a[i] * b[i];
+    }
 #pragma omp atomic
-  sum += sum_thread;
-}
+    sum += sum_thread;
+  }
 #else
   std::vector<double> sum_thread(n_threads, 0.0);
 #pragma omp parallel for
@@ -71,7 +73,8 @@ double Util::dot_omp(const std::vector<double>& a, const std::vector<double>& b)
   return sum;
 }
 
-std::complex<double> Util::dot_omp(const std::vector<double>& a, const std::vector<std::complex<double>>& b) {
+std::complex<double> Util::dot_omp(
+    const std::vector<double>& a, const std::vector<std::complex<double>>& b) {
   std::complex<double> sum = 0.0;
   const size_t n = a.size();
   const int n_threads = omp_get_max_threads();
@@ -85,7 +88,8 @@ std::complex<double> Util::dot_omp(const std::vector<double>& a, const std::vect
   return sum;
 }
 
-std::complex<double> Util::dot_omp(const std::vector<std::complex<double>>& a, const std::vector<std::complex<double>>& b) {
+std::complex<double> Util::dot_omp(
+    const std::vector<std::complex<double>>& a, const std::vector<std::complex<double>>& b) {
   std::complex<double> sum = 0.0;
   const size_t n = a.size();
   const int n_threads = omp_get_max_threads();
