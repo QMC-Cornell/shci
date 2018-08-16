@@ -15,7 +15,12 @@ class KPoints {
 
   std::vector<KPoint> get_k_diffs() const;
 
-  KPoint& operator[](const size_t i) { return points[i]; }
+  KPoint operator[](const size_t i) const { return points.at(i); }
+
+  int find(const KPoint& point) const {
+    if (lut.count(point) == 1) return lut.at(point);
+    return -1;
+  }
 
  private:
   std::vector<KPoint> points;

@@ -39,8 +39,8 @@ void HegSystem::setup() {
 }
 
 void HegSystem::setup_hci_queue() {
-  same_spin_hci_queue.clear();
-  oppo_spin_hci_queue.clear();
+  hci_queue.clear();
+  hci_queue.clear();
 
   max_abs_H = 0.0;
 
@@ -65,11 +65,11 @@ void HegSystem::setup_hci_queue() {
       const double abs_H = std::abs(1.0 / diff_pr.squared_norm() - 1.0 / diff_ps.squared_norm());
       if (abs_H < std::numeric_limits<double>::epsilon()) continue;
       const auto& item = std::make_pair(diff_pr, abs_H * H_unit);
-      same_spin_hci_queue[diff_pq].push_back(item);
+      hci_queue[diff_pq].push_back(item);
     }
   }
   unsigned long long n_same_spin = 0;
-  for (auto& kv : same_spin_hci_queue) {
+  for (auto& kv : hci_queue) {
     auto& items = kv.second;
     std::stable_sort(items.begin(), items.end(), sort_comparison);
     max_abs_H = std::max(max_abs_H, items.front().second);
@@ -80,16 +80,17 @@ void HegSystem::setup_hci_queue() {
   }
 
   // Opposite spin.
+  const auto& key = KPoint(0, 0, 0);
   for (const auto& diff_pr : k_diffs) {
     const double abs_H = 1.0 / diff_pr.squared_norm();
     if (abs_H < Util::EPS) continue;
     const auto& item = std::make_pair(diff_pr, abs_H * H_unit);
-    oppo_spin_hci_queue.push_back(item);
+    hci_queue[key].push_back(item);
   }
-  std::stable_sort(oppo_spin_hci_queue.begin(), oppo_spin_hci_queue.end(), sort_comparison);
-  max_abs_H = std::max(max_abs_H, oppo_spin_hci_queue.front().second);
+  std::stable_sort(hci_queue[key].begin(), hci_queue[key].end(), sort_comparison);
+  max_abs_H = std::max(max_abs_H, hci_queue[key].front().second);
   if (Parallel::is_master()) {
-    printf("Number of opposite spin hci queue items: %'zu\n", oppo_spin_hci_queue.size());
+    printf("Number of opposite spin hci queue items: %'zu\n", hci_queue[key].size());
   }
 }
 
@@ -129,4 +130,69 @@ void HegSystem::setup_hf() {
 
   dets.push_back(det_hf);
   coefs.push_back(1.0);
+}
+
+void HegSystem::find_connected_dets(
+    const Det& det,
+    const double eps_max,
+    const double eps_min,
+    const std::function<void(const Det&, const int n_excite)>& handler) const {
+  if (eps_max < eps_min) return;
+
+  const auto& occ_orbs_up = det.up.get_occupied_orbs();
+  const auto& occ_orbs_dn = det.dn.get_occupied_orbs();
+
+  // Add double excitations.
+  if (eps_min > max_abs_H) return;
+  for (unsigned p_id = 0; p_id < n_elecs; p_id++) {
+    for (unsigned q_id = p_id + 1; q_id < n_elecs; q_id++) {
+      const unsigned p = p_id < n_up ? occ_orbs_up[p_id] : occ_orbs_dn[p_id - n_up] + n_orbs;
+      const unsigned q = q_id < n_up ? occ_orbs_up[q_id] : occ_orbs_dn[q_id - n_up] + n_orbs;
+      double p2 = p;
+      double q2 = q;
+      if (p >= n_orbs && q >= n_orbs) {
+        p2 -= n_orbs;
+        q2 -= n_orbs;
+      } else if (p < n_orbs && q >= n_orbs && p > q - n_orbs) {
+        p2 = q - n_orbs;
+        q2 = p + n_orbs;
+      }
+      const bool same_spin = p2 < n_orbs && q2 < n_orbs;
+      const auto& key = same_spin ? k_points[q2] - k_points[p2] : KPoint(0, 0, 0);
+      const int qs_offset = same_spin ? 0 : n_orbs;
+      printf("hci_queue size: %zu\n" , hci_queue.at(key).size());
+      for (const auto& item : hci_queue.at(key)) {
+        const double H = item.second;
+        if (H < eps_min) break;
+        if (H >= eps_max) continue;
+        const auto& diff_pr = item.first;
+        const int r2 = k_points.find(diff_pr + k_points[p2]);
+        if (r2 < 0) continue;
+        unsigned r = r2;
+        const int s2 = k_points.find(k_points[p2] + k_points[q2 - qs_offset] - k_points[r]);
+        if (s2 < 0) continue;
+        unsigned s = s2;
+        s += qs_offset;
+        if (p >= n_orbs && q >= n_orbs) {
+          r += n_orbs;
+          s += n_orbs;
+        } else if (p < n_orbs && q >= n_orbs && p > q - n_orbs) {
+          const int tmp = s;
+          s = r + n_orbs;
+          r = tmp - n_orbs;
+        }
+
+        const bool occ_r = r < n_orbs ? det.up.has(r) : det.dn.has(r - n_orbs);
+        if (occ_r) continue;
+        const bool occ_s = s < n_orbs ? det.up.has(s) : det.dn.has(s - n_orbs);
+        if (occ_s) continue;
+        Det connected_det(det);
+        p < n_orbs ? connected_det.up.unset(p) : connected_det.dn.unset(p - n_orbs);
+        q < n_orbs ? connected_det.up.unset(q) : connected_det.dn.unset(q - n_orbs);
+        r < n_orbs ? connected_det.up.set(r) : connected_det.dn.set(r - n_orbs);
+        s < n_orbs ? connected_det.up.set(s) : connected_det.dn.set(s - n_orbs);
+        handler(connected_det, 2);
+      }
+    }
+  }
 }

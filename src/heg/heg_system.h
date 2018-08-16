@@ -11,7 +11,7 @@ class HegSystem : public BaseSystem {
       const Det&,
       const double,
       const double,
-      const std::function<void(const Det&, const int)>&) const override {}
+      const std::function<void(const Det&, const int)>&) const override;
 
   double get_hamiltonian_elem(const Det&, const Det&, const int) const override { return 0.0; }
 
@@ -30,10 +30,7 @@ class HegSystem : public BaseSystem {
 
   double max_abs_H;
 
-  std::unordered_map<KPoint, std::vector<std::pair<KPoint, double>>, KPointHasher>
-      same_spin_hci_queue;
-
-  std::vector<std::pair<KPoint, double>> oppo_spin_hci_queue;
+  std::unordered_map<KPoint, std::vector<std::pair<KPoint, double>>, KPointHasher> hci_queue;
 
   void setup_hci_queue();
 
