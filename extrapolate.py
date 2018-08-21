@@ -12,11 +12,17 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--result_file', default='result.json')
 parser.add_argument('--save_figure', type=bool, default=True)
 parser.add_argument('--show_figure', type=bool, default=True)
+parser.add_argument('--order', type=int, default=2)
+parser.add_argument('--preprint', type=bool, default=False)
+parser.add_argument('--n_points', type=int, default=0)
 args = parser.parse_args()
 
 # Read JSON
 result = open(args.result_file).read()
 result = json.loads(result)
+
+if args.preprint is True:
+    plt.figure(figsize=(5.5, 4.0))
 
 # Construct x and y
 x = []
@@ -34,21 +40,31 @@ for eps_var, energy_var in energy_vars.iteritems():
             energy_total = energy_total_iter['value']
     y.append(energy_total)
     x.append(energy_var - energy_total)
+x = np.array(x)
+y = np.array(y)
+
+if args.n_points > 0:
+    smallest_points = y.argsort()[:args.n_points]
+    x = x[smallest_points]
+    y = y[smallest_points]
 
 # Fit
 def model_aug(x):
-    x_aug = np.column_stack((x, x**2))
+    x_aug = (x, )
+    for i in range(2, (args.order + 1)):
+        x_aug = x_aug + (x**i, )
+    x_aug = np.column_stack(x_aug)
     x_aug = sm.add_constant(x_aug)
     return x_aug
 
-x = np.array(x)
-y = np.array(y)
 x_aug = model_aug(x)
 weights = 1.0 / x**2
 fit = sm.WLS(y, x_aug, weights).fit()
 print(fit.summary())
 alpha = 0.05
-predict = fit.get_prediction(np.array([1.0, 0.0, 0.0])).summary_frame(alpha=alpha)
+point = np.zeros(args.order + 1)
+point[0] = 1.0
+predict = fit.get_prediction(point).summary_frame(alpha=alpha)
 predict = predict.iloc[0]
 energy = fit.params[0]
 uncert = predict['mean_ci_upper'] - predict['mean']
@@ -73,7 +89,7 @@ plt.plot(x, y, marker='o', ls='')
 plt.plot(x_fit, y_fit, color='grey', ls='--', zorder=0.1)
 plt.xlabel('$E_{var} - E_{tot}$ (Ha)')
 plt.ylabel('$E_{tot}$ (Ha)')
-plt.title('Weighted Quadratic Extrapolation')
+plt.title('Extrapolation')
 plt.xlim(0)
 ax = plt.gca()
 ax.ticklabel_format(useOffset=False)

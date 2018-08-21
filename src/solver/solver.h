@@ -852,13 +852,41 @@ void Solver<S>::print_dets_info() const {
     weights[n_excite] += coef * coef;
     if (highest_excitation < n_excite) highest_excitation = n_excite;
   }
-  printf("%-10s%12s%16s\n", "Excite Lv", "# dets", "sum c^2");
+  printf("%-10s%12s%16s\n", "Excite Lv", "# dets", "Sum c^2");
   for (unsigned i = 0; i <= highest_excitation; i++) {
     if (excitations.count(i) == 0) {
       excitations[i] = 0;
       weights[i] = 0.0;
     }
     printf("%-10u%12zu%16.8f\n", i, excitations[i], weights[i]);
+  }
+
+  // Print most important dets.
+  printf("Most important dets:\n");
+  std::vector<size_t> det_order(system.dets.size());
+  for (size_t i = 0; i < system.dets.size(); i++) {
+    det_order[i] = i;
+  }
+  std::stable_sort(det_order.begin(), det_order.end(), [&](const size_t a, const size_t b) {
+    return std::abs(system.coefs[a]) > std::abs(system.coefs[b]);
+  });
+  printf("%-10s%12s      %-12s\n", "Excite Lv", "Coef", "Det (Reordered orb)");
+  for (size_t i = 0; i < 20; i++) {
+    const double coef = system.coefs[det_order[i]];
+    const auto& det = system.dets[det_order[i]];
+    const auto& occs_up = det.up.get_occupied_orbs();
+    const auto& occs_dn = det.dn.get_occupied_orbs();
+    const unsigned n_excite = det_hf.up.n_diffs(det.up) + det_hf.dn.n_diffs(det.dn);
+    printf("%-10u%12.8f", n_excite, coef);
+    printf("      | ");
+    for (unsigned j = 0; j < system.n_up; j++) {
+      printf("%2u ", occs_up[j]);
+    }
+    printf("| ");
+    for (unsigned j = 0; j < system.n_dn; j++) {
+      printf("%2u ", occs_dn[j]);
+    }
+    printf("|\n");
   }
 }
 
