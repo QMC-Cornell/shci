@@ -5,12 +5,21 @@ git clone --recursive https://github.com/QMC-Cornell/shci
 To contribute:
 Fork the main repository above to your own Github account and then do:
 git clone --recursive https:://github.com/[username]/shci
-After finish editing, commit your changes with
+After you finish editing, commit your changes with
 git commit [options]
 Then push to your Github forked repository:
 git push
 Then send a pull request to the main repository by click on the 'Pull Request' button.
 
-To contribute when the main repository is newer than you fork:
-Follow the guides here:
+To contribute when the main repository is newer than your fork:
+Follow the instructions here:
 https://help.github.com/articles/syncing-a-fork/
+
+!Fetch the branches and their respective commits from the upstream repository. Commits to master will be stored in a local branch, upstream/master.
+git fetch upstream
+
+!Check out your fork's local master branch.
+git checkout master
+
+!Merge the changes from upstream/master into your local master branch. This brings your fork's master branch into sync with the upstream repository, without losing your local changes.
+git merge upstream/master
