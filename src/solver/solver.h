@@ -92,13 +92,14 @@ void Solver<S>::run() {
   Result::put("energy_hf", system.energy_hf);
   Timer::end();
 
-  SparseMatrix connections;
+  std::vector<std::vector<size_t>> connections;
 
   if (!Config::get<bool>("skip_var", false)) {
     Timer::start("variation");
     run_all_variations();
 
-    if (Config::get<bool>("2rdm", false)) connections = hamiltonian.matrix;
+    if (Config::get<bool>("2rdm", false) || Config::get<bool>("get_2rdm_csv", false))
+      connections = hamiltonian.matrix.get_connections();
 
     hamiltonian.clear();
     Timer::end();

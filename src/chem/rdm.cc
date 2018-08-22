@@ -853,7 +853,7 @@ void RDM::get_2rdm(
     const std::vector<Det>& dets,
     const std::vector<double>& coefs,
     const Integrals& integrals,
-    const SparseMatrix& connections,
+    const std::vector<std::vector<size_t>>& connections,
     const bool dump_csv) {
   //=====================================================
   // Create spatial 2RDM using the variational wavefunction
@@ -883,13 +883,13 @@ void RDM::get_2rdm(
 
   two_rdm.resize((n_orbs * n_orbs * (n_orbs * n_orbs + 1) / 2), 0.);
 
-#pragma omp parallel for
-  for (size_t i_det = 0; i_det < connections.rows.size(); i_det++) {
+#pragma omp parallel for schedule(dynamic, 5)
+  for (size_t i_det = 0; i_det < connections.size(); i_det++) {
     Det this_det = dets[i_det];
     double this_coef = coefs[i_det];
 
-    for (size_t j_det = 0; j_det < connections.rows[i_det].indices.size(); j_det++) {
-      size_t connected_ind = connections.rows[i_det].indices[j_det];
+    for (size_t j_det = 0; j_det < connections[i_det].size(); j_det++) {
+      size_t connected_ind = connections[i_det][j_det];
       Det connected_det = dets[connected_ind];
       double connected_coef = coefs[connected_ind];
 

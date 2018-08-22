@@ -48,7 +48,7 @@ class BaseSystem {
 
   virtual void update_diag_helper() = 0;
 
-  virtual void post_variation(const SparseMatrix& connections){};
+  virtual void post_variation(const std::vector<std::vector<size_t>>&){};
 
   virtual void post_perturbation(){};
 
