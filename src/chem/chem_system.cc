@@ -462,14 +462,6 @@ void ChemSystem::post_variation(const std::vector<std::vector<size_t>>& connecti
     rdm.get_2rdm(dets, coefs, integrals, connections, Config::get<bool>("get_2rdm_csv", false));
     Timer::end();
   }
-/*
-  const bool get_2rdm_csv = Config::get<bool>("get_2rdm_csv", false);
-  if (get_2rdm_csv) {
-    RDM rdm;
-    Timer::start("get_2rdm_csv");
-    rdm.get_2rdm(dets, coefs, integrals, connections, get_2rdm_csv);
-    Timer::end();
-  } */
 
   bool unpacked = false;
 
