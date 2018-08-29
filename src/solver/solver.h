@@ -472,7 +472,7 @@ UncertResult Solver<S>::get_energy_pt_psto(const double eps_var, const double en
     });
     hc_sums.sync();
     const size_t n_pt_dets = hc_sums.get_n_keys();
-    const double mem_usage = Config::get<double>("pt_sto_mem_usage", 1.0);
+    const double mem_usage = Config::get<double>("pt_psto_mem_usage", 1.0);
     n_batches = static_cast<size_t>(
         ceil(
             2.0 * 128 * 100 / 1000 * n_pt_dets * (N_CHUNKS * 16 + 16) /
