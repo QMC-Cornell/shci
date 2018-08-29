@@ -775,7 +775,33 @@ void RDM::get_2rdm_slow(
   Timer::checkpoint("computing 2RDM");
 
   std::cout << "writing out 2RDM\n";
+ 
+  // csv format
+  FILE* pFile = fopen("2rdm.csv", "w");
+  fprintf(pFile, "p,q,r,s,2rdm\n");
+  for (unsigned p = 0; p < n_orbs; p++) {
+    for (unsigned q = p; q < n_orbs; q++) {
+      for (unsigned s = 0; s < n_orbs; s++) {
+        for (unsigned r = 0; r < n_orbs; r++) {
+          if (p == q && s > r) continue;
+          const double rdm_pqrs = two_rdm[combine4_2rdm(p, q, r, s, n_orbs)];
+          if (std::abs(rdm_pqrs) < 1.0e-9) continue;
+          fprintf(
+              pFile,
+              "%d,%d,%d,%d,%#.15g\n",
+              integrals.orb_order[p],
+              integrals.orb_order[q],
+              integrals.orb_order[r],
+              integrals.orb_order[s],
+              rdm_pqrs);
+        }
+      }
+    }
+  }
+  fclose(pFile);
 
+  // txt format
+  /*
   FILE* pFile;
   pFile = fopen("spatialRDM.txt", "w");
 
@@ -809,6 +835,7 @@ void RDM::get_2rdm_slow(
       }  // s
     }  // q
   }  // p
+  */
 }
 
 unsigned RDM::combine4_2rdm(unsigned p, unsigned q, unsigned r, unsigned s, unsigned n_orbs) const {
