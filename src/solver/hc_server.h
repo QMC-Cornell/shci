@@ -30,7 +30,7 @@ class HcServer {
 
   void start_server();
 
-  std::vector<double> read_double_array(std::ofstream& log_file) const;
+  std::vector<double> read_double_array(std::ofstream&) const;
 };
 
 template <class S>
@@ -133,7 +133,7 @@ void HcServer<S>::start_server() {
 }
 
 template <class S>
-std::vector<double> HcServer<S>::read_double_array(std::ofstream& log_file) const {
+std::vector<double> HcServer<S>::read_double_array(std::ofstream&) const {
   long long total = sizeof(double) * n;
   std::vector<double> result(n);
 
