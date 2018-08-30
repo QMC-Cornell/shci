@@ -14,6 +14,8 @@ class SparseMatrix {
 
   void cache_diag();
 
+  size_t count_n_elems() const;
+
   std::vector<double> mul(const std::vector<double>& vec) const;
 
   std::vector<std::complex<double>> mul(const std::vector<std::complex<double>>& vec) const;
