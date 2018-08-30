@@ -9,6 +9,21 @@ void SparseMatrix::append_elem(const size_t i, const size_t j, const double& ele
   if (i == j) diag_local[i] = elem;
 }
 
+size_t SparseMatrix::count_n_elems() const {
+  // TODO: Factor out raw parallel codes into a framework.
+  const int proc_id = Parallel::get_proc_id();
+  const int n_procs = Parallel::get_n_procs();
+  unsigned long long n_elems_local = 0;
+  unsigned long long n_elems = 0;
+  const size_t dim = rows.size();
+  for (size_t i = proc_id; i < dim; i += n_procs) {
+    n_elems_local += rows[i].size();
+  }
+  MPI_Allreduce(&n_elems_local, &n_elems, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, MPI_COMM_WORLD);
+  n_elems = n_elems * 2 - dim;
+  return n_elems;  
+}
+
 std::vector<double> SparseMatrix::mul(const std::vector<double>& vec) const {
   // TODO: Factor out raw parallel codes into a framework.
   const int proc_id = Parallel::get_proc_id();
