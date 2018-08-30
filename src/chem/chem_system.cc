@@ -455,7 +455,14 @@ double ChemSystem::get_two_body_double(const DiffResult& diff_up, const DiffResu
   return energy;
 }
 
-void ChemSystem::post_variation() {
+void ChemSystem::post_variation(const std::vector<std::vector<size_t>>& connections) {
+  if (Config::get<bool>("2rdm", false) || Config::get<bool>("get_2rdm_csv", false)) {
+    RDM rdm;
+    Timer::start("get 2rdm");
+    rdm.get_2rdm(dets, coefs, integrals, connections, Config::get<bool>("get_2rdm_csv", false));
+    Timer::end();
+  }
+
   bool unpacked = false;
 
   if (Config::get<bool>("s2", false)) {
@@ -482,6 +489,18 @@ void ChemSystem::post_variation() {
     exit(0);
   }
 
+
+  if (Config::get<bool>("2rdm_slow", false)) {
+    if (time_sym && !unpacked) {
+      unpack_time_sym();
+      unpacked = true;
+    }
+    RDM rdm;
+    Timer::start("get 2rdm (slow)");
+    rdm.get_2rdm_slow(dets, coefs, integrals);
+    Timer::end();
+  }
+
   if (Config::get<bool>("get_1rdm_csv", false)) {
     if (time_sym && !unpacked) {
       unpack_time_sym();
@@ -490,18 +509,6 @@ void ChemSystem::post_variation() {
     RDM rdm;
     Timer::start("get_1rdm");
     rdm.get_1rdm(dets, coefs, integrals, true);
-    Timer::end();
-  }
-
-  const bool get_2rdm_csv = Config::get<bool>("get_2rdm_csv", false);
-  if (Config::get<bool>("2rdm", false) || get_2rdm_csv) {
-    if (time_sym && !unpacked) {
-      unpack_time_sym();
-      unpacked = true;
-    }
-    RDM rdm;
-    Timer::start("get_2rdm");
-    rdm.get_2rdm(dets, coefs, integrals, get_2rdm_csv);
     Timer::end();
   }
 }

@@ -28,7 +28,9 @@ class SparseVector {
     printf("n elems: %zu\n", size());
   }
 
- private:
+  std::vector<size_t> get_connections() const { return indices; }
+
+ private:  
   std::vector<size_t> indices;
 
   std::vector<double> values;

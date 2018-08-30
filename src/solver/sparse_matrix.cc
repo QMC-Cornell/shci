@@ -118,3 +118,11 @@ std::vector<double> SparseMatrix::reduce_sum(const std::vector<double>& vec) con
   MPI_Allreduce(src_ptr, dest_ptr, n_elems_left, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   return res;
 }
+
+std::vector<std::vector<size_t>> SparseMatrix::get_connections() const {
+  std::vector<std::vector<size_t>> connections;
+  for (const auto& row : rows) {
+    connections.push_back(row.get_connections());
+  }
+  return connections;
+}

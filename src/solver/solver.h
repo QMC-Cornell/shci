@@ -92,9 +92,15 @@ void Solver<S>::run() {
   Result::put("energy_hf", system.energy_hf);
   Timer::end();
 
+  std::vector<std::vector<size_t>> connections;
+
   if (!Config::get<bool>("skip_var", false)) {
     Timer::start("variation");
     run_all_variations();
+
+    if (Config::get<bool>("2rdm", false) || Config::get<bool>("get_2rdm_csv", false))
+      connections = hamiltonian.matrix.get_connections();
+
     hamiltonian.clear();
     Timer::end();
   }
@@ -119,7 +125,7 @@ void Solver<S>::run() {
     Timer::end();
   }
 
-  system.post_variation();
+  system.post_variation(connections);
 
   Timer::end();
 
@@ -163,13 +169,14 @@ void Solver<S>::run_all_variations() {
       eps_tried_prev.clear();
       var_dets.clear();
       for (const auto& det : system.dets) var_dets.set(det);
-      hamiltonian.clear();
+      //      hamiltonian.clear();
       Result::put<double>(Util::str_printf("energy_var/%#.2e", eps_var), system.energy_var);
     }
     eps_var_prev = eps_var;
     Timer::end();
   }
-  hamiltonian.clear();
+
+  //  hamiltonian.clear();
   eps_tried_prev.clear();
   eps_tried_prev.shrink_to_fit();
   var_dets.clear_and_shrink();
