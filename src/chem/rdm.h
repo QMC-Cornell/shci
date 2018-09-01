@@ -32,7 +32,7 @@ class RDM {
       const std::vector<Det>&,
       const std::vector<double>&,
       const Integrals&,
-      const SparseMatrix& connections,
+      const std::vector<std::vector<size_t>>& connections,
       const bool dump_csv = false);
 
  private:

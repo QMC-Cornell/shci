@@ -145,7 +145,16 @@ void Integrals::generate_det_hf() {
   assert(n_up + n_dn == n_elecs);
   std::vector<unsigned> irreps =
       Config::get<std::vector<unsigned>>("chem/irreps", std::vector<unsigned>());
-  if (irreps.size() == 0) {
+  std::vector<unsigned> occs_up =
+      Config::get<std::vector<unsigned>>("occs_up", std::vector<unsigned>());
+  std::vector<unsigned> occs_dn =
+      Config::get<std::vector<unsigned>>("occs_dn", std::vector<unsigned>());
+  if (occs_up.size() > 0 || occs_dn.size() > 0) {
+    if (occs_up.size() != n_up) throw std::invalid_argument("occs_up does not match n_up");
+    if (occs_dn.size() != n_dn) throw std::invalid_argument("occs_dn does not match n_dn");
+    for (unsigned i = 0; i < n_up; i++) det_hf.up.set(occs_up[i]);
+    for (unsigned i = 0; i < n_dn; i++) det_hf.dn.set(occs_dn[i]);
+  } else if (irreps.size() == 0) {
     // Fill lowest.
     for (unsigned i = 0; i < n_up; i++) det_hf.up.set(i);
     bool allow_doubly_occupy = Config::get<bool>("allow_doubly_occupy_hf", true);
@@ -229,9 +238,15 @@ void Integrals::reorder_orbs(const std::vector<double>& orb_energies) {
   orb_order.resize(n_orbs);
   orb_order_inv.resize(n_orbs);
   std::iota(orb_order.begin(), orb_order.end(), 0);
-  std::stable_sort(orb_order.begin(), orb_order.end(), [&](const unsigned a, const unsigned b) {
-    return orb_energies[a] < orb_energies[b] - Util::EPS;
-  });
+  if (Config::get<bool>("reorder_orbs", true)) {
+    std::stable_sort(orb_order.begin(), orb_order.end(), [&](const unsigned a, const unsigned b) {
+      return orb_energies[a] < orb_energies[b] - Util::EPS;
+    });
+  } else {
+    if (Parallel::is_master()) {
+      printf("Reorder skipped.\n");
+    }
+  }
 
   // Reorder orb_sym.
   std::vector<unsigned> orb_syms_new(n_orbs);
@@ -240,7 +255,7 @@ void Integrals::reorder_orbs(const std::vector<double>& orb_energies) {
   }
   orb_sym = std::move(orb_syms_new);
 
-  if (Parallel::is_master()) printf("\nOrbitals reordered by energy:\n");
+  if (Parallel::is_master()) printf("Orbitals energy:\n");
   for (unsigned i = 0; i < n_orbs; i++) {
     orb_order_inv[orb_order[i]] = i;
     const unsigned ori_id = orb_order[i];

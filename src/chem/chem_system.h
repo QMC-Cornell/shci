@@ -24,7 +24,7 @@ class ChemSystem : public BaseSystem {
 
   void update_diag_helper() override;
 
-  void post_variation(const SparseMatrix& connections) override;
+  void post_variation(const std::vector<std::vector<size_t>>& connections) override;
 
  private:
   std::vector<unsigned> orb_sym;

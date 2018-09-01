@@ -27,4 +27,4 @@ export LD_LIBRARY_PATH=$TOOLS_DIR/openmpi/lib:$LD_LIBRARY_PATH
 
 cp ci.mk local.mk
 make -j
-make test
+make test -j

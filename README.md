@@ -27,6 +27,8 @@ Many software packages can generate `FCIDUMP`, such as [`PySCF`](https://github.
 * `n_up`, `n_dn` (required): number of up / down electrons.
 * `system` (required): only support `chem` for now.
 * `eps_vars` (required): an array of variational epsilons from big to small.
+* `occs_up`: occupied orbitals for the starting up determinant, default to lowest ones.
+* `occs_dn`: occupied orbitals for the starting dn determinant, default to lowest ones.
 * `eps_vars_schedule`: :palm_tree: an array of additional variational epsilons run beforehand for a better selection of determinants, default to an empty array.
 * `target_error`: :palm_tree: target error for stochastic perturbation, default to 1.0e-5.
 * `var_only`: only run variation, default to false.
@@ -57,7 +59,7 @@ Many software packages can generate `FCIDUMP`, such as [`PySCF`](https://github.
 
 ### Chemistry Block `chem`
 * `point_group` (required): supports `C1`, `Cs`, `Ci`, `C2v`, `C2h`, `D2h`, and `Dooh`.
-* `irreps`: an array of irreducible representations. If occupations are also given, they together determine the starting determinant, otherwise, the lowest orbitals are filled.
+* `irreps`: an array of irreducible representations. If occupations are also given, they together determine the starting determinant, otherwise, the lowest orbitals are filled. `occs_up` and `occs_dn` when specified explicitly have priority over irreps.
 * `irrep_occs_up` and `irrep_occs_dn`: occupation of each irreducible representation for up and down electrons respectively, the lowest orbitals satisfying which constitute the starting determinant. Ignored if `irreps` is not given.
 
 

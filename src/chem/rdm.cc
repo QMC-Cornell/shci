@@ -98,7 +98,7 @@ void RDM::get_1rdm(
       for (unsigned r = p; r < n_orbs; r++) {
         const double rdm_pr = one_rdm(p, r);
         if (std::abs(rdm_pr) < 1e-9) continue;
-        fprintf(pFile, "%d,%d,%#.15g\n", p, r, rdm_pr);
+        fprintf(pFile, "%d,%d,%#.15g\n", integrals.orb_order[p], integrals.orb_order[r], rdm_pr);
       }
     }
     fclose(pFile);
@@ -775,7 +775,33 @@ void RDM::get_2rdm_slow(
   Timer::checkpoint("computing 2RDM");
 
   std::cout << "writing out 2RDM\n";
+ 
+  // csv format
+  FILE* pFile = fopen("2rdm.csv", "w");
+  fprintf(pFile, "p,q,r,s,2rdm\n");
+  for (unsigned p = 0; p < n_orbs; p++) {
+    for (unsigned q = p; q < n_orbs; q++) {
+      for (unsigned s = 0; s < n_orbs; s++) {
+        for (unsigned r = 0; r < n_orbs; r++) {
+          if (p == q && s > r) continue;
+          const double rdm_pqrs = two_rdm[combine4_2rdm(p, q, r, s, n_orbs)];
+          if (std::abs(rdm_pqrs) < 1.0e-9) continue;
+          fprintf(
+              pFile,
+              "%d,%d,%d,%d,%#.15g\n",
+              integrals.orb_order[p],
+              integrals.orb_order[q],
+              integrals.orb_order[r],
+              integrals.orb_order[s],
+              rdm_pqrs);
+        }
+      }
+    }
+  }
+  fclose(pFile);
 
+  // txt format
+  /*
   FILE* pFile;
   pFile = fopen("spatialRDM.txt", "w");
 
@@ -809,6 +835,7 @@ void RDM::get_2rdm_slow(
       }  // s
     }  // q
   }  // p
+  */
 }
 
 unsigned RDM::combine4_2rdm(unsigned p, unsigned q, unsigned r, unsigned s, unsigned n_orbs) const {
@@ -853,7 +880,7 @@ void RDM::get_2rdm(
     const std::vector<Det>& dets,
     const std::vector<double>& coefs,
     const Integrals& integrals,
-    const SparseMatrix& connections,
+    const std::vector<std::vector<size_t>>& connections,
     const bool dump_csv) {
   //=====================================================
   // Create spatial 2RDM using the variational wavefunction
@@ -883,13 +910,13 @@ void RDM::get_2rdm(
 
   two_rdm.resize((n_orbs * n_orbs * (n_orbs * n_orbs + 1) / 2), 0.);
 
-#pragma omp parallel for
-  for (size_t i_det = 0; i_det < connections.rows.size(); i_det++) {
+#pragma omp parallel for schedule(dynamic, 5)
+  for (size_t i_det = 0; i_det < connections.size(); i_det++) {
     Det this_det = dets[i_det];
     double this_coef = coefs[i_det];
 
-    for (size_t j_det = 0; j_det < connections.rows[i_det].indices.size(); j_det++) {
-      size_t connected_ind = connections.rows[i_det].indices[j_det];
+    for (size_t j_det = 0; j_det < connections[i_det].size(); j_det++) {
+      size_t connected_ind = connections[i_det][j_det];
       Det connected_det = dets[connected_ind];
       double connected_coef = coefs[connected_ind];
 
@@ -948,7 +975,14 @@ void RDM::get_2rdm(
             if (p == q && s > r) continue;
             const double rdm_pqrs = two_rdm[combine4_2rdm(p, q, r, s, n_orbs)];
             if (std::abs(rdm_pqrs) < 1.0e-9) continue;
-            fprintf(pFile, "%d,%d,%d,%d,%#.15g\n", p, q, r, s, rdm_pqrs);
+            fprintf(
+                pFile,
+                "%d,%d,%d,%d,%#.15g\n",
+                integrals.orb_order[p],
+                integrals.orb_order[q],
+                integrals.orb_order[r],
+                integrals.orb_order[s],
+                rdm_pqrs);
           }
         }
       }
