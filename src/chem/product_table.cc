@@ -4,9 +4,9 @@
 
 const static unsigned C1[][1] = {{1}};
 
-const static unsigned CsCi[][2] = {{1, 2}, {2, 1}};
+const static unsigned C2CsCi[][2] = {{1, 2}, {2, 1}};
 
-const static unsigned C2vC2h[][4] = {{1, 2, 3, 4}, {2, 1, 4, 3}, {3, 4, 1, 2}, {4, 3, 2, 1}};
+const static unsigned C2vC2hD2[][4] = {{1, 2, 3, 4}, {2, 1, 4, 3}, {3, 4, 1, 2}, {4, 3, 2, 1}};
 
 const static unsigned D2h[][8] = {{1, 2, 3, 4, 5, 6, 7, 8},
                                   {2, 1, 4, 3, 6, 5, 8, 7},
@@ -21,10 +21,10 @@ void ProductTable::set_point_group(const PointGroup point_group) {
   this->point_group = point_group;
   if (point_group == PointGroup::C1) {
     set_table_elems<1>(C1);
-  } else if (point_group == PointGroup::Cs || point_group == PointGroup::Ci) {
-    set_table_elems<2>(CsCi);
-  } else if (point_group == PointGroup::C2v || point_group == PointGroup::C2h) {
-    set_table_elems<4>(C2vC2h);
+  } else if (point_group == PointGroup::C2 || point_group == PointGroup::Cs || point_group == PointGroup::Ci) {
+    set_table_elems<2>(C2CsCi);
+  } else if (point_group == PointGroup::C2v || point_group == PointGroup::C2h || point_group == PointGroup::D2) {
+    set_table_elems<4>(C2vC2hD2);
   } else if (point_group == PointGroup::D2h) {
     set_table_elems<8>(D2h);
   }
