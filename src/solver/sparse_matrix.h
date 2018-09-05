@@ -36,9 +36,11 @@ class SparseMatrix {
 
   void print_row(const size_t i) { rows[i].print(); }
 
+  std::vector<std::vector<size_t>> get_connections() const;
+
  private:
   std::vector<SparseVector> rows;
-
+  
   std::vector<double> diag_local;
 
   std::vector<double> diag;
