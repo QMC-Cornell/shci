@@ -544,7 +544,10 @@ UncertResult Solver<S>::get_energy_pt_psto(const double eps_var, const double en
     } else {
       const double energy_avg = energy_sum / n_pt_dets_sum;
       const double sample_stdev = sqrt(energy_sq_sum / n_pt_dets_sum - energy_avg * energy_avg);
-      energy_pt_psto.uncert = sample_stdev * sqrt(n_pt_dets_sum) / (batch_id + 1) * n_batches;
+      const double mean_stdev = sample_stdev / sqrt(n_pt_dets_sum);
+      energy_pt_psto.uncert =
+          mean_stdev * n_pt_dets_sum / (batch_id + 1) * (n_batches - batch_id - 1);
+      // energy_pt_psto.uncert = sample_stdev * sqrt(n_pt_dets_sum) / (batch_id + 1) * n_batches;
     }
 
     if (Parallel::is_master()) {
