@@ -495,7 +495,6 @@ void ChemSystem::post_variation(const std::vector<std::vector<size_t>>& connecti
     exit(0);
   }
 
-
   if (Config::get<bool>("2rdm_slow", false)) {
     if (time_sym && !unpacked) {
       unpack_time_sym();

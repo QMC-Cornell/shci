@@ -21,9 +21,13 @@ void ProductTable::set_point_group(const PointGroup point_group) {
   this->point_group = point_group;
   if (point_group == PointGroup::C1) {
     set_table_elems<1>(C1);
-  } else if (point_group == PointGroup::C2 || point_group == PointGroup::Cs || point_group == PointGroup::Ci) {
+  } else if (
+      point_group == PointGroup::C2 || point_group == PointGroup::Cs ||
+      point_group == PointGroup::Ci) {
     set_table_elems<2>(C2CsCi);
-  } else if (point_group == PointGroup::C2v || point_group == PointGroup::C2h || point_group == PointGroup::D2) {
+  } else if (
+      point_group == PointGroup::C2v || point_group == PointGroup::C2h ||
+      point_group == PointGroup::D2) {
     set_table_elems<4>(C2vC2hD2);
   } else if (point_group == PointGroup::D2h) {
     set_table_elems<8>(D2h);
