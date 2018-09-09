@@ -578,7 +578,7 @@ UncertResult Solver<S>::get_energy_pt_sto(
   fgpl::DistHashMap<Det, MathVector<double, 3>, DetHasher> hc_sums;
   const size_t n_var_dets = system.get_n_dets();
   size_t n_batches = Config::get<size_t>("n_batches_pt_sto", 0);
-  if (n_batches == 0) n_batches = 128;
+  if (n_batches == 0) n_batches = 64;
   size_t n_samples = Config::get<size_t>("n_samples_pt_sto", 0);
   std::vector<double> probs(n_var_dets);
   std::vector<double> cum_probs(n_var_dets);  // For sampling.
@@ -639,7 +639,7 @@ UncertResult Solver<S>::get_energy_pt_sto(
     hc_sums.clear();
     const size_t n_pt_dets_batch = n_pt_dets * 128 / n_batches;
     const size_t bytes_per_det = N_CHUNKS * 16 + 24;
-    const double mem_usage = Config::get<double>("pt_sto_mem_usage", 1.0);
+    const double mem_usage = Config::get<double>("pt_sto_mem_usage", 0.2);
     size_t n_unique_target =
         pt_mem_avail * mem_usage * 1000 * n_unique_samples / bytes_per_det / 3.0 / n_pt_dets_batch;
     const size_t max_unique_targets = n_var_dets / 8 + 1;
