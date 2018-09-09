@@ -288,13 +288,13 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
 template <class S>
 void Solver<S>::run_perturbation(const double eps_var) {
   // If result already exists, return.
-  eps_pt = Config::get<double>("eps_pt", eps_var * 1e-6);
-  eps_pt_psto = Config::get<double>("eps_pt_psto", eps_var / 500);
-  eps_pt_dtm = Config::get<double>("eps_pt_dtm", eps_var / 50);
-  double min_eps_pt_dtm = Config::get<double>("min_eps_pt_dtm", 1.0e-6);
-  double min_eps_pt_psto = Config::get<double>("min_eps_pt_psto", 1.0e-7);
-  if (eps_pt_dtm < min_eps_pt_dtm) eps_pt_dtm = min_eps_pt_dtm;
-  if (eps_pt_psto < min_eps_pt_psto) eps_pt_psto = min_eps_pt_psto;
+  eps_pt = Config::get<double>("eps_pt", 1.0e-20);
+  eps_pt_dtm = Config::get<double>("eps_pt_dtm", 2.0e-6);
+  eps_pt_psto = Config::get<double>("eps_pt_psto", 1.0e-7);
+  // double min_eps_pt_dtm = Config::get<double>("min_eps_pt_dtm", 1.0e-6);
+  // double min_eps_pt_psto = Config::get<double>("min_eps_pt_psto", 1.0e-7);
+  // if (eps_pt_dtm < min_eps_pt_dtm) eps_pt_dtm = min_eps_pt_dtm;
+  // if (eps_pt_psto < min_eps_pt_psto) eps_pt_psto = min_eps_pt_psto;
 
   const auto& value_entry = Util::str_printf("energy_total/%#.2e/%#.2e/value", eps_var, eps_pt);
   const auto& uncert_entry = Util::str_printf("energy_total/%#.2e/%#.2e/uncert", eps_var, eps_pt);
@@ -544,7 +544,10 @@ UncertResult Solver<S>::get_energy_pt_psto(const double eps_var, const double en
     } else {
       const double energy_avg = energy_sum / n_pt_dets_sum;
       const double sample_stdev = sqrt(energy_sq_sum / n_pt_dets_sum - energy_avg * energy_avg);
-      energy_pt_psto.uncert = sample_stdev * sqrt(n_pt_dets_sum) / (batch_id + 1) * n_batches;
+      const double mean_stdev = sample_stdev / sqrt(n_pt_dets_sum);
+      energy_pt_psto.uncert =
+          mean_stdev * n_pt_dets_sum / (batch_id + 1) * (n_batches - batch_id - 1);
+      // energy_pt_psto.uncert = sample_stdev * sqrt(n_pt_dets_sum) / (batch_id + 1) * n_batches;
     }
 
     if (Parallel::is_master()) {
@@ -575,7 +578,7 @@ UncertResult Solver<S>::get_energy_pt_sto(
   fgpl::DistHashMap<Det, MathVector<double, 3>, DetHasher> hc_sums;
   const size_t n_var_dets = system.get_n_dets();
   size_t n_batches = Config::get<size_t>("n_batches_pt_sto", 0);
-  if (n_batches == 0) n_batches = 128;
+  if (n_batches == 0) n_batches = 64;
   size_t n_samples = Config::get<size_t>("n_samples_pt_sto", 0);
   std::vector<double> probs(n_var_dets);
   std::vector<double> cum_probs(n_var_dets);  // For sampling.
@@ -636,7 +639,7 @@ UncertResult Solver<S>::get_energy_pt_sto(
     hc_sums.clear();
     const size_t n_pt_dets_batch = n_pt_dets * 128 / n_batches;
     const size_t bytes_per_det = N_CHUNKS * 16 + 24;
-    const double mem_usage = Config::get<double>("pt_sto_mem_usage", 1.0);
+    const double mem_usage = Config::get<double>("pt_sto_mem_usage", 0.2);
     size_t n_unique_target =
         pt_mem_avail * mem_usage * 1000 * n_unique_samples / bytes_per_det / 3.0 / n_pt_dets_batch;
     const size_t max_unique_targets = n_var_dets / 8 + 1;
