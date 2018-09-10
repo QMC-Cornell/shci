@@ -322,7 +322,7 @@ void Solver<S>::run_perturbation(const double eps_var) {
   var_dets.reserve(system.get_n_dets());
   for (const auto& det : system.dets) var_dets.set(det);
   const size_t mem_total = Util::get_mem_total();
-  const size_t mem_var = system.get_n_dets() * (8 + N_CHUNKS * 16 * 2) * 2 / 1000;
+  const size_t mem_var = system.get_n_dets() * (8 + N_CHUNKS * 24 * 2) * 2 / 1000;
   pt_mem_avail = (mem_total * 0.8 - mem_var);
   const size_t n_procs = Parallel::get_n_procs();
   if (n_procs >= 2) {
@@ -370,7 +370,7 @@ double Solver<S>::get_energy_pt_dtm(const double eps_var) {
     hc_sums.sync();
     const size_t n_pt_dets = hc_sums.get_n_keys();
     n_batches = static_cast<size_t>(
-        ceil(2.0 * 128 * 100 / 1000 * n_pt_dets * (N_CHUNKS * 16 + 16) / pt_mem_avail));
+        ceil(2.0 * 128 * 100 / 1000 * n_pt_dets * (N_CHUNKS * 24 + 16) / pt_mem_avail));
     if (n_batches == 0) n_batches = 1;
     if (Parallel::is_master()) {
       printf("Number of batches chosen: %zu\n", n_batches);
@@ -482,7 +482,7 @@ UncertResult Solver<S>::get_energy_pt_psto(const double eps_var, const double en
     const double mem_usage = Config::get<double>("pt_psto_mem_usage", 1.0);
     n_batches = static_cast<size_t>(
         ceil(
-            2.0 * 128 * 100 / 1000 * n_pt_dets * (N_CHUNKS * 16 + 16) /
+            2.0 * 128 * 100 / 1000 * n_pt_dets * (N_CHUNKS * 24 + 16) /
             (pt_mem_avail * mem_usage)));
     if (n_batches < 16) n_batches = 16;
     if (Parallel::is_master()) {
@@ -638,7 +638,7 @@ UncertResult Solver<S>::get_energy_pt_sto(
     const size_t n_pt_dets = hc_sums.get_n_keys();
     hc_sums.clear();
     const size_t n_pt_dets_batch = n_pt_dets * 128 / n_batches;
-    const size_t bytes_per_det = N_CHUNKS * 16 + 24;
+    const size_t bytes_per_det = N_CHUNKS * 24 + 24;
     const double mem_usage = Config::get<double>("pt_sto_mem_usage", 0.2);
     size_t n_unique_target =
         pt_mem_avail * mem_usage * 1000 * n_unique_samples / bytes_per_det / 3.0 / n_pt_dets_batch;
