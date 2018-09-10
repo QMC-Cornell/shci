@@ -6,7 +6,7 @@
 #include <vector>
 #include "diff_result.h"
 
-#define N_CHUNKS 5
+#define N_CHUNKS 8
 
 class HalfDet {
  public:
@@ -39,6 +39,8 @@ class HalfDet {
  private:
   std::array<uint64_t, N_CHUNKS> chunks;
 
+  std::set<unsigned> extras;
+
   friend bool operator==(const HalfDet& a, const HalfDet& b);
 
   friend bool operator!=(const HalfDet& a, const HalfDet& b);
@@ -51,14 +53,14 @@ class HalfDet {
 template <class B>
 void HalfDet::serialize(B& buf) const {
   for (int chunk_id = 0; chunk_id < N_CHUNKS; chunk_id++) {
-    buf << chunks[chunk_id];
+    buf << chunks[chunk_id] << extras;
   }
 }
 
 template <class B>
 void HalfDet::parse(B& buf) {
   for (int chunk_id = 0; chunk_id < N_CHUNKS; chunk_id++) {
-    buf >> chunks[chunk_id];
+    buf >> chunks[chunk_id] >> extras;
   }
 }
 
