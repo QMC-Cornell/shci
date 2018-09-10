@@ -574,5 +574,9 @@ void Hamiltonian<S>::update_matrix(const S& system) {
       },
       Parallel::is_master());
 
+  const size_t n_elems = matrix.count_n_elems();
+  if (Parallel::is_master()) {
+    printf("Number of nonzero elems: %'zu\n", n_elems);
+  }
   matrix.cache_diag();
 }
