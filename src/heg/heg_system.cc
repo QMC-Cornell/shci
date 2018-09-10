@@ -222,7 +222,7 @@ double HegSystem::get_hamiltonian_elem_no_time_sym(
   if (n_excite == 0) {
     const double one_body_energy = get_one_body_diag(det_i);
     const double two_body_energy = get_two_body_diag(det_i);
-    return one_body_energy + two_body_energy + integrals.energy_core;
+    return one_body_energy + two_body_energy;
   } else if (n_excite == 2) {
     return get_two_body_double(diff_up, diff_dn);
   }
@@ -263,14 +263,13 @@ double HegSystem::get_two_body_diag(const Det& det) const {
       const unsigned orb_i = occ_orbs_up[i];
       for (unsigned j = i + 1; j < occ_orbs_up.size(); j++) {
         const unsigned orb_j = occ_orbs_up[j];
-        energy -= H_unit / (k_points[orb_i] - k_points[obj_j]).squared_norm();
+        energy -= H_unit / (k_points[orb_i] - k_points[orb_j]).squared_norm();
       }
     }
   }
 
   if (det.up == det.dn) {
     energy *= 2;
-    exchange_energy *= 2;
   } else {
     // dn to dn.
     if (diag_helper.has(det.dn)) {
@@ -280,7 +279,7 @@ double HegSystem::get_two_body_diag(const Det& det) const {
         const unsigned orb_i = occ_orbs_dn[i];
         for (unsigned j = i + 1; j < occ_orbs_dn.size(); j++) {
           const unsigned orb_j = occ_orbs_dn[j];
-          energy -= H_unit / (k_points[orb_i] - k_points[obj_j]).squared_norm();
+          energy -= H_unit / (k_points[orb_i] - k_points[orb_j]).squared_norm();
         }
       }
     }
@@ -297,8 +296,11 @@ double HegSystem::get_two_body_double(const DiffResult& diff_up, const DiffResul
     const unsigned orb_i2 = diff_dn.left_only[1];
     const unsigned orb_j1 = diff_dn.right_only[0];
     const unsigned orb_j2 = diff_dn.right_only[1];
-    energy = integrals.get_2b(orb_i1, orb_j1, orb_i2, orb_j2) -
-             integrals.get_2b(orb_i1, orb_j2, orb_i2, orb_j1);
+    if (k_points[orb_i1] + k_points[orb_i2] != k_points[orb_j1] + k_points[orb_j2]) {
+      return 0.0;
+    }
+    energy = H_unit / (k_points[orb_i1] - k_points[orb_j1]).squared_norm() -
+             H_unit / (k_points[orb_i1] - k_points[orb_j2]).squared_norm();
     energy *= diff_dn.permutation_factor;
   } else if (diff_dn.n_diffs == 0) {
     if (diff_up.n_diffs != 2) return 0.0;
@@ -306,8 +308,11 @@ double HegSystem::get_two_body_double(const DiffResult& diff_up, const DiffResul
     const unsigned orb_i2 = diff_up.left_only[1];
     const unsigned orb_j1 = diff_up.right_only[0];
     const unsigned orb_j2 = diff_up.right_only[1];
-    energy = integrals.get_2b(orb_i1, orb_j1, orb_i2, orb_j2) -
-             integrals.get_2b(orb_i1, orb_j2, orb_i2, orb_j1);
+    if (k_points[orb_i1] + k_points[orb_i2] != k_points[orb_j1] + k_points[orb_j2]) {
+      return 0.0;
+    }
+    energy = H_unit / (k_points[orb_i1] - k_points[orb_j1]).squared_norm() -
+             H_unit / (k_points[orb_i1] - k_points[orb_j2]).squared_norm();
     energy *= diff_up.permutation_factor;
   } else {
     if (diff_up.n_diffs != 1 || diff_dn.n_diffs != 1) return 0.0;
@@ -315,7 +320,10 @@ double HegSystem::get_two_body_double(const DiffResult& diff_up, const DiffResul
     const unsigned orb_i2 = diff_dn.left_only[0];
     const unsigned orb_j1 = diff_up.right_only[0];
     const unsigned orb_j2 = diff_dn.right_only[0];
-    energy = integrals.get_2b(orb_i1, orb_j1, orb_i2, orb_j2);
+    if (k_points[orb_i1] + k_points[orb_i2] != k_points[orb_j1] + k_points[orb_j2]) {
+      return 0.0;
+    }
+    energy = H_unit / (k_points[orb_i1] - k_points[orb_j1]).squared_norm();
     energy *= diff_up.permutation_factor * diff_dn.permutation_factor;
   }
   return energy;

@@ -28,6 +28,10 @@ bool operator==(const KPoint& lhs, const KPoint& rhs) {
   return (lhs.x == rhs.x) && (lhs.y == rhs.y) && (lhs.z == rhs.z);
 }
 
+bool operator!=(const KPoint& lhs, const KPoint& rhs) {
+  return (lhs.x != rhs.x) || (lhs.y != rhs.y) || (lhs.z != rhs.z);
+}
+
 bool operator==(const KPoint& lhs, const int rhs) {
   return (lhs.x == rhs) && (lhs.y == rhs) && (lhs.z == rhs);
 }

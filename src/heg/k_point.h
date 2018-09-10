@@ -24,6 +24,8 @@ class KPoint {
 
   friend bool operator==(const KPoint& lhs, const KPoint& rhs);
 
+  friend bool operator!=(const KPoint& lhs, const KPoint& rhs);
+
   friend bool operator==(const KPoint& lhs, const int rhs);
 };
 
