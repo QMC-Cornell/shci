@@ -19,6 +19,7 @@ void HegSystem::setup() {
   k_unit = 2 * Util::PI / cell_length;
   H_unit = 1.0 / (Util::PI * cell_length);
   time_sym = Config::get<bool>("time_sym", n_up == n_dn);
+  has_single_excitation = false;
 
   Timer::start("contruct k points");
   k_points.init(r_cut);
@@ -160,7 +161,6 @@ void HegSystem::find_connected_dets(
       const bool same_spin = p2 < n_orbs && q2 < n_orbs;
       const auto& key = same_spin ? k_points[q2] - k_points[p2] : KPoint(0, 0, 0);
       const int qs_offset = same_spin ? 0 : n_orbs;
-      printf("hci_queue size: %zu\n" , hci_queue.at(key).size());
       for (const auto& item : hci_queue.at(key)) {
         const double H = item.second;
         if (H < eps_min) break;
@@ -195,4 +195,128 @@ void HegSystem::find_connected_dets(
       }
     }
   }
+}
+
+double HegSystem::get_hamiltonian_elem(
+    const Det& det_i, const Det& det_j, const int n_excite) const {
+  return get_hamiltonian_elem_no_time_sym(det_i, det_j, n_excite);
+}
+
+double HegSystem::get_hamiltonian_elem_no_time_sym(
+    const Det& det_i, const Det& det_j, int n_excite) const {
+  DiffResult diff_up;
+  DiffResult diff_dn;
+  if (n_excite < 0) {
+    diff_up = det_i.up.diff(det_j.up);
+    if (diff_up.n_diffs > 2) return 0.0;
+    diff_dn = det_i.dn.diff(det_j.dn);
+    n_excite = diff_up.n_diffs + diff_dn.n_diffs;
+    if (n_excite != 2) return 0.0;
+  } else if (n_excite > 0) {
+    diff_up = det_i.up.diff(det_j.up);
+    if (diff_up.n_diffs < static_cast<unsigned>(n_excite)) {
+      diff_dn = det_i.dn.diff(det_j.dn);
+    }
+  }
+
+  if (n_excite == 0) {
+    const double one_body_energy = get_one_body_diag(det_i);
+    const double two_body_energy = get_two_body_diag(det_i);
+    return one_body_energy + two_body_energy + integrals.energy_core;
+  } else if (n_excite == 2) {
+    return get_two_body_double(diff_up, diff_dn);
+  }
+
+  throw new std::runtime_error("Calling hamiltonian with >2 exicitation");
+}
+
+double HegSystem::get_one_body_diag(const Det& det) const {
+  double energy = 0.0;
+
+  for (const auto& orb : det.up.get_occupied_orbs()) {
+    energy += k_points[orb].squared_norm();
+  }
+
+  if (det.up == det.dn) {
+    energy *= 2;
+  } else {
+    for (const auto& orb : det.dn.get_occupied_orbs()) {
+      energy += k_points[orb].squared_norm();
+    }
+  }
+
+  energy *= k_unit * k_unit * 0.5;
+
+  return energy;
+}
+
+double HegSystem::get_two_body_diag(const Det& det) const {
+  const auto& occ_orbs_up = det.up.get_occupied_orbs();
+  const auto& occ_orbs_dn = det.dn.get_occupied_orbs();
+  double energy = 0.0;
+
+  // up to up.
+  if (diag_helper.has(det.up)) {
+    energy += diag_helper.get(det.up);
+  } else {
+    for (unsigned i = 0; i < occ_orbs_up.size(); i++) {
+      const unsigned orb_i = occ_orbs_up[i];
+      for (unsigned j = i + 1; j < occ_orbs_up.size(); j++) {
+        const unsigned orb_j = occ_orbs_up[j];
+        energy -= H_unit / (k_points[orb_i] - k_points[obj_j]).squared_norm();
+      }
+    }
+  }
+
+  if (det.up == det.dn) {
+    energy *= 2;
+    exchange_energy *= 2;
+  } else {
+    // dn to dn.
+    if (diag_helper.has(det.dn)) {
+      energy += diag_helper.get(det.dn);
+    } else {
+      for (unsigned i = 0; i < occ_orbs_dn.size(); i++) {
+        const unsigned orb_i = occ_orbs_dn[i];
+        for (unsigned j = i + 1; j < occ_orbs_dn.size(); j++) {
+          const unsigned orb_j = occ_orbs_dn[j];
+          energy -= H_unit / (k_points[orb_i] - k_points[obj_j]).squared_norm();
+        }
+      }
+    }
+  }
+
+  return energy;
+}
+
+double HegSystem::get_two_body_double(const DiffResult& diff_up, const DiffResult& diff_dn) const {
+  double energy = 0.0;
+  if (diff_up.n_diffs == 0) {
+    if (diff_dn.n_diffs != 2) return 0.0;
+    const unsigned orb_i1 = diff_dn.left_only[0];
+    const unsigned orb_i2 = diff_dn.left_only[1];
+    const unsigned orb_j1 = diff_dn.right_only[0];
+    const unsigned orb_j2 = diff_dn.right_only[1];
+    energy = integrals.get_2b(orb_i1, orb_j1, orb_i2, orb_j2) -
+             integrals.get_2b(orb_i1, orb_j2, orb_i2, orb_j1);
+    energy *= diff_dn.permutation_factor;
+  } else if (diff_dn.n_diffs == 0) {
+    if (diff_up.n_diffs != 2) return 0.0;
+    const unsigned orb_i1 = diff_up.left_only[0];
+    const unsigned orb_i2 = diff_up.left_only[1];
+    const unsigned orb_j1 = diff_up.right_only[0];
+    const unsigned orb_j2 = diff_up.right_only[1];
+    energy = integrals.get_2b(orb_i1, orb_j1, orb_i2, orb_j2) -
+             integrals.get_2b(orb_i1, orb_j2, orb_i2, orb_j1);
+    energy *= diff_up.permutation_factor;
+  } else {
+    if (diff_up.n_diffs != 1 || diff_dn.n_diffs != 1) return 0.0;
+    const unsigned orb_i1 = diff_up.left_only[0];
+    const unsigned orb_i2 = diff_dn.left_only[0];
+    const unsigned orb_j1 = diff_up.right_only[0];
+    const unsigned orb_j2 = diff_dn.right_only[0];
+    energy = integrals.get_2b(orb_i1, orb_j1, orb_i2, orb_j2);
+    energy *= diff_up.permutation_factor * diff_dn.permutation_factor;
+  }
+  return energy;
 }

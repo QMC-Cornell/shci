@@ -10,21 +10,23 @@
 
 class BaseSystem {
  public:
-  unsigned n_up;
+  unsigned n_up = 0;
 
-  unsigned n_dn;
+  unsigned n_dn = 0;
   
-  unsigned n_orbs;
+  unsigned n_orbs = 0;
 
-  unsigned n_elecs;
+  unsigned n_elecs = 0;
 
-  bool time_sym;
+  bool time_sym = false;
 
-  bool has_double_excitation;
+  bool has_single_excitation = true;
 
-  double energy_hf;
+  bool has_double_excitation = true;
 
-  double energy_var;
+  double energy_hf = 0.0;
+
+  double energy_var = 0.0;
 
   std::vector<Det> dets;
 
