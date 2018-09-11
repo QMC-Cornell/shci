@@ -188,7 +188,7 @@ template <class S>
 void Solver<S>::run_all_perturbations() {
   const auto& eps_vars = Config::get<std::vector<double>>("eps_vars");
   bytes_per_det = N_CHUNKS * 24 + 16;
-  if (N_CHUNKS * 64 > system.n_orbs) bytes_per_det += 64;
+  if (N_CHUNKS * 64 > system.n_orbs) bytes_per_det += 128;
   for (const double eps_var : eps_vars) {
     Timer::start(Util::str_printf("eps_var %#.2e", eps_var));
     run_perturbation(eps_var);
@@ -353,7 +353,7 @@ double Solver<S>::get_energy_pt_dtm(const double eps_var) {
 
   // Estimate best n batches.
   if (n_batches == 0) {
-    fgpl::DistRange<size_t>(50, n_var_dets, 100).for_each([&](const size_t i) {
+    fgpl::DistRange<size_t>(10, n_var_dets, 100).for_each([&](const size_t i) {
       const Det& det = system.dets[i];
       const double coef = system.coefs[i];
       const auto& pt_det_handler = [&](const Det& det_a, const int n_excite) {
@@ -463,7 +463,7 @@ UncertResult Solver<S>::get_energy_pt_psto(const double eps_var, const double en
 
   // Estimate best n batches.
   if (n_batches == 0) {
-    fgpl::DistRange<size_t>(50, n_var_dets, 100).for_each([&](const size_t i) {
+    fgpl::DistRange<size_t>(10, n_var_dets, 100).for_each([&](const size_t i) {
       const Det& det = system.dets[i];
       const double coef = system.coefs[i];
       const auto& pt_det_handler = [&](const Det& det_a, const int n_excite) {
