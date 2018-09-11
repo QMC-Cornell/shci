@@ -292,7 +292,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
 template <class S>
 void Solver<S>::run_perturbation(const double eps_var) {
   // If result already exists, return.
-  eps_pt = Config::get<double>("eps_pt", 1.0e-20);
+  eps_pt = Config::get<double>("eps_pt", eps_var * 1.0e-6);
   eps_pt_dtm = Config::get<double>("eps_pt_dtm", 2.0e-6);
   eps_pt_psto = Config::get<double>("eps_pt_psto", 1.0e-7);
   // double min_eps_pt_dtm = Config::get<double>("min_eps_pt_dtm", 1.0e-6);
