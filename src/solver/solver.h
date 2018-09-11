@@ -189,6 +189,9 @@ void Solver<S>::run_all_perturbations() {
   const auto& eps_vars = Config::get<std::vector<double>>("eps_vars");
   bytes_per_det = N_CHUNKS * 24 + 36;
   if (N_CHUNKS * 64 > system.n_orbs) bytes_per_det += 128;
+  if (Config::get<std::string>("system") == "heg") {
+    bytes_per_det *= 2.0;
+  }
   for (const double eps_var : eps_vars) {
     Timer::start(Util::str_printf("eps_var %#.2e", eps_var));
     run_perturbation(eps_var);
@@ -327,7 +330,7 @@ void Solver<S>::run_perturbation(const double eps_var) {
   for (const auto& det : system.dets) var_dets.set(det);
   const size_t mem_total = Util::get_mem_total();
   const size_t mem_var = system.get_n_dets() * bytes_per_det * 2 / 1000;
-  const double tmp = (mem_total * 0.8 - mem_var * 1.5);
+  const double tmp = (mem_total * 0.8 - mem_var * 1.5 - system.helper_size / 1000);
   assert(tmp > 0);
   pt_mem_avail = tmp;
   const size_t n_procs = Parallel::get_n_procs();

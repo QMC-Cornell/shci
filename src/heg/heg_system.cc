@@ -93,6 +93,8 @@ void HegSystem::setup_hci_queue() {
   if (Parallel::is_master()) {
     printf("Number of opposite spin hci queue items: %'zu\n", hci_queue[key].size());
   }
+
+  helper_size = (n_same_spin + hci_queue[key].size()) * 36;
 }
 
 void HegSystem::setup_hf() {
