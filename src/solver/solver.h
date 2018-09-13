@@ -99,7 +99,9 @@ void Solver<S>::run() {
     run_all_variations();
 
     if (Config::get<bool>("2rdm", false) || Config::get<bool>("get_2rdm_csv", false))
+    {
       connections = hamiltonian.matrix.get_connections();
+    }
 
     hamiltonian.clear();
     Timer::end();
@@ -130,8 +132,8 @@ void Solver<S>::run() {
   Timer::end();
 
   if (Config::get<bool>("var_only", false)) return;
-
-  Timer::start("perturbation");
+  connections.clear();
+  Timer::start("perturbation"); 
   run_all_perturbations();
   system.post_perturbation();
   Timer::end();
@@ -288,7 +290,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
 template <class S>
 void Solver<S>::run_perturbation(const double eps_var) {
   // If result already exists, return.
-  eps_pt = Config::get<double>("eps_pt", 1.0e-20);
+  eps_pt = Config::get<double>("eps_pt", eps_var * 1.0e-6);
   eps_pt_dtm = Config::get<double>("eps_pt_dtm", 2.0e-6);
   eps_pt_psto = Config::get<double>("eps_pt_psto", 1.0e-7);
   // double min_eps_pt_dtm = Config::get<double>("min_eps_pt_dtm", 1.0e-6);
