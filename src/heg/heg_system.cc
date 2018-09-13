@@ -93,6 +93,8 @@ void HegSystem::setup_hci_queue() {
   if (Parallel::is_master()) {
     printf("Number of opposite spin hci queue items: %'zu\n", hci_queue[key].size());
   }
+
+  helper_size = (n_same_spin + hci_queue[key].size()) * 36;
 }
 
 void HegSystem::setup_hf() {
@@ -211,7 +213,6 @@ double HegSystem::get_hamiltonian_elem_no_time_sym(
     if (diff_up.n_diffs > 2) return 0.0;
     diff_dn = det_i.dn.diff(det_j.dn);
     n_excite = diff_up.n_diffs + diff_dn.n_diffs;
-    if (n_excite != 2) return 0.0;
   } else if (n_excite > 0) {
     diff_up = det_i.up.diff(det_j.up);
     if (diff_up.n_diffs < static_cast<unsigned>(n_excite)) {
@@ -225,9 +226,11 @@ double HegSystem::get_hamiltonian_elem_no_time_sym(
     return one_body_energy + two_body_energy;
   } else if (n_excite == 2) {
     return get_two_body_double(diff_up, diff_dn);
+  } else {
+    return 0.0;
   }
 
-  throw new std::runtime_error("Calling hamiltonian with >2 exicitation");
+  // throw new std::runtime_error("Calling hamiltonian with >2 exicitation");
 }
 
 double HegSystem::get_one_body_diag(const Det& det) const {

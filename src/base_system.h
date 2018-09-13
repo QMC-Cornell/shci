@@ -29,6 +29,8 @@ class BaseSystem {
 
   double energy_var = 0.0;
 
+  size_t helper_size = 0;
+
   std::vector<Det> dets;
 
   std::vector<double> coefs;
