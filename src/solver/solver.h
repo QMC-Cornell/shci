@@ -132,7 +132,9 @@ void Solver<S>::run() {
   Timer::end();
 
   if (Config::get<bool>("var_only", false)) return;
+
   connections.clear();
+  hamiltonian.clear();
   Timer::start("perturbation"); 
   run_all_perturbations();
   system.post_perturbation();
