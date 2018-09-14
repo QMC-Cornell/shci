@@ -10,7 +10,11 @@ HalfDet::HalfDet() {
 
 HalfDet& HalfDet::set(unsigned orb) {
   if (orb >= N_CHUNKS << 6) {
+#ifdef INF_ORBS
     extras.insert(orb);
+#else
+    throw std::invalid_argument("n orbs > n trunks * 64");
+#endif
   } else {
     const auto chunk_id = orb >> 6;  // orb / 64;
     chunks[chunk_id] |= 1ull << (orb & 0x3full);
@@ -20,7 +24,11 @@ HalfDet& HalfDet::set(unsigned orb) {
 
 HalfDet& HalfDet::unset(unsigned orb) {
   if (orb >= N_CHUNKS << 6) {
+#ifdef INF_ORBS
     extras.erase(orb);
+#else
+    throw std::invalid_argument("n orbs > n trunks * 64");
+#endif
   } else {
     const auto chunk_id = orb >> 6;  // orb / 64;
     chunks[chunk_id] &= ~(1ull << (orb & 0x3full));
@@ -30,7 +38,11 @@ HalfDet& HalfDet::unset(unsigned orb) {
 
 bool HalfDet::has(unsigned orb) const {
   if (orb >= N_CHUNKS << 6) {
+#ifdef INF_ORBS
     return extras.count(orb) == 1;
+#else
+    throw std::invalid_argument("n orbs > n trunks * 64");
+#endif
   } else {
     const auto chunk_id = orb >> 6;  // orb / 64;
     return chunks[chunk_id] & (1ull << (orb & 0x3full));
@@ -47,9 +59,11 @@ std::vector<unsigned> HalfDet::get_occupied_orbs() const {
       res.push_back(tz + (chunk_id << 6));
     }
   }
+#ifdef INF_ORBS
   for (unsigned orb : extras) {
     res.push_back(orb);
   }
+#endif
   return res;
 }
 
@@ -60,11 +74,13 @@ size_t HalfDet::get_hash_value() const {
     hash += (hash << 10);
     hash ^= (hash >> 6);
   }
+#ifdef INF_ORBS
   for (unsigned orb : extras) {
     hash += orb;
     hash += (hash << 10);
     hash ^= (hash >> 6);
   }
+#endif
   hash += (hash << 3);
   hash ^= (hash >> 11);
   hash += (hash << 15);
@@ -75,9 +91,11 @@ void HalfDet::print() const {
   for (int chunk_id = N_CHUNKS - 1; chunk_id >= 0; chunk_id--) {
     printf("%#010lx ", chunks[chunk_id]);
   }
+#ifdef INF_ORBS
   for (unsigned orb : extras) {
     printf("%u ", orb);
   }
+#endif
   printf("\n");
 }
 
@@ -90,9 +108,11 @@ unsigned HalfDet::n_diffs(const HalfDet& rhs) const {
     uint64_t chunk_left_only = chunk_left & (~chunk_right);
     n_diffs += Util::popcnt(chunk_left_only);
   }
+#ifdef INF_ORBS
   for (unsigned orb : extras) {
     if (rhs.extras.count(orb) == 0) n_diffs++;
   }
+#endif
   return n_diffs;
 }
 
@@ -145,6 +165,7 @@ DiffResult HalfDet::diff(const HalfDet& rhs) const {
     n_elecs_right += Util::popcnt(chunk_right);
   }
 
+#ifdef INF_ORBS
   for (const unsigned orb : extras) {
     if (rhs.extras.count(orb) == 1) {
       n_elecs_left++;
@@ -174,6 +195,7 @@ DiffResult HalfDet::diff(const HalfDet& rhs) const {
     permutation_factor_helper += n_elecs_right;
     n_elecs_right++;
   }
+#endif
 
   res.n_diffs = n_left_only;
   if ((permutation_factor_helper & 1) != 0) {
@@ -201,12 +223,17 @@ bool operator==(const HalfDet& a, const HalfDet& b) {
   for (int chunk_id = 0; chunk_id < N_CHUNKS; chunk_id++) {
     if (a.chunks[chunk_id] != b.chunks[chunk_id]) return false;
   }
+#ifdef INF_ORBS
   return a.extras == b.extras;
+#else
+  return true
+#endif
 }
 
 bool operator!=(const HalfDet& a, const HalfDet& b) { return !(a == b); }
 
 bool operator<(const HalfDet& a, const HalfDet& b) {
+#ifdef INF_ORBS
   auto it_a = a.extras.rbegin();
   auto it_b = b.extras.rbegin();
   while (it_a != a.extras.rend() && it_b != b.extras.rend()) {
@@ -224,6 +251,7 @@ bool operator<(const HalfDet& a, const HalfDet& b) {
   if (it_a == a.extras.rend() && it_b != b.extras.rend()) {
     return true;
   }
+#endif
   for (int chunk_id = N_CHUNKS - 1; chunk_id >= 0; chunk_id--) {
     if (a.chunks[chunk_id] < b.chunks[chunk_id]) return true;
     if (a.chunks[chunk_id] > b.chunks[chunk_id]) return false;
@@ -232,6 +260,7 @@ bool operator<(const HalfDet& a, const HalfDet& b) {
 }
 
 bool operator>(const HalfDet& a, const HalfDet& b) {
+#ifdef INF_ORBS
   auto it_a = a.extras.rbegin();
   auto it_b = b.extras.rbegin();
   while (it_a != a.extras.rend() && it_b != b.extras.rend()) {
@@ -249,6 +278,7 @@ bool operator>(const HalfDet& a, const HalfDet& b) {
   if (it_a == a.extras.rend() && it_b != b.extras.rend()) {
     return false;
   }
+#endif
   for (int chunk_id = N_CHUNKS - 1; chunk_id >= 0; chunk_id--) {
     if (a.chunks[chunk_id] > b.chunks[chunk_id]) return true;
     if (a.chunks[chunk_id] < b.chunks[chunk_id]) return false;
