@@ -191,7 +191,7 @@ void Solver<S>::run_all_variations() {
 template <class S>
 void Solver<S>::run_all_perturbations() {
   const auto& eps_vars = Config::get<std::vector<double>>("eps_vars");
-  bytes_per_det = N_CHUNKS * 24 + 48;
+  bytes_per_det = N_CHUNKS * 16;
   if (N_CHUNKS * 64 > system.n_orbs) bytes_per_det += 128;
   if (Config::get<std::string>("system") == "heg") {
     bytes_per_det *= 2.0;
@@ -332,7 +332,7 @@ void Solver<S>::run_perturbation(const double eps_var) {
   var_dets.clear_and_shrink();
   var_dets.reserve(system.get_n_dets());
   for (const auto& det : system.dets) var_dets.set(det);
-  const size_t mem_total = Util::get_mem_total();
+  const size_t mem_total = Config::get<double>("mem_total", Util::get_mem_total());
   const size_t mem_var = system.get_n_dets() * bytes_per_det * 2 / 1000;
   const double tmp = (mem_total * 0.8 - mem_var * 1.5 - system.helper_size / 1000);
   assert(tmp > 0);
