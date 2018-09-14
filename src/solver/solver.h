@@ -299,13 +299,11 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
 template <class S>
 void Solver<S>::run_perturbation(const double eps_var) {
   // If result already exists, return.
-  eps_pt = Config::get<double>("eps_pt", eps_var * 1.0e-6);
+  eps_pt = Config::get<double>("eps_pt", eps_var * 1.0e-10);
   eps_pt_dtm = Config::get<double>("eps_pt_dtm", 2.0e-6);
   eps_pt_psto = Config::get<double>("eps_pt_psto", 1.0e-7);
-  // double min_eps_pt_dtm = Config::get<double>("min_eps_pt_dtm", 1.0e-6);
-  // double min_eps_pt_psto = Config::get<double>("min_eps_pt_psto", 1.0e-7);
-  // if (eps_pt_dtm < min_eps_pt_dtm) eps_pt_dtm = min_eps_pt_dtm;
-  // if (eps_pt_psto < min_eps_pt_psto) eps_pt_psto = min_eps_pt_psto;
+  if (eps_pt_dtm < eps_pt) eps_pt_dtm = eps_pt;
+  if (eps_pt_psto < eps_pt) eps_pt_psto = eps_pt;
 
   const auto& value_entry = Util::str_printf("energy_total/%#.2e/%#.2e/value", eps_var, eps_pt);
   const auto& uncert_entry = Util::str_printf("energy_total/%#.2e/%#.2e/uncert", eps_var, eps_pt);
@@ -333,10 +331,10 @@ void Solver<S>::run_perturbation(const double eps_var) {
   var_dets.reserve(system.get_n_dets());
   for (const auto& det : system.dets) var_dets.set(det);
   const size_t mem_total = Config::get<double>("mem_total", Util::get_mem_total());
-  const size_t mem_var = system.get_n_dets() * bytes_per_det * 2 / 1000;
-  const double tmp = (mem_total * 0.8 - mem_var * 1.5 - system.helper_size / 1000);
-  assert(tmp > 0);
-  pt_mem_avail = tmp;
+  const size_t mem_var = system.get_n_dets() * bytes_per_det * 3;
+  const double mem_left = mem_total * 0.8 - mem_var - system.helper_size;
+  assert(mem_left > 0);
+  pt_mem_avail = mem_left;
   const size_t n_procs = Parallel::get_n_procs();
   if (n_procs >= 2) {
     pt_mem_avail = static_cast<size_t>(pt_mem_avail * 0.7 * n_procs);
@@ -383,7 +381,7 @@ double Solver<S>::get_energy_pt_dtm(const double eps_var) {
     hc_sums.sync();
     const size_t n_pt_dets = hc_sums.get_n_keys();
     n_batches = static_cast<size_t>(
-        ceil(2.0 * 128 * 100 / 1000 * n_pt_dets * bytes_per_det / pt_mem_avail));
+        ceil(2.0 * 128 * 100 * n_pt_dets * bytes_per_det / pt_mem_avail));
     if (n_batches == 0) n_batches = 1;
     if (Parallel::is_master()) {
       printf("Number of batches chosen: %zu\n", n_batches);
@@ -450,6 +448,8 @@ double Solver<S>::get_energy_pt_dtm(const double eps_var) {
       printf(" %s Ha\n", energy_pt_dtm.to_string().c_str());
       printf("PT dtm total energy (eps1= %.2e):", eps_var);
       printf(" %s Ha\n", (energy_pt_dtm + system.energy_var).to_string().c_str());
+      printf("Correlation energy (eps1= %.2e):", eps_var);
+      printf(" %s Ha\n", (energy_pt_dtm + system.energy_var - system.energy_hf).to_string().c_str());
     }
 
     hc_sums.clear();
@@ -494,7 +494,7 @@ UncertResult Solver<S>::get_energy_pt_psto(const double eps_var, const double en
     const size_t n_pt_dets = hc_sums.get_n_keys();
     const double mem_usage = Config::get<double>("pt_psto_mem_usage", 1.0);
     n_batches = static_cast<size_t>(
-        ceil(2.0 * 128 * 100 / 1000 * n_pt_dets * bytes_per_det / (pt_mem_avail * mem_usage)));
+        ceil(2.0 * 128 * 100 * n_pt_dets * bytes_per_det / (pt_mem_avail * mem_usage)));
     if (n_batches < 16) n_batches = 16;
     if (Parallel::is_master()) {
       printf("Number of batches chosen: %zu\n", n_batches);
@@ -567,12 +567,14 @@ UncertResult Solver<S>::get_energy_pt_psto(const double eps_var, const double en
       printf(" %s Ha\n", energy_pt_psto.to_string().c_str());
       printf("PT psto total energy (eps1= %.2e):", eps_var);
       printf(" %s Ha\n", (energy_pt_psto + energy_pt_dtm).to_string().c_str());
+      printf("Correlation energy (eps1= %.2e):", eps_var);
+      printf(" %s Ha\n", (energy_pt_psto + energy_pt_dtm - system.energy_hf).to_string().c_str());
     }
 
     hc_sums.clear();
     Timer::end();  // batch
 
-    if (energy_pt_psto.uncert <= target_error * 0.4 && batch_id < n_batches - 2) break;
+    if (energy_pt_psto.uncert <= target_error * 0.7) break;
     if (eps_pt_psto <= eps_pt && energy_pt_psto.uncert <= target_error) break;
   }
 
@@ -651,7 +653,7 @@ UncertResult Solver<S>::get_energy_pt_sto(
     const size_t n_pt_dets_batch = n_pt_dets * 128 / n_batches;
     const double mem_usage = Config::get<double>("pt_sto_mem_usage", 0.2);
     size_t n_unique_target =
-        pt_mem_avail * mem_usage * 1000 * n_unique_samples / bytes_per_det / 3.0 / n_pt_dets_batch;
+        pt_mem_avail * mem_usage * n_unique_samples / bytes_per_det / 3.0 / n_pt_dets_batch;
     const size_t max_unique_targets = n_var_dets / 8 + 1;
     if (n_unique_target >= max_unique_targets) n_unique_target = max_unique_targets;
     sample_dets.clear();
@@ -752,6 +754,8 @@ UncertResult Solver<S>::get_energy_pt_sto(
       printf(" %s Ha\n", energy_pt_sto.to_string().c_str());
       printf("PT sto total energy (eps1= %.2e):", eps_var);
       printf(" %s Ha\n", (energy_pt_sto + energy_pt_psto).to_string().c_str());
+      printf("Correlation energy (eps1= %.2e):", eps_var);
+      printf(" %s Ha\n", (energy_pt_sto + energy_pt_psto - system.energy_hf).to_string().c_str());
     }
 
     hc_sums.clear();
