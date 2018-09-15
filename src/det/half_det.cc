@@ -226,7 +226,7 @@ bool operator==(const HalfDet& a, const HalfDet& b) {
 #ifdef INF_ORBS
   return a.extras == b.extras;
 #else
-  return true
+  return true;
 #endif
 }
 
