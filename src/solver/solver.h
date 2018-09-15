@@ -296,13 +296,13 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
 
 template <class S>
 void Solver<S>::run_perturbation(const double eps_var) {
-  // If result already exists, return.
   eps_pt = Config::get<double>("eps_pt", eps_var * 1.0e-10);
   eps_pt_dtm = Config::get<double>("eps_pt_dtm", 2.0e-6);
   eps_pt_psto = Config::get<double>("eps_pt_psto", 1.0e-7);
   if (eps_pt_dtm < eps_pt) eps_pt_dtm = eps_pt;
   if (eps_pt_psto < eps_pt) eps_pt_psto = eps_pt;
 
+  // If result already exists, return.
   const auto& value_entry = Util::str_printf("energy_total/%#.2e/%#.2e/value", eps_var, eps_pt);
   const auto& uncert_entry = Util::str_printf("energy_total/%#.2e/%#.2e/uncert", eps_var, eps_pt);
   UncertResult res(Result::get<double>(value_entry, 0.0));
