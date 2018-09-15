@@ -7,6 +7,7 @@
 #include "../util.h"
 
 void HegSystem::setup() {
+  type = SystemType::HEG;
   n_up = Config::get<unsigned>("n_up");
   n_dn = Config::get<unsigned>("n_dn");
   n_elecs = n_up + n_dn;

@@ -129,13 +129,16 @@ void Solver<S>::run() {
   }
 
   system.post_variation(connections);
+  connections.clear();
+  connections.shrink_to_fit();
+  hamiltonian.clear();
+  eps_tried_prev.clear();
+  var_dets.clear_and_shrink();
 
   Timer::end();
 
   if (Config::get<bool>("var_only", false)) return;
 
-  connections.clear();
-  hamiltonian.clear();
   Timer::start("perturbation");
   run_all_perturbations();
   system.post_perturbation();
@@ -296,9 +299,16 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
 
 template <class S>
 void Solver<S>::run_perturbation(const double eps_var) {
-  eps_pt = Config::get<double>("eps_pt", eps_var * 1.0e-10);
-  eps_pt_dtm = Config::get<double>("eps_pt_dtm", 2.0e-6);
-  eps_pt_psto = Config::get<double>("eps_pt_psto", 1.0e-7);
+  double default_eps_pt_dtm = 2.0e-6;
+  double default_eps_pt_psto = 1.0e-7;
+  double default_eps_pt = eps_var * 1.0e-6;
+  if (system.type == SystemType::HEG) {
+    default_eps_pt_psto = 1.0;
+    default_eps_pt = eps_var * 1.0e-12;
+  }
+  eps_pt_dtm = Config::get<double>("eps_pt_dtm", default_eps_pt_dtm);
+  eps_pt_psto = Config::get<double>("eps_pt_psto", default_eps_pt_psto);
+  eps_pt = Config::get<double>("eps_pt", default_eps_pt);
   if (eps_pt_dtm < eps_pt) eps_pt_dtm = eps_pt;
   if (eps_pt_psto < eps_pt) eps_pt_psto = eps_pt;
 

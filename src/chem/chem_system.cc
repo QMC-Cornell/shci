@@ -12,6 +12,7 @@
 #include "rdm.h"
 
 void ChemSystem::setup() {
+  type = SystemType::Chemistry;
   n_up = Config::get<unsigned>("n_up");
   n_dn = Config::get<unsigned>("n_dn");
   n_elecs = n_up + n_dn;

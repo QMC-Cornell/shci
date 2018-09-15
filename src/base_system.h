@@ -8,13 +8,16 @@
 #include "det/det.h"
 #include "solver/sparse_matrix.h"
 #include "util.h"
+#include "system_type.h"
 
 class BaseSystem {
  public:
+  SystemType type;
+
   unsigned n_up = 0;
 
   unsigned n_dn = 0;
-  
+
   unsigned n_orbs = 0;
 
   unsigned n_elecs = 0;
