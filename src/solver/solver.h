@@ -474,6 +474,7 @@ double Solver<S>::get_energy_pt_dtm(const double eps_var) {
     Timer::end();  // batch
   }
 
+  hc_sums.clear_and_shrink();
   Timer::end();  // dtm
   return energy_pt_dtm.value + system.energy_var;
 }
@@ -791,6 +792,8 @@ UncertResult Solver<S>::get_energy_pt_sto(
       break;
     }
   }
+
+  hc_sums.clear_and_shrink();
   Timer::end();
   return energy_pt_sto + energy_pt_psto;
 }
