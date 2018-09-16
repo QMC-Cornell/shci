@@ -338,7 +338,10 @@ void Solver<S>::run_perturbation(const double eps_var) {
   var_dets.clear_and_shrink();
   var_dets.reserve(system.get_n_dets());
   for (const auto& det : system.dets) var_dets.set(det);
-  const size_t mem_total = Config::get<double>("mem_total", Util::get_mem_total());
+  size_t mem_total = Config::get<double>("mem_total", Util::get_mem_total());
+#ifdef INF_ORBS
+  mem_total *= 0.8;
+#endif
   const size_t mem_var = system.get_n_dets() * (bytes_per_det * 3 + 8);
   const double mem_left = mem_total * 0.8 - mem_var - system.helper_size;
   assert(mem_left > 0);
