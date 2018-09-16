@@ -195,7 +195,7 @@ void Solver<S>::run_all_perturbations() {
   const auto& eps_vars = Config::get<std::vector<double>>("eps_vars");
   bytes_per_det = N_CHUNKS * 16;
 #ifdef INF_ORBS
-  bytes_per_det += 96;
+  bytes_per_det += 128;
 #endif
   for (const double eps_var : eps_vars) {
     Timer::start(Util::str_printf("eps_var %#.2e", eps_var));
