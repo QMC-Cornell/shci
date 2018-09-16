@@ -303,14 +303,15 @@ void Solver<S>::run_perturbation(const double eps_var) {
   double default_eps_pt_psto = 1.0e-7;
   double default_eps_pt = eps_var * 1.0e-6;
   if (system.type == SystemType::HEG) {
-    default_eps_pt_psto = 1.0;
+    default_eps_pt_psto = default_eps_pt_dtm;
     default_eps_pt = eps_var * 1.0e-12;
   }
   eps_pt_dtm = Config::get<double>("eps_pt_dtm", default_eps_pt_dtm);
   eps_pt_psto = Config::get<double>("eps_pt_psto", default_eps_pt_psto);
   eps_pt = Config::get<double>("eps_pt", default_eps_pt);
-  if (eps_pt_dtm < eps_pt) eps_pt_dtm = eps_pt;
+
   if (eps_pt_psto < eps_pt) eps_pt_psto = eps_pt;
+  if (eps_pt_dtm < eps_pt_psto) eps_pt_dtm = eps_pt_psto;
 
   // If result already exists, return.
   const auto& value_entry = Util::str_printf("energy_total/%#.2e/%#.2e/value", eps_var, eps_pt);
