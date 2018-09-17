@@ -304,7 +304,7 @@ void Solver<S>::run_perturbation(const double eps_var) {
   double default_eps_pt = eps_var * 1.0e-6;
   if (system.type == SystemType::HEG) {
     default_eps_pt_psto = default_eps_pt_dtm;
-    default_eps_pt = eps_var * 1.0e-12;
+    default_eps_pt = eps_var * 1.0e-20;
   }
   eps_pt_dtm = Config::get<double>("eps_pt_dtm", default_eps_pt_dtm);
   eps_pt_psto = Config::get<double>("eps_pt_psto", default_eps_pt_psto);
