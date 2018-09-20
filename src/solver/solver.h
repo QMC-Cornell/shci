@@ -12,6 +12,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <functional>
+#include <numeric>
 #include <unordered_set>
 
 #include "../config.h"
@@ -139,6 +140,10 @@ void Solver<S>::run() {
 
 template <class S>
 void Solver<S>::run_all_variations() {
+  if (Parallel::is_master()) {
+    printf("Iteration 0 ");
+    printf("HF determinant ndets= 1 energy= %.8f\n", system.energy_hf);
+  }
   const auto& eps_vars = Config::get<std::vector<double>>("eps_vars");
   const auto& eps_vars_schedule = Config::get<std::vector<double>>("eps_vars_schedule");
   double eps_var_prev = Util::INF;
@@ -373,9 +378,9 @@ double Solver<S>::get_energy_pt_dtm(const double eps_var) {
         ceil(2.0 * 128 * 100 / 1000 * n_pt_dets * (N_CHUNKS * 16 + 16) / pt_mem_avail));
     if (n_batches == 0) n_batches = 1;
     if (Parallel::is_master()) {
-      printf("Number of batches chosen: %zu\n", n_batches);
+      printf("Number of dtm batches: %zu\n", n_batches);
     }
-    Timer::checkpoint("determine n batches");
+    Timer::checkpoint("determine number of dtm batches");
     hc_sums.clear();
   }
 
@@ -486,9 +491,9 @@ UncertResult Solver<S>::get_energy_pt_psto(const double eps_var, const double en
             (pt_mem_avail * mem_usage)));
     if (n_batches < 16) n_batches = 16;
     if (Parallel::is_master()) {
-      printf("Number of batches chosen: %zu\n", n_batches);
+      printf("Number of psto batches: %zu\n", n_batches);
     }
-    Timer::checkpoint("determine n batches");
+    Timer::checkpoint("determine number of psto batches");
     hc_sums.clear();
   }
 
@@ -808,7 +813,7 @@ bool Solver<S>::load_variation_result(const std::string& filename) {
     printf("Loaded %'zu dets from: %s\n", system.get_n_dets(), filename.c_str());
     print_dets_info();
     printf("HF energy: " ENERGY_FORMAT "\n", system.energy_hf);
-    printf("Variation energy: " ENERGY_FORMAT "\n", system.energy_var);
+    printf("Variational energy: " ENERGY_FORMAT "\n", system.energy_var);
   }
   return true;
 }
@@ -818,7 +823,7 @@ void Solver<S>::save_variation_result(const std::string& filename) {
   if (Parallel::is_master()) {
     std::ofstream file(filename, std::ofstream::binary);
     hps::to_stream(system, file);
-    printf("Variation results saved to: %s\n", filename.c_str());
+    printf("Variational results saved to: %s\n", filename.c_str());
   }
 }
 
@@ -856,6 +861,7 @@ void Solver<S>::print_dets_info() const {
     weights[n_excite] += coef * coef;
     if (highest_excitation < n_excite) highest_excitation = n_excite;
   }
+  printf("----------------------------------------\n");
   printf("%-10s%12s%16s\n", "Excite Lv", "# dets", "Sum c^2");
   for (unsigned i = 0; i <= highest_excitation; i++) {
     if (excitations.count(i) == 0) {
@@ -864,8 +870,31 @@ void Solver<S>::print_dets_info() const {
     }
     printf("%-10u%12zu%16.8f\n", i, excitations[i], weights[i]);
   }
+  
+  // Print orb occupations.
+  std::vector<double> orb_occupations(system.n_orbs, 0.0);
+  for (size_t i = 0; i < system.dets.size(); i++) {
+    const auto& det = system.dets[i];
+    const double coef = system.coefs[i];
+    for (unsigned j = 0; j < system.n_orbs; j++) {
+      if (det.up.has(j)) {
+        orb_occupations[j] += coef * coef;
+      }
+      if (det.dn.has(j)) {
+        orb_occupations[j] += coef * coef;
+      }
+    }
+  }
+  printf("----------------------------------------\n");
+  printf("%-10s%12s%16s\n", "Orbital", "", "Sum c^2");
+  for (unsigned j = 0; j < system.n_orbs && j < 50; j++) {
+    printf("%-10u%12s%16.8f\n", j, "", orb_occupations[j]);
+  }
+  double sum_orb_occupation = std::accumulate(orb_occupations.begin(), orb_occupations.end(), 0.0);
+  printf("Sum orbitals c^2: %.8f\n", sum_orb_occupation);
 
   // Print most important dets.
+  printf("----------------------------------------\n");
   printf("Most important dets:\n");
   std::vector<size_t> det_order(system.dets.size());
   for (size_t i = 0; i < system.dets.size(); i++) {
@@ -892,6 +921,7 @@ void Solver<S>::print_dets_info() const {
     }
     printf("|\n");
   }
+  printf("----------------------------------------\n");
 }
 
 template <class S>
