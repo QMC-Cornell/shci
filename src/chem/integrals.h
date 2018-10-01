@@ -48,6 +48,8 @@ class Integrals {
   fgpl::HashMap<size_t, double, IntegralsHasher> integrals_2b;
 
  private:
+  bool explicit_orbs;
+
   std::vector<Hpqrs> raw_integrals;
 
   void read_fcidump();
