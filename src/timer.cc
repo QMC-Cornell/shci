@@ -70,7 +70,7 @@ void Timer::print_status() const {
 }
 
 void Timer::print_mem() const {
-  const double scale = 1.0e-6;
+  const double scale = 1.0e-9;
   const size_t mem_avail = Util::get_mem_avail();
   const size_t mem_used = init_mem - mem_avail;
   const size_t mem_total = Util::get_mem_total();

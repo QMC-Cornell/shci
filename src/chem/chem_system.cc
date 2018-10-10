@@ -12,6 +12,7 @@
 #include "rdm.h"
 
 void ChemSystem::setup() {
+  type = SystemType::Chemistry;
   n_up = Config::get<unsigned>("n_up");
   n_dn = Config::get<unsigned>("n_dn");
   n_elecs = n_up + n_dn;
@@ -125,6 +126,7 @@ void ChemSystem::setup_hci_queue() {
     printf("Max hci queue elem: " ENERGY_FORMAT "\n", max_hci_queue_elem);
     printf("Number of entries in hci queue: %'zu\n", n_entries);
   }
+  helper_size = n_entries * 16 * 2;
 }
 
 PointGroup ChemSystem::get_point_group(const std::string& str) const {

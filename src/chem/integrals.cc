@@ -51,7 +51,7 @@ void Integrals::read_fcidump() {
       } else if (match == "NELEC") {
         it++;
         n_elecs = std::stoul(it->str());
-        if (Parallel::is_master()) printf("n_elecs: %u\n", n_elecs);
+        if (Parallel::is_master()) printf("n_elecs (from FCIDUMP): %u\n", n_elecs);
       } else if (match == "ORBSYM") {
         state = State::ORBSYM;
         if (Parallel::is_master()) printf("orb_sym: ");
@@ -142,18 +142,23 @@ void Integrals::generate_det_hf() {
   det_hf = Det();
   n_up = Config::get<unsigned>("n_up");
   n_dn = Config::get<unsigned>("n_dn");
-  assert(n_up + n_dn == n_elecs);
+  if (Parallel::is_master() && n_up + n_dn != n_elecs) {
+    printf("WARNING: n_up and n_dn from config doesn't match FCIDUMP\n");
+  }
+  n_elecs = n_up + n_dn;
   std::vector<unsigned> irreps =
       Config::get<std::vector<unsigned>>("chem/irreps", std::vector<unsigned>());
   std::vector<unsigned> occs_up =
       Config::get<std::vector<unsigned>>("occs_up", std::vector<unsigned>());
   std::vector<unsigned> occs_dn =
       Config::get<std::vector<unsigned>>("occs_dn", std::vector<unsigned>());
+  explicit_orbs = false;
   if (occs_up.size() > 0 || occs_dn.size() > 0) {
     if (occs_up.size() != n_up) throw std::invalid_argument("occs_up does not match n_up");
     if (occs_dn.size() != n_dn) throw std::invalid_argument("occs_dn does not match n_dn");
     for (unsigned i = 0; i < n_up; i++) det_hf.up.set(occs_up[i]);
     for (unsigned i = 0; i < n_dn; i++) det_hf.dn.set(occs_dn[i]);
+    explicit_orbs = true;
   } else if (irreps.size() == 0) {
     // Fill lowest.
     for (unsigned i = 0; i < n_up; i++) det_hf.up.set(i);
@@ -195,6 +200,7 @@ void Integrals::generate_det_hf() {
         throw std::runtime_error("unable to construct hf with given irrep");
       }
     }
+    explicit_orbs = true;
   }
   if (Parallel::is_master()) {
     printf("HF det up: ");
@@ -238,7 +244,7 @@ void Integrals::reorder_orbs(const std::vector<double>& orb_energies) {
   orb_order.resize(n_orbs);
   orb_order_inv.resize(n_orbs);
   std::iota(orb_order.begin(), orb_order.end(), 0);
-  if (Config::get<bool>("reorder_orbs", true)) {
+  if (Config::get<bool>("reorder_orbs", !explicit_orbs)) {
     std::stable_sort(orb_order.begin(), orb_order.end(), [&](const unsigned a, const unsigned b) {
       return orb_energies[a] < orb_energies[b] - Util::EPS;
     });

@@ -19,5 +19,12 @@ class UncertResult {
     return res;
   }
 
+  UncertResult operator-(const double rhs) const {
+    UncertResult res;
+    res.value = value - rhs;
+    res.uncert = uncert;
+    return res;
+  }
+
   std::string to_string() const { return Util::str_printf("%.10f +- %.10f", value, uncert); }
 };

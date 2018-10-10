@@ -79,4 +79,4 @@ $(TEST_OBJS): $(BUILD_DIR)/%.o: $(SRC_DIR)/%.cc $(HEADERS)
 	mkdir -p $(@D) && $(CXX) $(TEST_CXXFLAGS) -c $< -o $@
 
 $(GPERFTOOLS_DIR):
-	$(warning tcmalloc not found)
+#	$(warning tcmalloc not found)
