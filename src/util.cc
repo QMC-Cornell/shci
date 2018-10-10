@@ -136,6 +136,6 @@ size_t Util::get_mem_info(const std::string& key) {
   return 0;
 }
 
-size_t Util::get_mem_total() { return get_mem_info("MemTotal"); }
+size_t Util::get_mem_total() { return get_mem_info("MemTotal") * 1000; }
 
-size_t Util::get_mem_avail() { return get_mem_info("MemAvailable"); }
+size_t Util::get_mem_avail() { return get_mem_info("MemAvailable") * 1000; }
