@@ -129,9 +129,7 @@ void Solver<S>::run() {
     Timer::end();
   }
 
-  if (Parallel::is_master()) {
-    system.post_variation(connections);
-  }
+  system.post_variation(connections);
   connections.clear();
   connections.shrink_to_fit();
   hamiltonian.clear();

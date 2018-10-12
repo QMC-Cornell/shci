@@ -90,18 +90,21 @@ void RDM::get_1rdm(
 
   if (time_sym) one_rdm *= 2.;
 
-  if (dump_csv) {
-    FILE* pFile;
-    pFile = fopen("1rdm.csv", "w");
-    fprintf(pFile, "p,r,1rdm\n");
-    for (unsigned p = 0; p < n_orbs; p++) {
-      for (unsigned r = p; r < n_orbs; r++) {
-        const double rdm_pr = one_rdm(p, r);
-        if (std::abs(rdm_pr) < 1e-9) continue;
-        fprintf(pFile, "%d,%d,%#.15g\n", integrals.orb_order[p], integrals.orb_order[r], rdm_pr);
+  if (Parallel::is_master()) {
+
+    if (dump_csv) {
+      FILE* pFile;
+      pFile = fopen("1rdm.csv", "w");
+      fprintf(pFile, "p,r,1rdm\n");
+      for (unsigned p = 0; p < n_orbs; p++) {
+        for (unsigned r = p; r < n_orbs; r++) {
+          const double rdm_pr = one_rdm(p, r);
+          if (std::abs(rdm_pr) < 1e-9) continue;
+          fprintf(pFile, "%d,%d,%#.15g\n", integrals.orb_order[p], integrals.orb_order[r], rdm_pr);
+        }
       }
+      fclose(pFile);
     }
-    fclose(pFile);
   }
 }
 
@@ -307,58 +310,61 @@ void RDM::generate_natorb_integrals(const Integrals& integrals) const {
 
   Timer::checkpoint("computing new integrals");
 
-  FILE* pFile;
-  pFile = fopen("FCIDUMP_natorb", "w");
+  if (Parallel::is_master()) {
 
-  // Header
-  fprintf(pFile, "&FCI NORB=%d, NELEC=%d, MS2=%d,\n", n_orbs, integrals.n_elecs, 0);
-  fprintf(pFile, "ORBSYM=");
-  for (unsigned i = 0; i < n_orbs; i++) {
-    fprintf(pFile, "  %d", orb_sym[integrals.orb_order_inv[i]]);
-  }
-  fprintf(pFile, "\nISYM=1\n&END\n");
-
-  // Two-body integrals
-  for (unsigned p = 0; p < n_orbs; p++) {
-    for (unsigned q = 0; q <= p; q++) {
-      for (unsigned r = 0; r <= p; r++) {
-        for (unsigned s = 0; s <= r; s++) {
-          if ((p == r) && (q < s)) continue;
-          if (std::abs(new_integrals[p][q][r][s]) > 1e-8) {
-            fprintf(
-                pFile,
-                " %19.12E %3d %3d %3d %3d\n",
-                new_integrals[p][q][r][s],
-                integrals.orb_order[p] + 1,
-                integrals.orb_order[q] + 1,
-                integrals.orb_order[r] + 1,
-                integrals.orb_order[s] + 1);
-          }
-        }  // s
-      }  // r
-    }  // q
-  }  // p
-
-  // One-body integrals
-  for (unsigned p = 0; p < n_orbs; p++) {
-    for (unsigned q = 0; q <= p; q++) {
-      if (std::abs(new_integrals[p][q][n_orbs][n_orbs]) > 1e-8) {
-        fprintf(
-            pFile,
-            " %19.12E %3d %3d %3d %3d\n",
-            new_integrals[p][q][n_orbs][n_orbs],
-            integrals.orb_order[p] + 1,
-            integrals.orb_order[q] + 1,
-            0,
-            0);
+    FILE* pFile;
+    pFile = fopen("FCIDUMP_natorb", "w");
+  
+    // Header
+    fprintf(pFile, "&FCI NORB=%d, NELEC=%d, MS2=%d,\n", n_orbs, integrals.n_elecs, 0);
+    fprintf(pFile, "ORBSYM=");
+    for (unsigned i = 0; i < n_orbs; i++) {
+      fprintf(pFile, "  %d", orb_sym[integrals.orb_order_inv[i]]);
+    }
+    fprintf(pFile, "\nISYM=1\n&END\n");
+  
+    // Two-body integrals
+    for (unsigned p = 0; p < n_orbs; p++) {
+      for (unsigned q = 0; q <= p; q++) {
+        for (unsigned r = 0; r <= p; r++) {
+          for (unsigned s = 0; s <= r; s++) {
+            if ((p == r) && (q < s)) continue;
+            if (std::abs(new_integrals[p][q][r][s]) > 1e-8) {
+              fprintf(
+                  pFile,
+                  " %19.12E %3d %3d %3d %3d\n",
+                  new_integrals[p][q][r][s],
+                  integrals.orb_order[p] + 1,
+                  integrals.orb_order[q] + 1,
+                  integrals.orb_order[r] + 1,
+                  integrals.orb_order[s] + 1);
+            }
+          }  // s
+        }  // r
+      }  // q
+    }  // p
+  
+    // One-body integrals
+    for (unsigned p = 0; p < n_orbs; p++) {
+      for (unsigned q = 0; q <= p; q++) {
+        if (std::abs(new_integrals[p][q][n_orbs][n_orbs]) > 1e-8) {
+          fprintf(
+              pFile,
+              " %19.12E %3d %3d %3d %3d\n",
+              new_integrals[p][q][n_orbs][n_orbs],
+              integrals.orb_order[p] + 1,
+              integrals.orb_order[q] + 1,
+              0,
+              0);
+        }
       }
     }
+  
+    // Nuclear-nuclear energy
+    fprintf(pFile, " %19.12E %3d %3d %3d %3d\n", integrals.energy_core, 0, 0, 0, 0);
+  
+    fclose(pFile);
   }
-
-  // Nuclear-nuclear energy
-  fprintf(pFile, " %19.12E %3d %3d %3d %3d\n", integrals.energy_core, 0, 0, 0, 0);
-
-  fclose(pFile);
 
   Timer::checkpoint("creating new FCIDUMP");
 }
@@ -775,67 +781,70 @@ void RDM::get_2rdm_slow(
   Timer::checkpoint("computing 2RDM");
 
   std::cout << "writing out 2RDM\n";
+
+  if (Parallel::is_master()) {
  
-  // csv format
-  FILE* pFile = fopen("2rdm.csv", "w");
-  fprintf(pFile, "p,q,r,s,2rdm\n");
-  for (unsigned p = 0; p < n_orbs; p++) {
-    for (unsigned q = p; q < n_orbs; q++) {
-      for (unsigned s = 0; s < n_orbs; s++) {
-        for (unsigned r = 0; r < n_orbs; r++) {
-          if (p == q && s > r) continue;
-          const double rdm_pqrs = two_rdm[combine4_2rdm(p, q, r, s, n_orbs)];
-          if (std::abs(rdm_pqrs) < 1.0e-9) continue;
-          fprintf(
-              pFile,
-              "%d,%d,%d,%d,%#.15g\n",
-              integrals.orb_order[p],
-              integrals.orb_order[q],
-              integrals.orb_order[r],
-              integrals.orb_order[s],
-              rdm_pqrs);
+    // csv format
+    FILE* pFile = fopen("2rdm.csv", "w");
+    fprintf(pFile, "p,q,r,s,2rdm\n");
+    for (unsigned p = 0; p < n_orbs; p++) {
+      for (unsigned q = p; q < n_orbs; q++) {
+        for (unsigned s = 0; s < n_orbs; s++) {
+          for (unsigned r = 0; r < n_orbs; r++) {
+            if (p == q && s > r) continue;
+            const double rdm_pqrs = two_rdm[combine4_2rdm(p, q, r, s, n_orbs)];
+            if (std::abs(rdm_pqrs) < 1.0e-9) continue;
+            fprintf(
+                pFile,
+                "%d,%d,%d,%d,%#.15g\n",
+                integrals.orb_order[p],
+                integrals.orb_order[q],
+                integrals.orb_order[r],
+                integrals.orb_order[s],
+                rdm_pqrs);
+          }
         }
       }
     }
-  }
-  fclose(pFile);
-
-  // txt format
-  /*
-  FILE* pFile;
-  pFile = fopen("spatialRDM.txt", "w");
-
-  fprintf(pFile, "%d\n", n_orbs);
-
-  for (unsigned p = 0; p < n_orbs; p++) {
-    for (unsigned q = 0; q < n_orbs; q++) {
-      for (unsigned s = 0; s < n_orbs; s++) {
-        for (unsigned r = 0; r < n_orbs; r++) {
-          if (std::abs(
+    fclose(pFile);
+  
+    // txt format
+    /*
+    FILE* pFile;
+    pFile = fopen("spatialRDM.txt", "w");
+  
+    fprintf(pFile, "%d\n", n_orbs);
+  
+    for (unsigned p = 0; p < n_orbs; p++) {
+      for (unsigned q = 0; q < n_orbs; q++) {
+        for (unsigned s = 0; s < n_orbs; s++) {
+          for (unsigned r = 0; r < n_orbs; r++) {
+            if (std::abs(
+                    two_rdm[combine4_2rdm(
+                        integrals.orb_order_inv[p],
+                        integrals.orb_order_inv[q],
+                        integrals.orb_order_inv[r],
+                        integrals.orb_order_inv[s],
+                        n_orbs)]) > 1.e-6)
+              fprintf(
+                  pFile,
+                  "%3d   %3d   %3d   %3d   %10.8g\n",
+                  p,
+                  q,
+                  s,
+                  r,
                   two_rdm[combine4_2rdm(
                       integrals.orb_order_inv[p],
                       integrals.orb_order_inv[q],
                       integrals.orb_order_inv[r],
                       integrals.orb_order_inv[s],
-                      n_orbs)]) > 1.e-6)
-            fprintf(
-                pFile,
-                "%3d   %3d   %3d   %3d   %10.8g\n",
-                p,
-                q,
-                s,
-                r,
-                two_rdm[combine4_2rdm(
-                    integrals.orb_order_inv[p],
-                    integrals.orb_order_inv[q],
-                    integrals.orb_order_inv[r],
-                    integrals.orb_order_inv[s],
-                    n_orbs)]);
-        }  // r
-      }  // s
-    }  // q
-  }  // p
-  */
+                      n_orbs)]);
+          }  // r
+        }  // s
+      }  // q
+    }  // p
+    */
+  }
 }
 
 unsigned RDM::combine4_2rdm(unsigned p, unsigned q, unsigned r, unsigned s, unsigned n_orbs) const {
@@ -965,65 +974,69 @@ void RDM::get_2rdm(
 
   std::cout << "writing out 2RDM\n";
 
-  if (dump_csv) {
-    FILE* pFile = fopen("2rdm.csv", "w");
-    fprintf(pFile, "p,q,r,s,2rdm\n");
-    for (unsigned p = 0; p < n_orbs; p++) {
-      for (unsigned q = p; q < n_orbs; q++) {
-        for (unsigned s = 0; s < n_orbs; s++) {
-          for (unsigned r = 0; r < n_orbs; r++) {
-            if (p == q && s > r) continue;
-            const double rdm_pqrs = two_rdm[combine4_2rdm(p, q, r, s, n_orbs)];
-            if (std::abs(rdm_pqrs) < 1.0e-9) continue;
-            fprintf(
-                pFile,
-                "%d,%d,%d,%d,%#.15g\n",
-                integrals.orb_order[p],
-                integrals.orb_order[q],
-                integrals.orb_order[r],
-                integrals.orb_order[s],
-                rdm_pqrs);
+  if (Parallel::is_master()) {
+
+    if (dump_csv) {
+      FILE* pFile = fopen("2rdm.csv", "w");
+      fprintf(pFile, "p,q,r,s,2rdm\n");
+      for (unsigned p = 0; p < n_orbs; p++) {
+        for (unsigned q = p; q < n_orbs; q++) {
+          for (unsigned s = 0; s < n_orbs; s++) {
+            for (unsigned r = 0; r < n_orbs; r++) {
+              if (p == q && s > r) continue;
+              const double rdm_pqrs = two_rdm[combine4_2rdm(p, q, r, s, n_orbs)];
+              if (std::abs(rdm_pqrs) < 1.0e-9) continue;
+              fprintf(
+                  pFile,
+                  "%d,%d,%d,%d,%#.15g\n",
+                  integrals.orb_order[p],
+                  integrals.orb_order[q],
+                  integrals.orb_order[r],
+                  integrals.orb_order[s],
+                  rdm_pqrs);
+            }
           }
         }
       }
-    }
-    fclose(pFile);
-  } else {
-    FILE* pFile;
-    pFile = fopen("spatialRDM.txt", "w");
-
-    fprintf(pFile, "%d\n", n_orbs);
-
-    for (unsigned p = 0; p < n_orbs; p++) {
-      for (unsigned q = 0; q < n_orbs; q++) {
-        for (unsigned s = 0; s < n_orbs;
-             s++) {  // r and s switched in keeping with Dice conventions
-          for (unsigned r = 0; r < n_orbs; r++) {
-            if (std::abs(
+      fclose(pFile);
+    } else {
+      FILE* pFile;
+      pFile = fopen("spatialRDM.txt", "w");
+  
+      fprintf(pFile, "%d\n", n_orbs);
+  
+      for (unsigned p = 0; p < n_orbs; p++) {
+        for (unsigned q = 0; q < n_orbs; q++) {
+          for (unsigned s = 0; s < n_orbs;
+               s++) {  // r and s switched in keeping with Dice conventions
+            for (unsigned r = 0; r < n_orbs; r++) {
+              if (std::abs(
+                      two_rdm[combine4_2rdm(
+                          integrals.orb_order_inv[p],
+                          integrals.orb_order_inv[q],
+                          integrals.orb_order_inv[r],
+                          integrals.orb_order_inv[s],
+                          n_orbs)]) > 1.e-6)
+                fprintf(
+                    pFile,
+                    "%3d   %3d   %3d   %3d   %10.8g\n",
+                    p,
+                    q,
+                    s,
+                    r,
                     two_rdm[combine4_2rdm(
                         integrals.orb_order_inv[p],
                         integrals.orb_order_inv[q],
                         integrals.orb_order_inv[r],
                         integrals.orb_order_inv[s],
-                        n_orbs)]) > 1.e-6)
-              fprintf(
-                  pFile,
-                  "%3d   %3d   %3d   %3d   %10.8g\n",
-                  p,
-                  q,
-                  s,
-                  r,
-                  two_rdm[combine4_2rdm(
-                      integrals.orb_order_inv[p],
-                      integrals.orb_order_inv[q],
-                      integrals.orb_order_inv[r],
-                      integrals.orb_order_inv[s],
-                      n_orbs)]);
-          }  // r
-        }  // s
-      }  // q
-    }  // p
+                        n_orbs)]);
+            }  // r
+          }  // s
+        }  // q
+      }  // p
+    }
   }
+
 }
 
 void RDM::get_2rdm_elements(
