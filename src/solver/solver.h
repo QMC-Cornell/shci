@@ -129,7 +129,9 @@ void Solver<S>::run() {
     Timer::end();
   }
 
-  system.post_variation(connections);
+  if (Parallel::is_master()) {
+    system.post_variation(connections);
+  }
   connections.clear();
   connections.shrink_to_fit();
   hamiltonian.clear();
@@ -914,7 +916,7 @@ void Solver<S>::print_dets_info() const {
     }
     printf("%-10u%12zu%16.8f\n", i, excitations[i], weights[i]);
   }
-  
+
   // Print orb occupations.
   std::vector<double> orb_occupations(system.n_orbs, 0.0);
   for (size_t i = 0; i < system.dets.size(); i++) {
