@@ -905,6 +905,7 @@ void RDM::get_2rdm(
   // connections should NOT be unpacked.
   //
   // Created: Y. Yao, August 2018
+  // Modified: Y. Yao, October 2018: MPI compatibility
   //=====================================================
   bool time_sym = Config::get<bool>("time_sym", false);
 
