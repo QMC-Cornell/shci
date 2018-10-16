@@ -91,7 +91,6 @@ void RDM::get_1rdm(
   if (time_sym) one_rdm *= 2.;
 
   if (Parallel::is_master()) {
-
     if (dump_csv) {
       FILE* pFile;
       pFile = fopen("1rdm.csv", "w");
@@ -311,10 +310,9 @@ void RDM::generate_natorb_integrals(const Integrals& integrals) const {
   Timer::checkpoint("computing new integrals");
 
   if (Parallel::is_master()) {
-
     FILE* pFile;
     pFile = fopen("FCIDUMP_natorb", "w");
-  
+
     // Header
     fprintf(pFile, "&FCI NORB=%d, NELEC=%d, MS2=%d,\n", n_orbs, integrals.n_elecs, 0);
     fprintf(pFile, "ORBSYM=");
@@ -322,7 +320,7 @@ void RDM::generate_natorb_integrals(const Integrals& integrals) const {
       fprintf(pFile, "  %d", orb_sym[integrals.orb_order_inv[i]]);
     }
     fprintf(pFile, "\nISYM=1\n&END\n");
-  
+
     // Two-body integrals
     for (unsigned p = 0; p < n_orbs; p++) {
       for (unsigned q = 0; q <= p; q++) {
@@ -343,7 +341,7 @@ void RDM::generate_natorb_integrals(const Integrals& integrals) const {
         }  // r
       }  // q
     }  // p
-  
+
     // One-body integrals
     for (unsigned p = 0; p < n_orbs; p++) {
       for (unsigned q = 0; q <= p; q++) {
@@ -359,10 +357,10 @@ void RDM::generate_natorb_integrals(const Integrals& integrals) const {
         }
       }
     }
-  
+
     // Nuclear-nuclear energy
     fprintf(pFile, " %19.12E %3d %3d %3d %3d\n", integrals.energy_core, 0, 0, 0, 0);
-  
+
     fclose(pFile);
   }
 
@@ -783,7 +781,6 @@ void RDM::get_2rdm_slow(
   std::cout << "writing out 2RDM\n";
 
   if (Parallel::is_master()) {
- 
     // csv format
     FILE* pFile = fopen("2rdm.csv", "w");
     fprintf(pFile, "p,q,r,s,2rdm\n");
@@ -807,14 +804,14 @@ void RDM::get_2rdm_slow(
       }
     }
     fclose(pFile);
-  
+
     // txt format
     /*
     FILE* pFile;
     pFile = fopen("spatialRDM.txt", "w");
-  
+
     fprintf(pFile, "%d\n", n_orbs);
-  
+
     for (unsigned p = 0; p < n_orbs; p++) {
       for (unsigned q = 0; q < n_orbs; q++) {
         for (unsigned s = 0; s < n_orbs; s++) {
@@ -915,9 +912,8 @@ void RDM::get_2rdm(
   n_up = integrals.n_up;
   n_dn = integrals.n_dn;
 
-  std::vector<unsigned int> orb_sym = integrals.orb_sym;
-
-  two_rdm.resize((n_orbs * n_orbs * (n_orbs * n_orbs + 1) / 2), 0.);
+  const unsigned size_two_rdm = n_orbs * n_orbs * (n_orbs * n_orbs + 1) / 2;
+  two_rdm.resize(size_two_rdm, 0.);
 
 #pragma omp parallel for schedule(dynamic, 5)
   for (size_t i_det = 0; i_det < connections.size(); i_det++) {
@@ -970,12 +966,30 @@ void RDM::get_2rdm(
     }
   }
 
+  if (Parallel::get_n_procs() > 1) {
+    std::vector<double> global_two_rdm(size_two_rdm);
+
+    double* src_ptr = two_rdm.data();
+    double* dest_ptr = global_two_rdm.data();
+
+    const size_t CHUNK_SIZE = 1 << 27;
+    unsigned n_elems_left = size_two_rdm;
+
+    while (n_elems_left > CHUNK_SIZE) {
+      MPI_Reduce(src_ptr, dest_ptr, CHUNK_SIZE, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+      n_elems_left -= CHUNK_SIZE;
+      src_ptr += CHUNK_SIZE;
+      dest_ptr += CHUNK_SIZE;
+    }
+    MPI_Reduce(src_ptr, dest_ptr, n_elems_left, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+    two_rdm = global_two_rdm;
+  }
+
   Timer::checkpoint("computing 2RDM");
 
   std::cout << "writing out 2RDM\n";
 
   if (Parallel::is_master()) {
-
     if (dump_csv) {
       FILE* pFile = fopen("2rdm.csv", "w");
       fprintf(pFile, "p,q,r,s,2rdm\n");
@@ -1002,9 +1016,9 @@ void RDM::get_2rdm(
     } else {
       FILE* pFile;
       pFile = fopen("spatialRDM.txt", "w");
-  
+
       fprintf(pFile, "%d\n", n_orbs);
-  
+
       for (unsigned p = 0; p < n_orbs; p++) {
         for (unsigned q = 0; q < n_orbs; q++) {
           for (unsigned s = 0; s < n_orbs;
@@ -1036,7 +1050,6 @@ void RDM::get_2rdm(
       }  // p
     }
   }
-
 }
 
 void RDM::get_2rdm_elements(
