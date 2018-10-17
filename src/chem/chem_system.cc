@@ -134,7 +134,7 @@ PointGroup ChemSystem::get_point_group(const std::string& str) const {
       std::set<unsigned>(integrals.orb_sym.begin(), integrals.orb_sym.end()).size();
 
   if (Util::str_equals_ci("C1", str)) {
-    assert(num_group_elems == 1);
+    // assert(num_group_elems == 1);
     return PointGroup::C1;
   } else if (Util::str_equals_ci("C2", str)) {
     assert(num_group_elems <= 2);
