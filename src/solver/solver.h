@@ -1034,7 +1034,7 @@ void Solver<S>::print_dets_info() const {
     return std::abs(system.coefs[a]) > std::abs(system.coefs[b]);
   });
   printf("%-10s%12s      %-12s\n", "Excite Lv", "Coef", "Det (Reordered orb)");
-  for (size_t i = 0; i < 20; i++) {
+  for (size_t i = 0; i < std::min((size_t)20, system.dets.size()); i++) {
     const double coef = system.coefs[det_order[i]];
     const auto& det = system.dets[det_order[i]];
     const auto& occs_up = det.up.get_occupied_orbs();
