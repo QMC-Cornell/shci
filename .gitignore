@@ -16,6 +16,7 @@ i_*
 o_*
 *rdm.csv
 green*.csv
+pair_contrib*.csv
 
 # OS and editor files.
 .vscode
