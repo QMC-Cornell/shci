@@ -34,6 +34,7 @@ if args.preprint is True:
 # Construct x and y
 x = []
 y = []
+e = []
 energy_vars = result['energy_var']
 for eps_var, energy_var in energy_vars.iteritems():
     if result['energy_total'].get(eps_var) is None:
@@ -47,11 +48,13 @@ for eps_var, energy_var in energy_vars.iteritems():
             energy_total = energy_total_iter['value']
     y.append(energy_total)
     x.append(energy_var - energy_total)
+    e.append(float(eps_var))
 x = np.array(x)
 y = np.array(y)
+e = np.array(e)
 
 if args.n_points > 0:
-    smallest_points = y.argsort()[:args.n_points]
+    smallest_points = e.argsort()[:args.n_points]
     x = x[smallest_points]
     y = y[smallest_points]
 
@@ -78,6 +81,8 @@ weights = 1.0 / x**2
 alpha = 0.05
 point = np.zeros(x_aug.shape[1])
 point[0] = 1.0
+t = scipy.stats.t.ppf((2 - alpha) / 2., x.shape[0] - 3)
+tt = t * 2
 
 def func(x, a, b, c):
     return a + b * np.exp(c * x)
@@ -90,6 +95,8 @@ if args.pair_contrib:
         df_out = df
         zs = zs + (df['pair_contrib'].values, )
     zs = np.column_stack(zs)
+    if args.n_points > 0:
+        zs = zs[:, smallest_points]
     df_out['pair_contrib_uncert'] = 0.0
     for i in range(zs.shape[0]):
         fit = sm.WLS(zs[i], x_aug, weights).fit()
@@ -101,13 +108,22 @@ if args.pair_contrib:
             zs_mean = zs[i].mean()
             zs_std = zs[i].std()
             zs2 = (zs[i] - zs_mean) / zs_std
-            try:
-                popt, pcov = curve_fit(func, x, zs2, sigma=1 / weights)
-            except:
-                popt, pcov = curve_fit(func, x, zs2, sigma=1 / weights, p0=[1, -1, 1])
+            succeed = False
+            for ii in range(-10, 0):
+                for jj in range(-5, 5, 2):
+                    try:
+                        popt, pcov = curve_fit(func, x, zs2, sigma=1 / weights, p0=[ii, jj, 0])
+                        succeed = True
+                        break
+                    except:
+                        pass
+                if succeed:
+                    break
+            if not succeed:
+                print('Failed')
+                exit(0)
             energy = (popt[0] + popt[1]) * zs_std + zs_mean
-            t = scipy.stats.t.ppf((2 - alpha) / 2., x.shape[0] - 3)
-            uncert = np.sqrt(pcov[0][0] + pcov[1][1] + 2 * pcov[0][1]) * zs_std * t
+            uncert = np.sqrt(pcov[0][0] + pcov[1][1] + 2 * pcov[0][1]) * zs_std * tt
         df_out['pair_contrib'].values[i] = energy
         df_out['pair_contrib_uncert'].values[i] = uncert
     print df_out
@@ -123,7 +139,7 @@ if args.exponential:
     popt, pcov = curve_fit(func, x, y, sigma=1 / weights)
     energy = (popt[0] + popt[1]) * y_std + y_mean
     t = scipy.stats.t.ppf((2 - alpha) / 2., x.shape[0] - 3)
-    uncert = np.sqrt(pcov[0][0] + pcov[1][1] + 2 * pcov[0][1]) * y_std * t * 2
+    uncert = np.sqrt(pcov[0][0] + pcov[1][1] + 2 * pcov[0][1]) * y_std * tt
 print('(%.2f Conf.) Extrapolated Energy: %.10f +- %.10f' % ((1.0 - alpha, energy, uncert)))
 if np.isnan(uncert):
     uncert = 9999
