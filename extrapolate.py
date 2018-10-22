@@ -109,8 +109,8 @@ if args.pair_contrib:
             zs_std = zs[i].std()
             zs2 = (zs[i] - zs_mean) / zs_std
             succeed = False
-            for ii in range(-10, 0):
-                for jj in range(-5, 5, 2):
+            for ii in range(-15, 15, 3):
+                for jj in range(-15, 15, 3):
                     try:
                         popt, pcov = curve_fit(func, x, zs2, sigma=1 / weights, p0=[ii, jj, 0])
                         succeed = True
@@ -122,6 +122,7 @@ if args.pair_contrib:
             if not succeed:
                 print('Failed')
                 exit(0)
+            print(popt)
             energy = (popt[0] + popt[1]) * zs_std + zs_mean
             uncert = np.sqrt(pcov[0][0] + pcov[1][1] + 2 * pcov[0][1]) * zs_std * tt
         df_out['pair_contrib'].values[i] = energy
