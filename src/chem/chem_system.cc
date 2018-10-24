@@ -130,23 +130,34 @@ void ChemSystem::setup_hci_queue() {
 }
 
 PointGroup ChemSystem::get_point_group(const std::string& str) const {
+  unsigned num_group_elems =
+      std::set<unsigned>(integrals.orb_sym.begin(), integrals.orb_sym.end()).size();
+
   if (Util::str_equals_ci("C1", str)) {
+    // assert(num_group_elems == 1);
     return PointGroup::C1;
   } else if (Util::str_equals_ci("C2", str)) {
+    assert(num_group_elems <= 2);
     return PointGroup::C2;
   } else if (Util::str_equals_ci("Cs", str)) {
+    assert(num_group_elems <= 2);
     return PointGroup::Cs;
   } else if (Util::str_equals_ci("Ci", str)) {
+    assert(num_group_elems <= 2);
     return PointGroup::Ci;
   } else if (Util::str_equals_ci("C2v", str)) {
+    assert(num_group_elems <= 4);
     return PointGroup::C2v;
   } else if (Util::str_equals_ci("C2h", str)) {
+    assert(num_group_elems <= 4);
     return PointGroup::C2h;
   } else if (Util::str_equals_ci("Coov", str) || Util::str_equals_ci("Civ", str)) {
     return PointGroup::Dooh;
   } else if (Util::str_equals_ci("D2", str)) {
+    assert(num_group_elems <= 4);
     return PointGroup::D2;
   } else if (Util::str_equals_ci("D2h", str)) {
+    assert(num_group_elems <= 8);
     return PointGroup::D2h;
   } else if (Util::str_equals_ci("Dooh", str) || Util::str_equals_ci("Dih", str)) {
     return PointGroup::Dooh;
