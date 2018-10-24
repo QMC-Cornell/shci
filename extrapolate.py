@@ -137,7 +137,20 @@ predict = predict.iloc[0]
 energy = fit.params[0]
 uncert = predict['mean_ci_upper'] - predict['mean']
 if args.exponential:
-    popt, pcov = curve_fit(func, x, y, sigma=1 / weights)
+    succeed = False
+    for ii in range(-15, 15, 3):
+        for jj in range(-15, 15, 3):
+            try:
+                popt, pcov = curve_fit(func, x, y, sigma=1 / weights, p0=[ii, jj, 0])
+                succeed = True
+                break
+            except:
+                pass
+        if succeed:
+            break
+    if not succeed:
+        print('Extrapolation failed')
+        exit(0)
     energy = (popt[0] + popt[1]) * y_std + y_mean
     t = scipy.stats.t.ppf((2 - alpha) / 2., x.shape[0] - 3)
     uncert = np.sqrt(pcov[0][0] + pcov[1][1] + 2 * pcov[0][1]) * y_std * tt
