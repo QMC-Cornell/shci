@@ -27,6 +27,7 @@ void ChemSystem::setup() {
   integrals.load();
   n_orbs = integrals.n_orbs;
   orb_sym = integrals.orb_sym;
+  check_group_elements();
   Timer::end();
 
   Timer::start("setup hci queue");
@@ -130,39 +131,42 @@ void ChemSystem::setup_hci_queue() {
 }
 
 PointGroup ChemSystem::get_point_group(const std::string& str) const {
-  unsigned num_group_elems =
-      std::set<unsigned>(integrals.orb_sym.begin(), integrals.orb_sym.end()).size();
-
   if (Util::str_equals_ci("C1", str)) {
-    assert(num_group_elems == 1);
     return PointGroup::C1;
   } else if (Util::str_equals_ci("C2", str)) {
-    assert(num_group_elems <= 2);
     return PointGroup::C2;
   } else if (Util::str_equals_ci("Cs", str)) {
-    assert(num_group_elems <= 2);
     return PointGroup::Cs;
   } else if (Util::str_equals_ci("Ci", str)) {
-    assert(num_group_elems <= 2);
     return PointGroup::Ci;
   } else if (Util::str_equals_ci("C2v", str)) {
-    assert(num_group_elems <= 4);
     return PointGroup::C2v;
   } else if (Util::str_equals_ci("C2h", str)) {
-    assert(num_group_elems <= 4);
     return PointGroup::C2h;
   } else if (Util::str_equals_ci("Coov", str) || Util::str_equals_ci("Civ", str)) {
     return PointGroup::Dooh;
   } else if (Util::str_equals_ci("D2", str)) {
-    assert(num_group_elems <= 4);
     return PointGroup::D2;
   } else if (Util::str_equals_ci("D2h", str)) {
-    assert(num_group_elems <= 8);
     return PointGroup::D2h;
   } else if (Util::str_equals_ci("Dooh", str) || Util::str_equals_ci("Dih", str)) {
     return PointGroup::Dooh;
   }
   throw new std::runtime_error("No point group provided");
+}
+
+void ChemSystem::check_group_elements() const {
+  unsigned num_group_elems =
+      std::set<unsigned>(integrals.orb_sym.begin(), integrals.orb_sym.end()).size();
+
+  if (point_group == PointGroup::C1) assert(num_group_elems == 1);
+  if (point_group == PointGroup::C2) assert(num_group_elems <= 2);
+  if (point_group == PointGroup::Cs) assert(num_group_elems <= 2);
+  if (point_group == PointGroup::Ci) assert(num_group_elems <= 2);
+  if (point_group == PointGroup::C2v) assert(num_group_elems <= 4);
+  if (point_group == PointGroup::C2h) assert(num_group_elems <= 4);
+  if (point_group == PointGroup::D2) assert(num_group_elems <= 4);
+  if (point_group == PointGroup::D2h) assert(num_group_elems <= 8);
 }
 
 double ChemSystem::get_hci_queue_elem(

@@ -45,6 +45,8 @@ class ChemSystem : public BaseSystem {
 
   PointGroup get_point_group(const std::string& str) const;
 
+  void check_group_elements() const;
+
   double get_hci_queue_elem(const unsigned p, const unsigned q, const unsigned r, const unsigned s);
 
   double get_hamiltonian_elem_no_time_sym(const Det& det_i, const Det& det_j, int n_excite) const;
