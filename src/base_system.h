@@ -6,25 +6,33 @@
 #include <string>
 #include <vector>
 #include "det/det.h"
+#include "solver/sparse_matrix.h"
 #include "util.h"
+#include "system_type.h"
 
 class BaseSystem {
  public:
-  unsigned n_up;
+  SystemType type;
 
-  unsigned n_dn;
-  
-  unsigned n_orbs;
+  unsigned n_up = 0;
 
-  unsigned n_elecs;
+  unsigned n_dn = 0;
 
-  bool time_sym;
+  unsigned n_orbs = 0;
 
-  bool has_double_excitation;
+  unsigned n_elecs = 0;
 
-  double energy_hf;
+  bool time_sym = false;
 
-  double energy_var;
+  bool has_single_excitation = true;
+
+  bool has_double_excitation = true;
+
+  double energy_hf = 0.0;
+
+  double energy_var = 0.0;
+
+  size_t helper_size = 0;
 
   std::vector<Det> dets;
 
@@ -47,7 +55,7 @@ class BaseSystem {
 
   virtual void update_diag_helper() = 0;
 
-  virtual void post_variation(){};
+  virtual void post_variation(const std::vector<std::vector<size_t>>&){};
 
   virtual void post_perturbation(){};
 

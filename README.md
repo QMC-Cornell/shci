@@ -58,7 +58,7 @@ Many software packages can generate `FCIDUMP`, such as [`PySCF`](https://github.
 :palm_tree: Experimental for the default values.
 
 ### Chemistry Block `chem`
-* `point_group` (required): supports `C1`, `Cs`, `Ci`, `C2v`, `C2h`, `D2h`, and `Dooh`.
+* `point_group` (required): supports `C1`, `C2`, `Cs`, `Ci`, `C2v`, `C2h`, `Coov`, `D2`, `D2h`, and `Dooh`.
 * `irreps`: an array of irreducible representations. If occupations are also given, they together determine the starting determinant, otherwise, the lowest orbitals are filled. `occs_up` and `occs_dn` when specified explicitly have priority over irreps.
 * `irrep_occs_up` and `irrep_occs_dn`: occupation of each irreducible representation for up and down electrons respectively, the lowest orbitals satisfying which constitute the starting determinant. Ignored if `irreps` is not given.
 

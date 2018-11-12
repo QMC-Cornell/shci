@@ -12,6 +12,7 @@
 #include "rdm.h"
 
 void ChemSystem::setup() {
+  type = SystemType::Chemistry;
   n_up = Config::get<unsigned>("n_up");
   n_dn = Config::get<unsigned>("n_dn");
   n_elecs = n_up + n_dn;
@@ -125,11 +126,14 @@ void ChemSystem::setup_hci_queue() {
     printf("Max hci queue elem: " ENERGY_FORMAT "\n", max_hci_queue_elem);
     printf("Number of entries in hci queue: %'zu\n", n_entries);
   }
+  helper_size = n_entries * 16 * 2;
 }
 
 PointGroup ChemSystem::get_point_group(const std::string& str) const {
   if (Util::str_equals_ci("C1", str)) {
     return PointGroup::C1;
+  } else if (Util::str_equals_ci("C2", str)) {
+    return PointGroup::C2;
   } else if (Util::str_equals_ci("Cs", str)) {
     return PointGroup::Cs;
   } else if (Util::str_equals_ci("Ci", str)) {
@@ -138,6 +142,10 @@ PointGroup ChemSystem::get_point_group(const std::string& str) const {
     return PointGroup::C2v;
   } else if (Util::str_equals_ci("C2h", str)) {
     return PointGroup::C2h;
+  } else if (Util::str_equals_ci("Coov", str) || Util::str_equals_ci("Civ", str)) {
+    return PointGroup::Dooh;
+  } else if (Util::str_equals_ci("D2", str)) {
+    return PointGroup::D2;
   } else if (Util::str_equals_ci("D2h", str)) {
     return PointGroup::D2h;
   } else if (Util::str_equals_ci("Dooh", str) || Util::str_equals_ci("Dih", str)) {
@@ -455,7 +463,14 @@ double ChemSystem::get_two_body_double(const DiffResult& diff_up, const DiffResu
   return energy;
 }
 
-void ChemSystem::post_variation() {
+void ChemSystem::post_variation(const std::vector<std::vector<size_t>>& connections) {
+  if (Config::get<bool>("2rdm", false) || Config::get<bool>("get_2rdm_csv", false)) {
+    RDM rdm;
+    Timer::start("get 2rdm");
+    rdm.get_2rdm(dets, coefs, integrals, connections, Config::get<bool>("get_2rdm_csv", false));
+    Timer::end();
+  }
+
   bool unpacked = false;
 
   if (Config::get<bool>("s2", false)) {
@@ -482,6 +497,17 @@ void ChemSystem::post_variation() {
     exit(0);
   }
 
+  if (Config::get<bool>("2rdm_slow", false)) {
+    if (time_sym && !unpacked) {
+      unpack_time_sym();
+      unpacked = true;
+    }
+    RDM rdm;
+    Timer::start("get 2rdm (slow)");
+    rdm.get_2rdm_slow(dets, coefs, integrals);
+    Timer::end();
+  }
+
   if (Config::get<bool>("get_1rdm_csv", false)) {
     if (time_sym && !unpacked) {
       unpack_time_sym();
@@ -490,18 +516,6 @@ void ChemSystem::post_variation() {
     RDM rdm;
     Timer::start("get_1rdm");
     rdm.get_1rdm(dets, coefs, integrals, true);
-    Timer::end();
-  }
-
-  const bool get_2rdm_csv = Config::get<bool>("get_2rdm_csv", false);
-  if (Config::get<bool>("2rdm", false) || get_2rdm_csv) {
-    if (time_sym && !unpacked) {
-      unpack_time_sym();
-      unpacked = true;
-    }
-    RDM rdm;
-    Timer::start("get_2rdm");
-    rdm.get_2rdm(dets, coefs, integrals, get_2rdm_csv);
     Timer::end();
   }
 }
