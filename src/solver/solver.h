@@ -151,8 +151,7 @@ void Solver<S>::run() {
 template <class S>
 void Solver<S>::run_all_variations() {
   if (Parallel::is_master()) {
-    printf("Iteration 0 ");
-    printf("HF determinant ndets= 1 energy= %.8f\n", system.energy_hf);
+    printf("Final iteration 0 HF ndets= 1 energy= %.8f\n", system.energy_hf);
   }
   const auto& eps_vars = Config::get<std::vector<double>>("eps_vars");
   const auto& eps_vars_schedule = Config::get<std::vector<double>>("eps_vars_schedule");
