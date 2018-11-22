@@ -1,5 +1,6 @@
 #include "integrals.h"
 
+#include <cmath>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
@@ -92,9 +93,13 @@ void Integrals::read_fcidump() {
     if (p == q && q == r && r == s && s == 0) {
       energy_core = integral;
     } else if (r == s && s == 0) {
-      integrals_1b.set(combine2(p - 1, q - 1), integral);
+      integrals_1b.set(combine2(p - 1, q - 1), integral, [&](double& a, const double& b) {
+        if (std::abs(a) < std::abs(b)) a = b;
+      });
     } else {
-      integrals_2b.set(combine4(p - 1, q - 1, r - 1, s - 1), integral);
+      integrals_2b.set(combine4(p - 1, q - 1, r - 1, s - 1), integral, [&](double& a, const double& b) {
+        if (std::abs(a) < std::abs(b)) a = b;
+      });
     }
   }
 }
@@ -305,7 +310,9 @@ void Integrals::reorder_orbs(const std::vector<double>& orb_energies) {
     if (p == q && q == r && r == s && s == 0) {
       continue;
     } else if (r == s && s == 0) {
-      integrals_1b.set(combine2(orb_order_inv[p - 1], orb_order_inv[q - 1]), integral);
+      integrals_1b.set(combine2(orb_order_inv[p - 1], orb_order_inv[q - 1]), integral, [&](double& a, const double& b) {
+        if (std::abs(a) < std::abs(b)) a = b;
+      });
     } else {
       integrals_2b.set(
           combine4(
@@ -313,7 +320,9 @@ void Integrals::reorder_orbs(const std::vector<double>& orb_energies) {
               orb_order_inv[q - 1],
               orb_order_inv[r - 1],
               orb_order_inv[s - 1]),
-          integral);
+          integral, [&](double& a, const double& b) {
+        if (std::abs(a) < std::abs(b)) a = b;
+      });
     }
   }
   raw_integrals.clear();
