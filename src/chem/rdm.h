@@ -32,8 +32,11 @@ class RDM {
       const std::vector<Det>&,
       const std::vector<double>&,
       const Integrals&,
-      const std::vector<std::vector<size_t>>& connections,
-      const bool dump_csv = false);
+      const std::vector<std::vector<size_t>>& connections);
+
+  void dump_2rdm(const Integrals& integrals, const bool dump_csv = false) const;
+  
+  void newton(const Integrals& integrals);
 
  private:
   unsigned n_orbs, n_up, n_dn;
@@ -55,4 +58,16 @@ class RDM {
       const double& this_coef);
 
   void write_in_2rdm(unsigned p, unsigned q, unsigned r, unsigned s, double value);
+  
+  VectorXd gradient(const Integrals&, const std::vector<std::pair<unsigned, unsigned>>&) const;
+  //VectorXd gradient(const Integrals&) const;
+  
+  double generalized_Fock(unsigned m, unsigned n, const Integrals& integrals) const;
+  
+  MatrixXd hessian(const Integrals&, const std::vector<std::pair<unsigned, unsigned>>&) const;
+  //MatrixXd hessian(const Integrals&) const;
+  
+  double Y_matrix(unsigned p, unsigned q, unsigned r, unsigned s, const Integrals& integrals) const;
+  
+  double hessian_part(unsigned p, unsigned q, unsigned r, unsigned s, const Integrals& integrals) const;
 };

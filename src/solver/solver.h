@@ -101,7 +101,8 @@ void Solver<S>::run() {
     Timer::start("variation");
     run_all_variations();
 
-    if (Config::get<bool>("2rdm", false) || Config::get<bool>("get_2rdm_csv", false)) {
+    if (Config::get<bool>("2rdm", false) || Config::get<bool>("get_2rdm_csv", false) ||
+        Config::get<bool>("optorb", false)) {
       connections = hamiltonian.matrix.get_connections();
     }
 
@@ -257,7 +258,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
       dist_new_dets.for_each_serial([&](const Det& connected_det, const size_t) {
         var_dets.set(connected_det);
         system.dets.push_back(connected_det);
-        system.coefs.push_back(1.0e-6);
+        system.coefs.push_back(1.0e-15);
       });
       dist_new_dets.clear_and_shrink();
 
