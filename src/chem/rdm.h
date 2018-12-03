@@ -11,13 +11,14 @@ using namespace Eigen;
 
 class RDM {
  public:
-  void get_1rdm(
-      const std::vector<Det>&,
-      const std::vector<double>&,
-      const Integrals&,
-      const bool dump_csv = false);
+  RDM(Integrals* integrals_ptr) {
+    integrals_p = integrals_ptr;
+    n_orbs = integrals_ptr->n_orbs;
+    n_up = integrals_ptr->n_up;
+    n_dn = integrals_ptr->n_dn;
+  }
 
-  void generate_natorb_integrals(const Integrals&) const;
+  void get_1rdm(const std::vector<Det>&, const std::vector<double>&, const bool dump_csv = false);
 
   /*
     size_t nonsym_combine2(const size_t, const size_t) const;  // used for generate_natorb_integrals
@@ -26,30 +27,35 @@ class RDM {
     size_t nonsym_combine4(const size_t, const size_t, const size_t, const size_t) const;
   */
 
-  void get_2rdm_slow(const std::vector<Det>&, const std::vector<double>&, const Integrals&);
+  void get_2rdm_slow(const std::vector<Det>&, const std::vector<double>&);
 
   void get_2rdm(
       const std::vector<Det>&,
       const std::vector<double>&,
-      const Integrals&,
       const std::vector<std::vector<size_t>>& connections);
 
-  void dump_2rdm(const Integrals& integrals, const bool dump_csv = false) const;
-  
-  void newton(const Integrals& integrals);
+  void get_1rdm_from_2rdm();
+
+  void dump_2rdm(const bool dump_csv = false) const;
+
+  double one_rdm_elem(unsigned, unsigned) const;
+
+  double two_rdm_elem(unsigned, unsigned, unsigned, unsigned) const;
 
  private:
+  Integrals* integrals_p;
+
   unsigned n_orbs, n_up, n_dn;
 
   MatrixXd one_rdm;
 
   std::vector<double> two_rdm;
 
-  unsigned combine4_2rdm(unsigned, unsigned, unsigned, unsigned, unsigned) const;
+  inline unsigned combine4_2rdm(unsigned p, unsigned q, unsigned r, unsigned s) const;
 
   int permfac_ccaa(HalfDet halfket, unsigned p, unsigned q, unsigned r, unsigned s) const;
 
-  void compute_energy_from_rdm(const Integrals& integrals) const;
+  void compute_energy_from_rdm() const;
 
   void get_2rdm_elements(
       const Det& connected_det,
@@ -58,16 +64,4 @@ class RDM {
       const double& this_coef);
 
   void write_in_2rdm(unsigned p, unsigned q, unsigned r, unsigned s, double value);
-  
-  VectorXd gradient(const Integrals&, const std::vector<std::pair<unsigned, unsigned>>&) const;
-  //VectorXd gradient(const Integrals&) const;
-  
-  double generalized_Fock(unsigned m, unsigned n, const Integrals& integrals) const;
-  
-  MatrixXd hessian(const Integrals&, const std::vector<std::pair<unsigned, unsigned>>&) const;
-  //MatrixXd hessian(const Integrals&) const;
-  
-  double Y_matrix(unsigned p, unsigned q, unsigned r, unsigned s, const Integrals& integrals) const;
-  
-  double hessian_part(unsigned p, unsigned q, unsigned r, unsigned s, const Integrals& integrals) const;
 };
