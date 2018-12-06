@@ -510,7 +510,7 @@ void RDM::get_2rdm_slow(const std::vector<Det>& dets, const std::vector<double>&
 
   }  // i_det
 
-  Timer::checkpoint("computing 2RDM");
+  Timer::checkpoint("computing 2RDM (slow)");
 }
 
 inline unsigned RDM::combine4_2rdm(unsigned p, unsigned q, unsigned r, unsigned s) const {
@@ -957,6 +957,8 @@ void RDM::get_1rdm_from_2rdm() {
       }
     }
   }
+
+  Timer::checkpoint("get 1rdm from 2rdm");
 }
 
 void RDM::compute_energy_from_rdm() const {

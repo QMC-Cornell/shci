@@ -13,7 +13,11 @@ void Injector::run() {
   if (type == "heg") {
     Solver<HegSystem>().run();
   } else if (type == "chem") {
-    Solver<ChemSystem>().run();
+    if (Config::get<bool>("optorb", false)) {
+      Solver<ChemSystem>().optimization_run();
+    } else {
+      Solver<ChemSystem>().run();
+    }
   } else {
     throw std::invalid_argument(Util::str_printf("system '%s' is not supported.", type.c_str()));
   }

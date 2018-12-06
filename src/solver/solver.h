@@ -33,6 +33,8 @@ class Solver {
  public:
   void run();
 
+  void optimization_run();
+
  private:
   S system;
 
@@ -145,6 +147,82 @@ void Solver<S>::run() {
   run_all_perturbations();
   system.post_perturbation();
   Timer::end();
+}
+
+template <class S>
+void Solver<S>::optimization_run() {
+  std::setlocale(LC_ALL, "en_US.UTF-8");
+
+  unsigned natorb_iter = Config::get<unsigned>("optimization/natorb_iter", 1);
+  unsigned optorb_iter = Config::get<unsigned>("optimization/optorb_iter", 20);
+  if (Parallel::is_master())
+    std::cout << "\n== Optimization started: " << natorb_iter << " natorb iterations and "
+              << optorb_iter << " optorb iterations ==\n";
+
+  std::vector<std::vector<size_t>> connections;
+  target_error = Config::get<double>("target_error", 5.0e-5);
+  unsigned i_iter = 0;
+
+  bool dump_integrals = false;
+
+  while (i_iter < natorb_iter) {
+    if (Parallel::is_master())
+      std::cout << "\n== Iteration " << i_iter << ": natural orbitals ==\n";
+
+    Timer::start("setup");
+    if (i_iter == 0) {
+      system.setup();
+    } else {
+      system.variation_cleanup();
+      system.setup(false);  // load_integrals_from_file = false
+    }
+    Result::put("energy_hf", system.energy_hf);
+    Timer::end();
+
+    run_all_variations();
+    hamiltonian.clear();
+
+    if (i_iter == natorb_iter - 1) dump_integrals = true;
+    system.post_variation_optimization(
+        nullptr, dump_integrals);  // pass nullptr to indicate natorb optimization
+
+    i_iter++;
+  }
+
+  bool converged = false;
+
+  double prev_energy_var = 0;
+
+  while (i_iter < natorb_iter + optorb_iter && !converged) {
+    if (Parallel::is_master())
+      std::cout << "\n== Iteration " << i_iter << ": optimized orbitals ==\n";
+
+    Timer::start("setup");
+    if (i_iter == 0) {
+      system.setup();
+    } else {
+      system.variation_cleanup();
+      system.setup(false);  // load_integrals_from_file = false
+    }
+    Result::put("energy_hf", system.energy_hf);
+    Timer::end();
+
+    run_all_variations();
+    connections = hamiltonian.matrix.get_connections();
+    hamiltonian.clear();
+
+    if (i_iter % 2 == 0) dump_integrals = true;  // dump integrals every 2 iterations
+    system.post_variation_optimization(
+        &connections, dump_integrals);  // pass ptr to connections to indicate full opt
+    connections.clear();
+
+    converged =
+        (prev_energy_var - system.energy_var) > 0 && (prev_energy_var - system.energy_var) < 1e-5;
+    prev_energy_var = system.energy_var;
+    i_iter++;
+  }
+
+  if (Parallel::is_master()) std::cout << "\n== Optimization finished ==\n";
 }
 
 template <class S>

@@ -9,10 +9,10 @@
 #include "../timer.h"
 #include "../util.h"
 #include "dooh_util.h"
-#include "rdm.h"
 #include "optimization.h"
+#include "rdm.h"
 
-void ChemSystem::setup() {
+void ChemSystem::setup(const bool load_integrals_from_file) {
   type = SystemType::Chemistry;
   n_up = Config::get<unsigned>("n_up");
   n_dn = Config::get<unsigned>("n_dn");
@@ -24,12 +24,14 @@ void ChemSystem::setup() {
   time_sym = Config::get<bool>("time_sym", false);
   has_double_excitation = Config::get<bool>("has_double_excitation", true);
 
-  Timer::start("load integrals");
-  integrals.load();
-  n_orbs = integrals.n_orbs;
-  orb_sym = integrals.orb_sym;
-  check_group_elements();
-  Timer::end();
+  if (load_integrals_from_file) {
+    Timer::start("load integrals");
+    integrals.load();
+    n_orbs = integrals.n_orbs;
+    orb_sym = integrals.orb_sym;
+    check_group_elements();
+    Timer::end();
+  }
 
   Timer::start("setup hci queue");
   setup_hci_queue();
@@ -480,7 +482,6 @@ double ChemSystem::get_two_body_double(const DiffResult& diff_up, const DiffResu
 }
 
 void ChemSystem::post_variation(std::vector<std::vector<size_t>>& connections) {
-
   if (Config::get<bool>("optorb", false)) {
     RDM rdm(&integrals);
     Timer::start("optimization");
@@ -489,7 +490,7 @@ void ChemSystem::post_variation(std::vector<std::vector<size_t>>& connections) {
     rdm.get_1rdm_from_2rdm();
 
     Optimization optorb_optimizer(&rdm, &integrals);
-    optorb_optimizer.newton();
+    optorb_optimizer.generate_optorb_integrals_from_newton();
     Timer::end();
   }
 
@@ -524,6 +525,7 @@ void ChemSystem::post_variation(std::vector<std::vector<size_t>>& connections) {
 
     Optimization natorb_optimizer(&rdm, &integrals);
     natorb_optimizer.generate_natorb_integrals();
+    natorb_optimizer.dump_integrals("FCIDUMP_natorb");
     Timer::checkpoint("generate natorb integrals");
 
     std::exit(0);
@@ -551,6 +553,53 @@ void ChemSystem::post_variation(std::vector<std::vector<size_t>>& connections) {
     rdm.get_1rdm(dets, coefs, true);
     Timer::end();
   }
+}
+
+void ChemSystem::post_variation_optimization(
+    std::vector<std::vector<size_t>>* connections_ptr, const bool dump_integrals) {
+  if (connections_ptr == nullptr) {  // natorb optimization
+    unpack_time_sym();
+    RDM rdm(&integrals);
+    rdm.get_1rdm(dets, coefs);
+
+    Optimization natorb_optimizer(&rdm, &integrals);
+
+    Timer::start("Natorb optimization");
+    natorb_optimizer.generate_natorb_integrals();
+    Timer::end();
+
+    natorb_optimizer.rewrite_integrals();
+    Timer::checkpoint("rewrite integrals");
+
+    if (dump_integrals) natorb_optimizer.dump_integrals("FCIDUMP_natorb");
+  } else {  // optorb optimization
+    RDM rdm(&integrals);
+    rdm.get_2rdm(dets, coefs, *connections_ptr);
+
+    connections_ptr->clear();
+    rdm.get_1rdm_from_2rdm();
+
+    Optimization optorb_optimizer(&rdm, &integrals);
+
+    Timer::start("Newton optimization");
+    optorb_optimizer.generate_optorb_integrals_from_newton();
+    Timer::end();
+
+    optorb_optimizer.rewrite_integrals();
+    Timer::checkpoint("rewrite integrals");
+
+    if (dump_integrals) optorb_optimizer.dump_integrals("FCIDUMP_optorb");
+  }
+}
+
+void ChemSystem::variation_cleanup() {
+  energy_hf = 0.;
+  energy_var = 0.;
+  helper_size = 0;
+  dets.clear();
+  coefs.clear();
+  max_hci_queue_elem = 0.;
+  hci_queue.clear();
 }
 
 //======================================================

@@ -1,6 +1,6 @@
 # Default options.
 CXX := mpic++
-CXX_WARNING_OPTIONS := -Wall -g -Wextra -Wno-unused-result
+CXX_WARNING_OPTIONS := -Wall -Wextra -Wno-unused-result
 CXXFLAGS := -std=c++11 -O3 -fopenmp $(CXX_WARNING_OPTIONS)
 LDLIBS := -pthread -lpthread
 SRC_DIR := src
@@ -16,7 +16,7 @@ ifeq ($(UNAME), Linux)
 	TOOLS_DIR := $(HOME)/tools
 	GPERFTOOLS_DIR := $(TOOLS_DIR)/gperftools
 	ifneq ($(wildcard $(GPERFTOOLS_DIR)),)
-		LDLIBS := -L $(GPERFTOOLS_DIR)/lib $(LDLIBS) -ltcmalloc
+#		LDLIBS := -L $(GPERFTOOLS_DIR)/lib $(LDLIBS) -ltcmalloc
 	endif
 endif
 

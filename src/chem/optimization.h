@@ -16,8 +16,12 @@ class Optimization {
 
   void generate_natorb_integrals();
 
-  void newton();
+  void generate_optorb_integrals_from_newton();
 
+  void dump_integrals(const char* file_name) const;
+  
+  void rewrite_integrals();
+  
  private:
   RDM* rdm_p;
 
@@ -26,8 +30,10 @@ class Optimization {
   unsigned n_orbs;
 
   typedef std::vector<std::vector<std::vector<std::vector<double>>>> Integrals_array;
+  
+  Integrals_array new_integrals;
 
-  void rotate_integrals(Integrals_array& new_integrals, const MatrixXd& rot);
+  void rotate_integrals(const MatrixXd& rot);
 
   void dump_integrals(const Integrals_array& new_integrals, const char* file_name) const;
 

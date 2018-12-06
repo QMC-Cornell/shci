@@ -70,12 +70,12 @@ void Optimization::generate_natorb_integrals() {
 
   Timer::checkpoint("compute natural orbitals");
 
-  Integrals_array new_integrals(n_orbs);
-  rotate_integrals(new_integrals, rot);
-  dump_integrals(new_integrals, "FCIDUMP_natorb");
+  rotate_integrals(rot);
+  // dump_integrals("FCIDUMP_natorb");
 }
 
-void Optimization::rotate_integrals(Integrals_array& new_integrals, const MatrixXd& rot) {
+void Optimization::rotate_integrals(const MatrixXd& rot) {
+  new_integrals.resize(n_orbs);
   Integrals_array tmp_integrals(n_orbs);
 
 #pragma omp parallel for
@@ -206,8 +206,7 @@ void Optimization::rotate_integrals(Integrals_array& new_integrals, const Matrix
   }
 }
 
-void Optimization::dump_integrals(
-    const Integrals_array& new_integrals, const char* file_name) const {
+void Optimization::dump_integrals(const char* file_name) const {
   if (Parallel::is_master()) {
     FILE* pFile;
     pFile = fopen(file_name, "w");
@@ -220,17 +219,21 @@ void Optimization::dump_integrals(
     }
     fprintf(pFile, "\nISYM=1\n&END\n");
 
+    double integral_value;
+
     // Two-body integrals
     for (unsigned p = 0; p < n_orbs; p++) {
       for (unsigned q = 0; q <= p; q++) {
         for (unsigned r = 0; r <= p; r++) {
           for (unsigned s = 0; s <= r; s++) {
             if ((p == r) && (q < s)) continue;
-            if (std::abs(new_integrals[p][q][r][s]) > 1e-8) {
+            integral_value = new_integrals[p][q][r][s];
+            // integral_value = integrals_p->get_2b(p, q, r, s);
+            if (std::abs(integral_value) > 1e-8) {
               fprintf(
                   pFile,
                   " %19.12E %3d %3d %3d %3d\n",
-                  new_integrals[p][q][r][s],
+                  integral_value,
                   integrals_p->orb_order[p] + 1,
                   integrals_p->orb_order[q] + 1,
                   integrals_p->orb_order[r] + 1,
@@ -244,11 +247,13 @@ void Optimization::dump_integrals(
     // One-body integrals
     for (unsigned p = 0; p < n_orbs; p++) {
       for (unsigned q = 0; q <= p; q++) {
-        if (std::abs(new_integrals[p][q][n_orbs][n_orbs]) > 1e-8) {
+        integral_value = new_integrals[p][q][n_orbs][n_orbs];
+        // integral_value = integrals_p->get_1b(p, q);
+        if (std::abs(integral_value) > 1e-8) {
           fprintf(
               pFile,
               " %19.12E %3d %3d %3d %3d\n",
-              new_integrals[p][q][n_orbs][n_orbs],
+              integral_value,
               integrals_p->orb_order[p] + 1,
               integrals_p->orb_order[q] + 1,
               0,
@@ -266,7 +271,40 @@ void Optimization::dump_integrals(
   Timer::checkpoint("creating new FCIDUMP");
 }
 
-void Optimization::newton() {
+void Optimization::rewrite_integrals() {
+  // replace integrals with new_integrals
+  integrals_p->integrals_2b.clear();
+  integrals_p->integrals_1b.clear();
+
+  unsigned p, q, r, s;
+  for (p = 0; p < n_orbs; p++) {
+    for (q = 0; q < n_orbs; q++) {
+      for (r = 0; r < n_orbs; r++) {
+        for (s = 0; s < n_orbs; s++) {
+          integrals_p->integrals_2b.set(
+              Integrals::combine4(p, q, r, s),
+              new_integrals[p][q][r][s],
+              [&](double& a, const double& b) {
+                if (std::abs(a) < std::abs(b)) a = b;
+              });
+        }
+      }
+    }
+  }
+
+  for (p = 0; p < n_orbs; p++) {
+    for (q = 0; q < n_orbs; q++) {
+      integrals_p->integrals_1b.set(
+          Integrals::combine2(p, q),
+          new_integrals[p][q][n_orbs][n_orbs],
+          [&](double& a, const double& b) {
+            if (std::abs(a) < std::abs(b)) a = b;
+          });
+    }
+  }
+}
+
+void Optimization::generate_optorb_integrals_from_newton() {
   std::vector<unsigned int> orb_sym = integrals_p->orb_sym;
   // Determine number of point group elements used for current system
   unsigned n_group_elements = orb_sym[1];
@@ -303,36 +341,67 @@ void Optimization::newton() {
 
   SelfAdjointEigenSolver<MatrixXd> es(n_orbs);
   es.compute(X_matrix * X_matrix);
-  MatrixXd tmp_eigenvalues, W_matrix;
-  tmp_eigenvalues = es.eigenvalues().transpose();
+  MatrixXd Tau2, W_matrix;
+  Tau2 = es.eigenvalues().transpose();  // Tau^2
   W_matrix = es.eigenvectors();
   std::cout << "\neigenval:\n";
-  for (unsigned i = 0; i < n_orbs; i++) std::cout << tmp_eigenvalues(i) << " ";
+  for (unsigned i = 0; i < n_orbs; i++) std::cout << Tau2(i) << " ";
+  std::cout << "\n";
+  /*
+    MatrixXd Tau_matrix = MatrixXd::Zero(n_orbs, n_orbs);
+    MatrixXd Tau_matrix_inv = MatrixXd::Zero(n_orbs, n_orbs);
+    MatrixXd cos_Tau = MatrixXd::Zero(n_orbs, n_orbs);
+    MatrixXd sin_Tau = MatrixXd::Zero(n_orbs, n_orbs);
+  */
 
-  MatrixXd Tau_matrix = MatrixXd::Zero(n_orbs, n_orbs);
-  MatrixXd Tau_matrix_inv = MatrixXd::Zero(n_orbs, n_orbs);
-  MatrixXd cos_Tau = MatrixXd::Zero(n_orbs, n_orbs);
-  MatrixXd sin_Tau = MatrixXd::Zero(n_orbs, n_orbs);
+  //  VectorXd Tau(n_orbs);
+  //  for (unsigned i = 0; i < n_orbs; i++) {
+  /*    Tau_matrix(i, i) =
+          (tmp_eigenvalues(i) > 0 ? std::sqrt(tmp_eigenvalues(i)) : std::sqrt(-tmp_eigenvalues(i)));
+      //Tau_matrix(i, i) = std::sqrt(-tmp_eigenvalues(i));
+      Tau_matrix_inv(i, i) = 1. / Tau_matrix(i, i);
+      cos_Tau(i, i) = std::cos(Tau_matrix(i, i));
+      sin_Tau(i, i) = std::sin(Tau_matrix(i, i));
+  */
+  //    Tau(i) = (tmp_eigenvalues(i) > 0 ? std::sqrt(tmp_eigenvalues(i)) :
+  //    std::sqrt(-tmp_eigenvalues(i)));
+  //  }
+
+  /*
+    MatrixXd rot = W_matrix * cos_Tau * W_matrix.transpose() +
+                   W_matrix * Tau_matrix_inv * sin_Tau * W_matrix.transpose() * X_matrix;
+  */
+
+  MatrixXd rot = MatrixXd::Zero(n_orbs, n_orbs);
+  double tau, cos_tau, sinc_tau;
+#pragma omp parallel for
   for (unsigned i = 0; i < n_orbs; i++) {
-    Tau_matrix(i, i) =
-        (tmp_eigenvalues(i) > 0 ? std::sqrt(tmp_eigenvalues(i)) : std::sqrt(-tmp_eigenvalues(i)));
-    Tau_matrix_inv(i, i) = 1. / Tau_matrix(i, i);
-    cos_Tau(i, i) = std::cos(Tau_matrix(i, i));
-    sin_Tau(i, i) = std::sin(Tau_matrix(i, i));
+    for (unsigned j = 0; j < n_orbs; j++) {
+      for (unsigned k = 0; k < n_orbs; k++) {
+        if (std::abs(Tau2(k)) < 1e-10) {
+          cos_tau = 1;
+          sinc_tau = 1;
+        } else {
+          tau = std::sqrt(-Tau2(k));
+          cos_tau = std::cos(tau);
+          sinc_tau = std::sin(tau) / tau;
+        }
+        rot(i, j) += cos_tau * W_matrix(i, k) * W_matrix(j, k);
+        for (unsigned l = 0; l < n_orbs; l++) {
+          rot(i, j) += sinc_tau * W_matrix(i, k) * W_matrix(l, k) * X_matrix(l, j);
+        }
+      }
+    }
   }
 
-  MatrixXd rot = W_matrix * cos_Tau * W_matrix.transpose() +
-                 W_matrix * Tau_matrix_inv * sin_Tau * W_matrix.transpose() * X_matrix;
-
-  Integrals_array new_integrals(n_orbs);
-  rotate_integrals(new_integrals, rot);
-  dump_integrals(new_integrals, "FCIDUMP_optorb");
+  rotate_integrals(rot);
 }
 
 VectorXd Optimization::gradient(
     const std::vector<std::pair<unsigned, unsigned>>& param_indices) const {
   unsigned n_param = param_indices.size();
   VectorXd grad(n_param);
+#pragma omp parallel for
   for (unsigned i = 0; i < n_param; i++) {
     unsigned p = param_indices[i].first;
     unsigned q = param_indices[i].second;
@@ -345,6 +414,7 @@ MatrixXd Optimization::hessian(
     const std::vector<std::pair<unsigned, unsigned>>& param_indices) const {
   unsigned n_param = param_indices.size();
   MatrixXd hessian(n_param, n_param);
+#pragma omp parallel for
   for (unsigned i = 0; i < n_param; i++) {
     for (unsigned j = 0; j < n_param; j++) {
       unsigned p = param_indices[i].first;

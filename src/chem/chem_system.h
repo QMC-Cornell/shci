@@ -11,7 +11,7 @@
 
 class ChemSystem : public BaseSystem {
  public:
-  void setup() override;
+  void setup(const bool load_integrals_from_file = true) override;
 
   void find_connected_dets(
       const Det& det,
@@ -25,6 +25,11 @@ class ChemSystem : public BaseSystem {
   void update_diag_helper() override;
 
   void post_variation(std::vector<std::vector<size_t>>& connections) override;
+
+  void post_variation_optimization(
+      std::vector<std::vector<size_t>>* connections_ptr, const bool dump_integrals = true) override;
+
+  void variation_cleanup() override;
 
  private:
   std::vector<unsigned> orb_sym;
