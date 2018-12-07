@@ -582,7 +582,8 @@ void ChemSystem::post_variation_optimization(
     Optimization optorb_optimizer(&rdm, &integrals);
 
     Timer::start("Newton optimization");
-    optorb_optimizer.generate_optorb_integrals_from_newton();
+    optorb_optimizer.generate_optorb_integrals_from_approximate_newton();
+    //optorb_optimizer.generate_optorb_integrals_from_newton();
     Timer::end();
 
     optorb_optimizer.rewrite_integrals();

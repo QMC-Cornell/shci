@@ -18,6 +18,8 @@ class Optimization {
 
   void generate_optorb_integrals_from_newton();
 
+  void generate_optorb_integrals_from_approximate_newton();
+
   void dump_integrals(const char* file_name) const;
   
   void rewrite_integrals();
@@ -42,6 +44,8 @@ class Optimization {
   double generalized_Fock(unsigned m, unsigned n) const;
 
   MatrixXd hessian(const std::vector<std::pair<unsigned, unsigned>>&) const;
+  
+  VectorXd hessian_diagonal(const std::vector<std::pair<unsigned, unsigned>>&) const;
 
   double Y_matrix(unsigned p, unsigned q, unsigned r, unsigned s) const;
 

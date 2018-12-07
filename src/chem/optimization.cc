@@ -306,12 +306,14 @@ void Optimization::rewrite_integrals() {
 
 void Optimization::generate_optorb_integrals_from_newton() {
   std::vector<unsigned int> orb_sym = integrals_p->orb_sym;
+  
+  /*
   // Determine number of point group elements used for current system
   unsigned n_group_elements = orb_sym[1];
   for (size_t i = 1; i < orb_sym.size(); i++) {
     if (orb_sym[i] > n_group_elements) n_group_elements = orb_sym[i];
   }
-
+  */
   std::vector<std::pair<unsigned, unsigned>>
       param_indices;  // vector of (row,col) indices of optimization parameters
   for (unsigned i = 0; i < n_orbs; i++) {
@@ -327,6 +329,8 @@ void Optimization::generate_optorb_integrals_from_newton() {
   std::cout << "\ngrad norm " << grad.norm();
 
   MatrixXd hess = hessian(param_indices);
+
+  //std::cout<<"\nhessian:\n"<<hess;
 
   // rotation matrix
   VectorXd rotation_matrix = hess.colPivHouseholderQr().solve(-1 * grad);
@@ -397,6 +401,72 @@ void Optimization::generate_optorb_integrals_from_newton() {
   rotate_integrals(rot);
 }
 
+void Optimization::generate_optorb_integrals_from_approximate_newton() {
+  std::vector<unsigned int> orb_sym = integrals_p->orb_sym;
+  
+  std::vector<std::pair<unsigned, unsigned>>
+      param_indices;  // vector of (row,col) indices of optimization parameters
+  for (unsigned i = 0; i < n_orbs; i++) {
+    for (unsigned j = i + 1; j < n_orbs; j++) {
+      if (orb_sym[i] == orb_sym[j]) {
+        param_indices.push_back(std::make_pair(i, j));
+      }
+    }
+  }
+
+  VectorXd grad = gradient(param_indices);
+  std::cout << "\ngrad \n" << grad;
+  std::cout << "\ngrad norm " << grad.norm();
+  
+  MatrixXd hess_diag = hessian_diagonal(param_indices);
+  VectorXd rotation_matrix(param_indices.size());
+  for (unsigned i = 0; i < param_indices.size(); i++) {
+    rotation_matrix(i) = - grad(i) / hess_diag(i);
+  }  
+  
+  MatrixXd X_matrix = MatrixXd::Zero(n_orbs, n_orbs);
+
+  for (unsigned i = 0; i < param_indices.size(); i++) {
+    unsigned p = param_indices[i].first;
+    unsigned q = param_indices[i].second;
+    X_matrix(p, q) = -1 * rotation_matrix(i);
+    X_matrix(q, p) = rotation_matrix(i);
+  }
+
+  SelfAdjointEigenSolver<MatrixXd> es(n_orbs);
+  es.compute(X_matrix * X_matrix);
+  MatrixXd Tau2, W_matrix;
+  Tau2 = es.eigenvalues().transpose();  // Tau^2
+  W_matrix = es.eigenvectors();
+  std::cout << "\neigenval:\n";
+  for (unsigned i = 0; i < n_orbs; i++) std::cout << Tau2(i) << " ";
+  std::cout << "\n";  
+  
+  MatrixXd rot = MatrixXd::Zero(n_orbs, n_orbs);
+  double tau, cos_tau, sinc_tau;
+#pragma omp parallel for
+  for (unsigned i = 0; i < n_orbs; i++) {
+    for (unsigned j = 0; j < n_orbs; j++) {
+      for (unsigned k = 0; k < n_orbs; k++) {
+        if (std::abs(Tau2(k)) < 1e-10) {
+          cos_tau = 1;
+          sinc_tau = 1;
+        } else {
+          tau = std::sqrt(-Tau2(k));
+          cos_tau = std::cos(tau);
+          sinc_tau = std::sin(tau) / tau;
+        }
+        rot(i, j) += cos_tau * W_matrix(i, k) * W_matrix(j, k);
+        for (unsigned l = 0; l < n_orbs; l++) {
+          rot(i, j) += sinc_tau * W_matrix(i, k) * W_matrix(l, k) * X_matrix(l, j);
+        }
+      }
+    }
+  }
+
+  rotate_integrals(rot);
+}
+
 VectorXd Optimization::gradient(
     const std::vector<std::pair<unsigned, unsigned>>& param_indices) const {
   unsigned n_param = param_indices.size();
@@ -426,6 +496,20 @@ MatrixXd Optimization::hessian(
     }
   }
   return hessian;
+}
+
+VectorXd Optimization::hessian_diagonal(
+    const std::vector<std::pair<unsigned, unsigned>>& param_indices) const {
+  unsigned n_param = param_indices.size();
+  VectorXd hessian_diagonal(n_param);
+#pragma omp parallel for
+  for (unsigned i = 0; i < n_param; i++) {
+      unsigned p = param_indices[i].first;
+      unsigned q = param_indices[i].second;
+      hessian_diagonal(i) = hessian_part(p, q, p, q) - hessian_part(p, q, q, p) -
+                      hessian_part(q, p, p, q) + hessian_part(q, p, q, p);
+  }
+  return hessian_diagonal;
 }
 
 double Optimization::generalized_Fock(unsigned m, unsigned n) const {
