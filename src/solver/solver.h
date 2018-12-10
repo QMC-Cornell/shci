@@ -891,8 +891,7 @@ void Solver<S>::save_pair_contrib(const double eps_var) {
   }
   std::vector<std::vector<double>> contribs(n_up);
   std::string contrib_filename = Util::str_printf("pair_contrib_%#.2e.csv", eps_var);
-  const auto& contrib_entry =
-      Util::str_printf("pair_contrib/%#.2e", eps_var);
+  const auto& contrib_entry = Util::str_printf("pair_contrib/%#.2e", eps_var);
   Result::put<std::string>(contrib_entry, contrib_filename);
   std::ofstream contrib_file(contrib_filename);
   contrib_file << "i,j,pair_contrib" << std::endl;
@@ -911,7 +910,7 @@ void Solver<S>::save_pair_contrib(const double eps_var) {
     size_t j = 0;
     const auto& H = system.get_hamiltonian_elem(det_hf, det, -1);
     if (diff_up.n_diffs == 2) {
-      i = diff_up.left_only[0]; 
+      i = diff_up.left_only[0];
       j = diff_up.left_only[1];
     } else if (diff_up.n_diffs == 1) {
       i = diff_up.left_only[0];
@@ -926,7 +925,7 @@ void Solver<S>::save_pair_contrib(const double eps_var) {
     } else {
       i = diff_dn.left_only[0];
       if (diff_dn.n_diffs == 2) {
-        j = diff_dn.left_only[1]; 
+        j = diff_dn.left_only[1];
         if (j < i) {
           std::swap(i, j);
         }

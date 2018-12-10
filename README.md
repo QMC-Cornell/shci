@@ -34,6 +34,7 @@ Many software packages can generate `FCIDUMP`, such as [`PySCF`](https://github.
 * `var_only`: only run variation, default to false.
 * `force_var`: run variation even if valid wavefunction files already exists, default to false.
 * `var_sd`: :palm_tree: include all singles and doubles excitation, i.e. at least CISD, default to false.
+* `get_pair_contrib`: :palm_tree: calculate occupied pair contribution, default to false.
 * `eps_pt`: :palm_tree: perturbation epsilon, default to eps_var / 5000.
 * `eps_pt_psto`: :palm_tree: pseudo stochastic perturbation epsilon, default to eps_var / 500.
 * `eps_pt_dtm`: :palm_tree: deterministic perturbation epsilon, default to eps_var / 50.
