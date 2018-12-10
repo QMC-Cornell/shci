@@ -14,6 +14,19 @@ TEST(HalfDetTest, SetAndGetOrbitals) {
   EXPECT_EQ(orbs_2.size(), 2);
 }
 
+TEST(HalfDetTest, DISABLED_SetAndGetOrbitalsLarge) {
+  HalfDet half_det;
+  EXPECT_FALSE(half_det.has(0));
+  EXPECT_EQ(half_det.get_occupied_orbs().size(), 0);
+  half_det.set(130);
+  EXPECT_TRUE(half_det.has(130));
+  const auto& orbs = half_det.get_occupied_orbs();
+  EXPECT_EQ(orbs[0], 130);
+  half_det.set(129);
+  const auto& orbs_2 = half_det.get_occupied_orbs();
+  EXPECT_EQ(orbs_2.size(), 2);
+}
+
 TEST(HalfDetTest, Diff) {
   HalfDet a;
   HalfDet b;
@@ -30,4 +43,26 @@ TEST(HalfDetTest, Diff) {
   EXPECT_EQ(diff.n_diffs, 1);
   EXPECT_EQ(diff.left_only[0], 0);
   EXPECT_EQ(diff.right_only[0], 3);
+}
+
+TEST(HalfDetTest, DISABLED_iffLarge) {
+  HalfDet a;
+  HalfDet b;
+  a.set(0);
+  b.set(130);
+  auto diff = a.diff(b);
+  EXPECT_EQ(diff.n_diffs, 1);
+  EXPECT_EQ(diff.left_only[0], 0);
+  EXPECT_EQ(diff.right_only[0], 130);
+
+  a.set(130);
+  a.set(256);
+  b.set(128);
+  b.set(129);
+  diff = a.diff(b);
+  EXPECT_EQ(diff.n_diffs, 2);
+  EXPECT_EQ(diff.left_only[0], 0);
+  EXPECT_EQ(diff.left_only[1], 256);
+  EXPECT_EQ(diff.right_only[0], 128);
+  EXPECT_EQ(diff.right_only[1], 129);
 }
