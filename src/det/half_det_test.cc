@@ -14,7 +14,7 @@ TEST(HalfDetTest, SetAndGetOrbitals) {
   EXPECT_EQ(orbs_2.size(), 2);
 }
 
-TEST(HalfDetTest, SetAndGetOrbitalsLarge) {
+TEST(HalfDetTest, DISABLED_SetAndGetOrbitalsLarge) {
   HalfDet half_det;
   EXPECT_FALSE(half_det.has(0));
   EXPECT_EQ(half_det.get_occupied_orbs().size(), 0);
@@ -45,7 +45,7 @@ TEST(HalfDetTest, Diff) {
   EXPECT_EQ(diff.right_only[0], 3);
 }
 
-TEST(HalfDetTest, DiffLarge) {
+TEST(HalfDetTest, DISABLED_iffLarge) {
   HalfDet a;
   HalfDet b;
   a.set(0);
