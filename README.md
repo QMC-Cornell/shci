@@ -11,6 +11,7 @@ git clone --recursive https://github.com/jl2922/shci
 cd shci
 make -j
 ```
+`--recursive` will download all the dependencies from Github recursively.
 
 ## Example Run
 An example carbon atom calculation inputs is provided with the code.

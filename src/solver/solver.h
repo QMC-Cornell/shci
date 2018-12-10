@@ -883,9 +883,9 @@ void Solver<S>::save_variation_result(const std::string& filename) {
 template <class S>
 void Solver<S>::save_pair_contrib(const double eps_var) {
   const auto& det_hf = system.dets[0];
-  const size_t n_elecs = system.n_elecs;
+  // const size_t n_elecs = system.n_elecs;
   const size_t n_up = system.n_up;
-  const size_t n_dn = system.n_dn;
+  // const size_t n_dn = system.n_dn;
   if (det_hf.up != det_hf.dn) {
     throw std::invalid_argument("non sym det_hf not implemented");
   }
