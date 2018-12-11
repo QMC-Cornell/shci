@@ -12,6 +12,7 @@
 #include "rdm.h"
 
 void ChemSystem::setup() {
+  type = SystemType::Chemistry;
   n_up = Config::get<unsigned>("n_up");
   n_dn = Config::get<unsigned>("n_dn");
   n_elecs = n_up + n_dn;
@@ -125,11 +126,14 @@ void ChemSystem::setup_hci_queue() {
     printf("Max hci queue elem: " ENERGY_FORMAT "\n", max_hci_queue_elem);
     printf("Number of entries in hci queue: %'zu\n", n_entries);
   }
+  helper_size = n_entries * 16 * 2;
 }
 
 PointGroup ChemSystem::get_point_group(const std::string& str) const {
   if (Util::str_equals_ci("C1", str)) {
     return PointGroup::C1;
+  } else if (Util::str_equals_ci("C2", str)) {
+    return PointGroup::C2;
   } else if (Util::str_equals_ci("Cs", str)) {
     return PointGroup::Cs;
   } else if (Util::str_equals_ci("Ci", str)) {
@@ -138,6 +142,10 @@ PointGroup ChemSystem::get_point_group(const std::string& str) const {
     return PointGroup::C2v;
   } else if (Util::str_equals_ci("C2h", str)) {
     return PointGroup::C2h;
+  } else if (Util::str_equals_ci("Coov", str) || Util::str_equals_ci("Civ", str)) {
+    return PointGroup::Dooh;
+  } else if (Util::str_equals_ci("D2", str)) {
+    return PointGroup::D2;
   } else if (Util::str_equals_ci("D2h", str)) {
     return PointGroup::D2h;
   } else if (Util::str_equals_ci("Dooh", str) || Util::str_equals_ci("Dih", str)) {
@@ -488,7 +496,6 @@ void ChemSystem::post_variation(const std::vector<std::vector<size_t>>& connecti
 
     exit(0);
   }
-
 
   if (Config::get<bool>("2rdm_slow", false)) {
     if (time_sym && !unpacked) {
