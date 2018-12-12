@@ -356,7 +356,7 @@ void Solver<S>::run_perturbation(const double eps_var) {
   mem_total *= 0.8;
 #endif
   const size_t mem_var = system.get_n_dets() * (bytes_per_det * 3 + 8);
-  const double mem_left = mem_total * 0.8 - mem_var - system.helper_size;
+  const double mem_left = mem_total * 0.7 - mem_var - system.helper_size;
   assert(mem_left > 0);
   pt_mem_avail = mem_left;
   const size_t n_procs = Parallel::get_n_procs();
@@ -413,7 +413,7 @@ double Solver<S>::get_energy_pt_dtm(const double eps_var) {
     hc_sums.sync();
     const size_t n_pt_dets = hc_sums.get_n_keys();
     n_batches =
-        static_cast<size_t>(ceil(1.5 * 128 * 100 * n_pt_dets * bytes_per_entry / pt_mem_avail));
+        static_cast<size_t>(ceil(2.0 * 128 * 100 * n_pt_dets * bytes_per_entry / pt_mem_avail));
     if (n_batches == 0) n_batches = 1;
     if (Parallel::is_master()) {
       printf("Number of dtm batches: %zu\n", n_batches);
@@ -530,7 +530,7 @@ UncertResult Solver<S>::get_energy_pt_psto(const double eps_var, const double en
     const size_t n_pt_dets = hc_sums.get_n_keys();
     const double mem_usage = Config::get<double>("pt_psto_mem_usage", 1.0);
     n_batches = static_cast<size_t>(
-        ceil(1.5 * 128 * 100 * n_pt_dets * bytes_per_entry / (pt_mem_avail * mem_usage)));
+        ceil(2.0 * 128 * 100 * n_pt_dets * bytes_per_entry / (pt_mem_avail * mem_usage)));
     if (n_batches < 16) n_batches = 16;
     if (Parallel::is_master()) {
       printf("Number of psto batches: %zu\n", n_batches);
@@ -694,7 +694,7 @@ UncertResult Solver<S>::get_energy_pt_sto(
     if (system.type == SystemType::HEG) default_mem_usage = 1.0;
     const double mem_usage = Config::get<double>("pt_sto_mem_usage", default_mem_usage);
     size_t n_unique_target =
-        pt_mem_avail * mem_usage * n_unique_samples / bytes_per_entry / 3.0 / n_pt_dets_batch;
+        pt_mem_avail * mem_usage * n_unique_samples / bytes_per_entry / 5.0 / n_pt_dets_batch;
     const size_t max_unique_targets = n_var_dets / 8 + 1;
     if (n_unique_target >= max_unique_targets) n_unique_target = max_unique_targets;
     sample_dets.clear();
