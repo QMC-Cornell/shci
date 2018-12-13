@@ -638,7 +638,11 @@ void RDM::get_2rdm(
   //=====================================================
   bool time_sym = Config::get<bool>("time_sym", false);
 
-  const unsigned size_two_rdm = n_orbs * n_orbs * (n_orbs * n_orbs + 1) / 2;
+  unsigned size_two_rdm;
+  {  // size_t arithmetic to avoid integer overflow
+    const size_t n_orbs_sizet = (size_t)n_orbs;
+    size_two_rdm = n_orbs_sizet * n_orbs_sizet * (n_orbs_sizet * n_orbs_sizet + 1) / 2;
+  }
   two_rdm.resize(size_two_rdm, 0.);
 
 #pragma omp parallel for schedule(dynamic, 5)

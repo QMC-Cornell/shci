@@ -482,18 +482,6 @@ double ChemSystem::get_two_body_double(const DiffResult& diff_up, const DiffResu
 }
 
 void ChemSystem::post_variation(std::vector<std::vector<size_t>>& connections) {
-  if (Config::get<bool>("optorb", false)) {
-    RDM rdm(&integrals);
-    Timer::start("optimization");
-    rdm.get_2rdm(dets, coefs, connections);
-    connections.clear();
-    rdm.get_1rdm_from_2rdm();
-
-    Optimization optorb_optimizer(&rdm, &integrals);
-    optorb_optimizer.generate_optorb_integrals_from_newton();
-    Timer::end();
-  }
-
   if (Config::get<bool>("2rdm", false) || Config::get<bool>("get_2rdm_csv", false)) {
     RDM rdm(&integrals);
     Timer::start("get 2rdm");
@@ -556,7 +544,7 @@ void ChemSystem::post_variation(std::vector<std::vector<size_t>>& connections) {
 }
 
 void ChemSystem::post_variation_optimization(
-    std::vector<std::vector<size_t>>* connections_ptr, const bool dump_integrals) {
+    std::vector<std::vector<size_t>>* connections_ptr, const std::string& method, const bool dump_integrals) {
   if (connections_ptr == nullptr) {  // natorb optimization
     unpack_time_sym();
     RDM rdm(&integrals);
@@ -581,9 +569,16 @@ void ChemSystem::post_variation_optimization(
 
     Optimization optorb_optimizer(&rdm, &integrals);
 
-    Timer::start("Newton optimization");
-    optorb_optimizer.generate_optorb_integrals_from_approximate_newton();
-    //optorb_optimizer.generate_optorb_integrals_from_newton();
+    if (Util::str_equals_ci("newton", method)) {
+      Timer::start("Newton optimization");
+      optorb_optimizer.generate_optorb_integrals_from_newton();
+    } else if (Util::str_equals_ci("grad_descent", method)) {
+      Timer::start("Gradient descent optimization");
+      optorb_optimizer.generate_optorb_integrals_from_grad_descent();
+    } else {
+      Timer::start("Approximate Newton optimization");
+      optorb_optimizer.generate_optorb_integrals_from_approximate_newton();
+    }
     Timer::end();
 
     optorb_optimizer.rewrite_integrals();

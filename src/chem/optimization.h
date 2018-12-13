@@ -20,6 +20,8 @@ class Optimization {
 
   void generate_optorb_integrals_from_approximate_newton();
 
+  void generate_optorb_integrals_from_grad_descent();
+  
   void dump_integrals(const char* file_name) const;
   
   void rewrite_integrals();

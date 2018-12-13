@@ -184,7 +184,7 @@ void Solver<S>::optimization_run() {
 
     if (i_iter == natorb_iter - 1) dump_integrals = true;
     system.post_variation_optimization(
-        nullptr, dump_integrals);  // pass nullptr to indicate natorb optimization
+        nullptr, "natorb", dump_integrals);  // pass nullptr to indicate natorb optimization
 
     i_iter++;
   }
@@ -193,9 +193,11 @@ void Solver<S>::optimization_run() {
 
   double prev_energy_var = 0;
 
+  std::string method = Config::get<std::string>("optimization/method", "app_newton");
+
   while (i_iter < natorb_iter + optorb_iter && !converged) {
     if (Parallel::is_master())
-      std::cout << "\n== Iteration " << i_iter << ": optimized orbitals ==\n";
+      std::cout << "\n== Iteration " << i_iter << ": optimized orbitals ("<<method<<") ==\n";
 
     Timer::start("setup");
     if (i_iter == 0) {
@@ -213,7 +215,7 @@ void Solver<S>::optimization_run() {
 
     if (i_iter % 2 == 0) dump_integrals = true;  // dump integrals every 2 iterations
     system.post_variation_optimization(
-        &connections, dump_integrals);  // pass ptr to connections to indicate full opt
+        &connections, method, dump_integrals);  // pass ptr to connections to indicate full opt
     connections.clear();
 
     converged =

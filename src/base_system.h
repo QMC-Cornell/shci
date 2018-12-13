@@ -57,7 +57,8 @@ class BaseSystem {
 
   virtual void post_variation(std::vector<std::vector<size_t>>&){};
 
-  virtual void post_variation_optimization(std::vector<std::vector<size_t>>*, const bool){};
+  virtual void post_variation_optimization(
+      std::vector<std::vector<size_t>>*, const std::string&, const bool){};
 
   virtual void post_perturbation(){};
 
