@@ -76,6 +76,8 @@ class Solver {
 
   void save_variation_result(const std::string& filename);
 
+  void save_pair_contrib(const double eps_var);
+
   void print_dets_info() const;
 
   std::string get_wf_filename(const double eps_var) const;
@@ -149,8 +151,7 @@ void Solver<S>::run() {
 template <class S>
 void Solver<S>::run_all_variations() {
   if (Parallel::is_master()) {
-    printf("Iteration 0 ");
-    printf("HF determinant ndets= 1 energy= %.8f\n", system.energy_hf);
+    printf("Final iteration 0 HF ndets= 1 energy= %.8f\n", system.energy_hf);
   }
   const auto& eps_vars = Config::get<std::vector<double>>("eps_vars");
   const auto& eps_vars_schedule = Config::get<std::vector<double>>("eps_vars_schedule");
@@ -159,6 +160,7 @@ void Solver<S>::run_all_variations() {
   auto it_schedule = eps_vars_schedule.begin();
   var_iteration_global = 0;
   eps_var_min = eps_vars.back();
+  const bool get_pair_contrib = Config::get<bool>("get_pair_contrib", false);
   for (const double eps_var : eps_vars) {
     Timer::start(Util::str_printf("eps_var %#.2e", eps_var));
     const auto& filename = get_wf_filename(eps_var);
@@ -184,6 +186,10 @@ void Solver<S>::run_all_variations() {
       for (const auto& det : system.dets) var_dets.set(det);
       //      hamiltonian.clear();
       Result::put<double>(Util::str_printf("energy_var/%#.2e", eps_var), system.energy_var);
+    }
+
+    if (Parallel::is_master() && get_pair_contrib) {
+      save_pair_contrib(eps_var);
     }
     eps_var_prev = eps_var;
     Timer::end();
@@ -219,6 +225,8 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
   bool converged = false;
   size_t iteration = 0;
   bool dets_converged = false;
+  const bool get_pair_contrib = Config::get<bool>("get_pair_contrib", false);
+  bool var_sd = Config::get<bool>("var_sd", get_pair_contrib);
 
   while (!converged) {
     eps_tried_prev.resize(n_dets, Util::INF);
@@ -231,6 +239,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
             const auto& det = system.dets[i];
             const double coef = system.coefs[i];
             double eps_min = eps_var / std::abs(coef);
+            if (i == 0 && var_sd) eps_min = 0.0;
             if (system.time_sym && det.up != det.dn) eps_min *= Util::SQRT2;
             if (eps_min >= eps_tried_prev[i] * 0.99) return;
             Det connected_det_reg;
@@ -314,10 +323,8 @@ void Solver<S>::run_perturbation(const double eps_var) {
   eps_pt_dtm = Config::get<double>("eps_pt_dtm", default_eps_pt_dtm);
   eps_pt_psto = Config::get<double>("eps_pt_psto", default_eps_pt_psto);
   eps_pt = Config::get<double>("eps_pt", default_eps_pt);
-
   if (eps_pt_psto < eps_pt) eps_pt_psto = eps_pt;
   if (eps_pt_dtm < eps_pt_psto) eps_pt_dtm = eps_pt_psto;
-
   // If result already exists, return.
   const auto& value_entry = Util::str_printf("energy_total/%#.2e/%#.2e/value", eps_var, eps_pt);
   const auto& uncert_entry = Util::str_printf("energy_total/%#.2e/%#.2e/uncert", eps_var, eps_pt);
@@ -635,7 +642,9 @@ UncertResult Solver<S>::get_energy_pt_sto(
 
   // Contruct probs.
   double sum_weights = 0.0;
-  for (size_t i = 0; i < n_var_dets; i++) sum_weights += std::abs(system.coefs[i]);
+  for (size_t i = 0; i < n_var_dets; i++) {
+    sum_weights += std::abs(system.coefs[i]);
+  }
   for (size_t i = 0; i < n_var_dets; i++) {
     probs[i] = std::abs(system.coefs[i]) / sum_weights;
     cum_probs[i] = probs[i];
@@ -872,6 +881,79 @@ void Solver<S>::save_variation_result(const std::string& filename) {
 }
 
 template <class S>
+void Solver<S>::save_pair_contrib(const double eps_var) {
+  const auto& det_hf = system.dets[0];
+  // const size_t n_elecs = system.n_elecs;
+  const size_t n_up = system.n_up;
+  // const size_t n_dn = system.n_dn;
+  if (det_hf.up != det_hf.dn) {
+    throw std::invalid_argument("non sym det_hf not implemented");
+  }
+  std::vector<std::vector<double>> contribs(n_up);
+  std::string contrib_filename = Util::str_printf("pair_contrib_%#.2e.csv", eps_var);
+  const auto& contrib_entry = Util::str_printf("pair_contrib/%#.2e", eps_var);
+  Result::put<std::string>(contrib_entry, contrib_filename);
+  std::ofstream contrib_file(contrib_filename);
+  contrib_file << "i,j,pair_contrib" << std::endl;
+  for (size_t i = 0; i < n_up; i++) {
+    contribs[i].assign(n_up, 0.0);
+  }
+  const double c0 = system.coefs[0];
+  for (size_t det_id = 1; det_id < system.dets.size(); det_id++) {
+    const auto& det = system.dets[det_id];
+    const double coef = system.coefs[det_id];
+    const auto& diff_up = det_hf.up.diff(det.up);
+    const auto& diff_dn = det_hf.dn.diff(det.dn);
+    const unsigned n_excite = diff_up.n_diffs + diff_dn.n_diffs;
+    if (n_excite > 2) continue;
+    size_t i = 0;
+    size_t j = 0;
+    const auto& H = system.get_hamiltonian_elem(det_hf, det, -1);
+    if (diff_up.n_diffs == 2) {
+      i = diff_up.left_only[0];
+      j = diff_up.left_only[1];
+    } else if (diff_up.n_diffs == 1) {
+      i = diff_up.left_only[0];
+      if (diff_dn.n_diffs == 1) {
+        j = diff_dn.left_only[0];
+        if (j < i) {
+          std::swap(i, j);
+        }
+      } else {
+        j = i;
+      }
+    } else {
+      i = diff_dn.left_only[0];
+      if (diff_dn.n_diffs == 2) {
+        j = diff_dn.left_only[1];
+        if (j < i) {
+          std::swap(i, j);
+        }
+      } else {
+        j = i;
+      }
+    }
+    if (det.up == det.dn) {
+      contribs[i][j] += H * coef / c0;
+    } else if (system.time_sym) {
+      contribs[i][j] += H * coef / c0 * Util::SQRT2;
+    } else {
+      contribs[i][j] += H * coef / c0;
+    }
+  }
+  contrib_file.precision(15);
+  for (size_t i = 0; i < n_up; i++) {
+    for (size_t j = i; j < n_up; j++) {
+      if (i != j) {
+        contribs[i][j] /= 2;
+      }
+      contrib_file << i << "," << j << "," << contribs[i][j] << std::endl;
+    }
+  }
+  contrib_file.close();
+}
+
+template <class S>
 void Solver<S>::print_dets_info() const {
   if (system.time_sym) {
     // Print effective dets for unpacked time sym.
@@ -914,7 +996,7 @@ void Solver<S>::print_dets_info() const {
     }
     printf("%-10u%12zu%16.8f\n", i, excitations[i], weights[i]);
   }
-  
+
   // Print orb occupations.
   std::vector<double> orb_occupations(system.n_orbs, 0.0);
   for (size_t i = 0; i < system.dets.size(); i++) {
@@ -948,7 +1030,7 @@ void Solver<S>::print_dets_info() const {
     return std::abs(system.coefs[a]) > std::abs(system.coefs[b]);
   });
   printf("%-10s%12s      %-12s\n", "Excite Lv", "Coef", "Det (Reordered orb)");
-  for (size_t i = 0; i < 20; i++) {
+  for (size_t i = 0; i < std::min((size_t)20, system.dets.size()); i++) {
     const double coef = system.coefs[det_order[i]];
     const auto& det = system.dets[det_order[i]];
     const auto& occs_up = det.up.get_occupied_orbs();
