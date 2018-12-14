@@ -18,6 +18,8 @@ class RDM {
     n_dn = integrals_ptr->n_dn;
   }
 
+  ~RDM() { integrals_p = nullptr; }
+
   void get_1rdm(const std::vector<Det>&, const std::vector<double>&, const bool dump_csv = false);
 
   /*

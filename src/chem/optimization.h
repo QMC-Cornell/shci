@@ -14,18 +14,23 @@ class Optimization {
     n_orbs = integrals_ptr->n_orbs;
   }
 
+  ~Optimization() {
+    rdm_p = nullptr;
+    integrals_p = nullptr;
+  }
+
   void generate_natorb_integrals();
 
   void generate_optorb_integrals_from_newton();
 
-  void generate_optorb_integrals_from_approximate_newton();
+  void generate_optorb_integrals_from_approximate_newton(const double& descent_param);
 
   void generate_optorb_integrals_from_grad_descent();
-  
+
   void dump_integrals(const char* file_name) const;
-  
+
   void rewrite_integrals();
-  
+
  private:
   RDM* rdm_p;
 
@@ -34,7 +39,7 @@ class Optimization {
   unsigned n_orbs;
 
   typedef std::vector<std::vector<std::vector<std::vector<double>>>> Integrals_array;
-  
+
   Integrals_array new_integrals;
 
   void rotate_integrals(const MatrixXd& rot);
@@ -46,7 +51,7 @@ class Optimization {
   double generalized_Fock(unsigned m, unsigned n) const;
 
   MatrixXd hessian(const std::vector<std::pair<unsigned, unsigned>>&) const;
-  
+
   VectorXd hessian_diagonal(const std::vector<std::pair<unsigned, unsigned>>&) const;
 
   double Y_matrix(unsigned p, unsigned q, unsigned r, unsigned s) const;

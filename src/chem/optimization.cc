@@ -374,7 +374,7 @@ void Optimization::generate_optorb_integrals_from_newton() {
   rotate_integrals(rot);
 }
 
-void Optimization::generate_optorb_integrals_from_approximate_newton() {
+void Optimization::generate_optorb_integrals_from_approximate_newton(const double& descent_param) {
   std::vector<unsigned int> orb_sym = integrals_p->orb_sym;
 
   std::vector<std::pair<unsigned, unsigned>>
@@ -394,7 +394,7 @@ void Optimization::generate_optorb_integrals_from_approximate_newton() {
   MatrixXd hess_diag = hessian_diagonal(param_indices);
   VectorXd rotation_matrix(param_indices.size());
   for (unsigned i = 0; i < param_indices.size(); i++) {
-    rotation_matrix(i) = -grad(i) / hess_diag(i);
+    rotation_matrix(i) = -grad(i) / (hess_diag(i) + descent_param);
   }
   std::cout << "\nhess_diag\n" << hess_diag;
 

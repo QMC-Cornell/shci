@@ -165,6 +165,8 @@ void Solver<S>::optimization_run() {
 
   bool dump_integrals = false;
 
+  double descent_param = 1e-3;
+
   while (i_iter < natorb_iter) {
     if (Parallel::is_master())
       std::cout << "\n== Iteration " << i_iter << ": natural orbitals ==\n";
@@ -184,7 +186,10 @@ void Solver<S>::optimization_run() {
 
     if (i_iter == natorb_iter - 1) dump_integrals = true;
     system.post_variation_optimization(
-        nullptr, "natorb", dump_integrals);  // pass nullptr to indicate natorb optimization
+        nullptr,
+        "natorb",
+        dump_integrals,
+        descent_param);  // pass nullptr to indicate natorb optimization
 
     eps_tried_prev.clear();
     var_dets.clear_and_shrink();
@@ -199,7 +204,7 @@ void Solver<S>::optimization_run() {
 
   while (i_iter < natorb_iter + optorb_iter && !converged) {
     if (Parallel::is_master())
-      std::cout << "\n== Iteration " << i_iter << ": optimized orbitals ("<<method<<") ==\n";
+      std::cout << "\n== Iteration " << i_iter << ": optimized orbitals (" << method << ") ==\n";
 
     Timer::start("setup");
     if (i_iter == 0) {
@@ -215,14 +220,27 @@ void Solver<S>::optimization_run() {
     connections = hamiltonian.matrix.get_connections();
     hamiltonian.clear();
 
+    converged =
+        (prev_energy_var - system.energy_var) > 0 && (prev_energy_var - system.energy_var) < 1e-6;
+
+    if (converged) break;
+
+    if (prev_energy_var - system.energy_var > 0) {
+      descent_param *= 10;
+      if (Parallel::is_master()) std::cout<<"\n descent \nparameter increased ten-fold\n";
+    } else {
+      descent_param = 1e-3;
+    }
+
     if (i_iter % 2 == 0) dump_integrals = true;  // dump integrals every 2 iterations
     system.post_variation_optimization(
-        &connections, method, dump_integrals);  // pass ptr to connections to indicate full opt
+        &connections,
+        method,
+        dump_integrals,
+        descent_param);  // pass ptr to connections to indicate full opt
     connections.clear();
     connections.shrink_to_fit();
 
-    converged =
-        (prev_energy_var - system.energy_var) > 0 && (prev_energy_var - system.energy_var) < 1e-5;
     prev_energy_var = system.energy_var;
 
     eps_tried_prev.clear();

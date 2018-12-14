@@ -544,7 +544,7 @@ void ChemSystem::post_variation(std::vector<std::vector<size_t>>& connections) {
 }
 
 void ChemSystem::post_variation_optimization(
-    std::vector<std::vector<size_t>>* connections_ptr, const std::string& method, const bool dump_integrals) {
+    std::vector<std::vector<size_t>>* connections_ptr, const std::string& method, const bool dump_integrals, const double& descent_param) {
   if (connections_ptr == nullptr) {  // natorb optimization
     unpack_time_sym();
     RDM rdm(&integrals);
@@ -577,7 +577,7 @@ void ChemSystem::post_variation_optimization(
       optorb_optimizer.generate_optorb_integrals_from_grad_descent();
     } else {
       Timer::start("Approximate Newton optimization");
-      optorb_optimizer.generate_optorb_integrals_from_approximate_newton();
+      optorb_optimizer.generate_optorb_integrals_from_approximate_newton(descent_param);
     }
     Timer::end();
 
@@ -593,9 +593,12 @@ void ChemSystem::variation_cleanup() {
   energy_var = 0.;
   helper_size = 0;
   dets.clear();
+  dets.shrink_to_fit();
   coefs.clear();
+  coefs.shrink_to_fit();
   max_hci_queue_elem = 0.;
   hci_queue.clear();
+  hci_queue.shrink_to_fit();
 }
 
 //======================================================
