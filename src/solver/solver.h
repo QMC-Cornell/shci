@@ -186,6 +186,8 @@ void Solver<S>::optimization_run() {
     system.post_variation_optimization(
         nullptr, "natorb", dump_integrals);  // pass nullptr to indicate natorb optimization
 
+    eps_tried_prev.clear();
+    var_dets.clear_and_shrink();
     i_iter++;
   }
 
@@ -217,10 +219,14 @@ void Solver<S>::optimization_run() {
     system.post_variation_optimization(
         &connections, method, dump_integrals);  // pass ptr to connections to indicate full opt
     connections.clear();
+    connections.shrink_to_fit();
 
     converged =
         (prev_energy_var - system.energy_var) > 0 && (prev_energy_var - system.energy_var) < 1e-5;
     prev_energy_var = system.energy_var;
+
+    eps_tried_prev.clear();
+    var_dets.clear_and_shrink();
     i_iter++;
   }
 
