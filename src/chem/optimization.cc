@@ -305,18 +305,7 @@ void Optimization::rewrite_integrals() {
 }
 
 void Optimization::generate_optorb_integrals_from_newton() {
-  std::vector<unsigned int> orb_sym = integrals_p->orb_sym;
-
-  std::vector<std::pair<unsigned, unsigned>>
-      param_indices;  // vector of (row,col) indices of optimization parameters
-  for (unsigned i = 0; i < n_orbs; i++) {
-    for (unsigned j = i + 1; j < n_orbs; j++) {
-      if (orb_sym[i] == orb_sym[j]) {
-        param_indices.push_back(std::make_pair(i, j));
-      }
-    }
-  }
-
+  std::vector<index_t> param_indices = parameter_indices();
   VectorXd grad = gradient(param_indices);
   std::cout << "\ngrad \n" << grad;
   std::cout << "\ngrad norm " << grad.norm();
@@ -325,149 +314,116 @@ void Optimization::generate_optorb_integrals_from_newton() {
   std::cout << "\nhessian\n" << hess;
 
   // rotation matrix
-  VectorXd rotation_matrix = hess.colPivHouseholderQr().solve(-1 * grad);
-  MatrixXd X_matrix = MatrixXd::Zero(n_orbs, n_orbs);
-
-  for (unsigned i = 0; i < param_indices.size(); i++) {
-    unsigned p = param_indices[i].first;
-    unsigned q = param_indices[i].second;
-    X_matrix(p, q) = -1 * rotation_matrix(i);
-    X_matrix(q, p) = rotation_matrix(i);
-  }
-
-  SelfAdjointEigenSolver<MatrixXd> es(n_orbs);
-  es.compute(X_matrix * X_matrix);
-  MatrixXd Tau2, W_matrix;
-  Tau2 = es.eigenvalues().transpose();  // Tau^2
-  W_matrix = es.eigenvectors();
-  /*
-  std::cout << "\neigenval:\n";
-  for (unsigned i = 0; i < n_orbs; i++) std::cout << Tau2(i) << " ";
-  std::cout << "\n";
-  */
-  
-  //  MatrixXd rot = W_matrix * cos_Tau * W_matrix.transpose() +
-  //                 W_matrix * Tau_matrix_inv * sin_Tau * W_matrix.transpose() * X_matrix;
+  VectorXd new_param = hess.colPivHouseholderQr().solve(-1 * grad);
 
   MatrixXd rot = MatrixXd::Zero(n_orbs, n_orbs);
-  double tau, cos_tau, sinc_tau;
-#pragma omp parallel for
-  for (unsigned i = 0; i < n_orbs; i++) {
-    for (unsigned j = 0; j < n_orbs; j++) {
-      for (unsigned k = 0; k < n_orbs; k++) {
-        if (std::abs(Tau2(k)) < 1e-10) {
-          cos_tau = 1;
-          sinc_tau = 1;
-        } else {
-          tau = std::sqrt(-Tau2(k));
-          cos_tau = std::cos(tau);
-          sinc_tau = std::sin(tau) / tau;
-        }
-        rot(i, j) += cos_tau * W_matrix(i, k) * W_matrix(j, k);
-        for (unsigned l = 0; l < n_orbs; l++) {
-          rot(i, j) += sinc_tau * W_matrix(i, k) * W_matrix(l, k) * X_matrix(l, j);
-        }
-      }
-    }
-  }
-
+  fill_rot_matrix_with_parameters(rot, new_param, param_indices);
   rotate_integrals(rot);
 }
 
 void Optimization::generate_optorb_integrals_from_approximate_newton(const double& descent_param) {
-  std::vector<unsigned int> orb_sym = integrals_p->orb_sym;
-
-  std::vector<std::pair<unsigned, unsigned>>
-      param_indices;  // vector of (row,col) indices of optimization parameters
-  for (unsigned i = 0; i < n_orbs; i++) {
-    for (unsigned j = i + 1; j < n_orbs; j++) {
-      if (orb_sym[i] == orb_sym[j]) {
-        param_indices.push_back(std::make_pair(i, j));
-      }
-    }
-  }
-
+  std::vector<index_t> param_indices = parameter_indices();
   VectorXd grad = gradient(param_indices);
-  std::cout << "\ngrad \n" << grad;
+  // std::cout << "\ngrad \n" << grad;
   std::cout << "\ngrad norm " << grad.norm();
 
   MatrixXd hess_diag = hessian_diagonal(param_indices);
-  VectorXd rotation_matrix(param_indices.size());
-  for (unsigned i = 0; i < param_indices.size(); i++) {
-    rotation_matrix(i) = -grad(i) / (hess_diag(i) + descent_param);
-  }
-  std::cout << "\nhess_diag\n" << hess_diag;
 
-  MatrixXd X_matrix = MatrixXd::Zero(n_orbs, n_orbs);
-
+  std::cout << "\n grad    hess_diag";
   for (unsigned i = 0; i < param_indices.size(); i++) {
-    unsigned p = param_indices[i].first;
-    unsigned q = param_indices[i].second;
-    X_matrix(p, q) = -1 * rotation_matrix(i);
-    X_matrix(q, p) = rotation_matrix(i);
+    std::cout << "\n " << grad(i) << "   " << hess_diag(i);
   }
 
-  SelfAdjointEigenSolver<MatrixXd> es(n_orbs);
-  es.compute(X_matrix * X_matrix);
-  MatrixXd Tau2, W_matrix;
-  Tau2 = es.eigenvalues().transpose();  // Tau^2
-  W_matrix = es.eigenvectors();
-  /*
-  std::cout << "\neigenval:\n";
-  for (unsigned i = 0; i < n_orbs; i++) std::cout << Tau2(i) << " ";
-  std::cout << "\n";
-  */
-  
-  MatrixXd rot = MatrixXd::Zero(n_orbs, n_orbs);
-  double tau, cos_tau, sinc_tau;
-#pragma omp parallel for
-  for (unsigned i = 0; i < n_orbs; i++) {
-    for (unsigned j = 0; j < n_orbs; j++) {
-      for (unsigned k = 0; k < n_orbs; k++) {
-        if (std::abs(Tau2(k)) < 1e-10) {
-          cos_tau = 1;
-          sinc_tau = 1;
-        } else {
-          tau = std::sqrt(-Tau2(k));
-          cos_tau = std::cos(tau);
-          sinc_tau = std::sin(tau) / tau;
-        }
-        rot(i, j) += cos_tau * W_matrix(i, k) * W_matrix(j, k);
-        for (unsigned l = 0; l < n_orbs; l++) {
-          rot(i, j) += sinc_tau * W_matrix(i, k) * W_matrix(l, k) * X_matrix(l, j);
-        }
-      }
+  VectorXd new_param(param_indices.size());
+  for (unsigned i = 0; i < param_indices.size(); i++) {
+    // rotation_matrix(i) = -grad(i) / (hess_diag(i) + descent_param);
+    if (hess_diag(i) > 0.01) {
+      new_param(i) = -grad(i) / hess_diag(i);
+    } else {
+      new_param(i) = 0.;
     }
   }
 
+  MatrixXd rot = MatrixXd::Zero(n_orbs, n_orbs);
+  fill_rot_matrix_with_parameters(rot, new_param, param_indices);
   rotate_integrals(rot);
 }
 
 void Optimization::generate_optorb_integrals_from_grad_descent() {
-  std::vector<unsigned int> orb_sym = integrals_p->orb_sym;
-
-  std::vector<std::pair<unsigned, unsigned>>
-      param_indices;  // vector of (row,col) indices of optimization parameters
-  for (unsigned i = 0; i < n_orbs; i++) {
-    for (unsigned j = i + 1; j < n_orbs; j++) {
-      if (orb_sym[i] == orb_sym[j]) {
-        param_indices.push_back(std::make_pair(i, j));
-      }
-    }
-  }
+  std::vector<index_t> param_indices = parameter_indices();
 
   VectorXd grad = gradient(param_indices);
   std::cout << "\ngrad \n" << grad;
   std::cout << "\ngrad norm " << grad.norm();
 
-  MatrixXd X_matrix = MatrixXd::Zero(n_orbs, n_orbs);
+  VectorXd new_param = -0.01 * grad;  // old_parameters are all zeros by defn
+  MatrixXd rot = MatrixXd::Zero(n_orbs, n_orbs);
+  fill_rot_matrix_with_parameters(rot, new_param, param_indices);
+  rotate_integrals(rot);
+}
 
-  VectorXd rotation_matrix = -1. * grad;
-  for (unsigned i = 0; i < param_indices.size(); i++) {
-    unsigned p = param_indices[i].first;
-    unsigned q = param_indices[i].second;
-    X_matrix(p, q) = -1 * rotation_matrix(i);
-    X_matrix(q, p) = rotation_matrix(i);
+std::vector<std::vector<double>> Optimization::generate_optorb_integrals_from_adadelta(
+    std::vector<std::vector<double>>& history) {
+  std::vector<index_t> param_indices = parameter_indices();
+  unsigned dim = param_indices.size();
+  
+  if (history[0].size() == 0) {
+    history[0].resize(dim, 0.);
+    history[1].resize(dim, 0.);
+  }
+  
+  VectorXd grad = gradient(param_indices);
+  std::cout << "\ngrad \n" << grad;
+  double eps = 1e-8;
+  double gamma = 0.9;
+  VectorXd new_param = VectorXd::Zero(dim);
+  double learning_rate;
+  for (unsigned i = 0; i < dim; i++) {
+    learning_rate = std::sqrt(history[0][i] + eps) /
+                   std::sqrt(gamma * history[1][i] + (1. - gamma) * std::pow(grad(i), 2) + eps); 
+    std::cout<<"\nlearning rate "<<learning_rate;
+    new_param(i) = - learning_rate * grad(i);
+  }
+  MatrixXd rot = MatrixXd::Zero(dim, dim);
+  fill_rot_matrix_with_parameters(rot, new_param, param_indices);
+  rotate_integrals(rot);
+
+  std::vector<std::vector<double>> current(2);
+  current[0].resize(dim);
+  current[1].resize(dim);
+  double current0, current1;
+  for (unsigned i = 0; i < dim; i++) {
+    current0 = gamma * history[0][i] + (1. - gamma) * std::pow(new_param(i), 2);
+    current1 = gamma * history[1][i] + (1. - gamma) * std::pow(grad(i), 2);
+    current[0][i] = current0;
+    current[1][i] = current1;
+  }
+  return current;
+}
+
+std::vector<Optimization::index_t> Optimization::parameter_indices() const {
+  // return vector of (row,col) indices of optimization parameters
+  std::vector<unsigned> orb_sym = integrals_p->orb_sym;
+  std::vector<index_t> indices;
+  for (unsigned i = 0; i < n_orbs; i++) {
+    for (unsigned j = i + 1; j < n_orbs; j++) {
+      if (orb_sym[i] == orb_sym[j]) {
+        indices.push_back(std::make_pair(i, j));
+      }
+    }
+  }
+  return indices;
+}
+
+void Optimization::fill_rot_matrix_with_parameters(
+    MatrixXd& rot, const VectorXd& parameters, const std::vector<index_t>& parameter_indices) {
+  // fill in the rot matrix with parameters, with entry indices being parameter_indices
+  MatrixXd X_matrix = MatrixXd::Zero(n_orbs, n_orbs);
+  for (unsigned i = 0; i < parameter_indices.size(); i++) {
+    unsigned p = parameter_indices[i].first;
+    unsigned q = parameter_indices[i].second;
+    X_matrix(p, q) = -1 * parameters(i);
+    X_matrix(q, p) = parameters(i);
   }
 
   SelfAdjointEigenSolver<MatrixXd> es(n_orbs);
@@ -480,8 +436,7 @@ void Optimization::generate_optorb_integrals_from_grad_descent() {
   for (unsigned i = 0; i < n_orbs; i++) std::cout << Tau2(i) << " ";
   std::cout << "\n";
   */
-  
-  MatrixXd rot = MatrixXd::Zero(n_orbs, n_orbs);
+
   double tau, cos_tau, sinc_tau;
 #pragma omp parallel for
   for (unsigned i = 0; i < n_orbs; i++) {
@@ -502,8 +457,6 @@ void Optimization::generate_optorb_integrals_from_grad_descent() {
       }
     }
   }
-
-  rotate_integrals(rot);
 }
 
 VectorXd Optimization::gradient(

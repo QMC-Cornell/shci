@@ -27,6 +27,9 @@ class Optimization {
 
   void generate_optorb_integrals_from_grad_descent();
 
+  std::vector<std::vector<double>> generate_optorb_integrals_from_adadelta(
+      std::vector<std::vector<double>>& history);
+
   void dump_integrals(const char* file_name) const;
 
   void rewrite_integrals();
@@ -40,11 +43,18 @@ class Optimization {
 
   typedef std::vector<std::vector<std::vector<std::vector<double>>>> Integrals_array;
 
+  typedef std::pair<unsigned, unsigned> index_t;
+
   Integrals_array new_integrals;
 
   void rotate_integrals(const MatrixXd& rot);
 
   void dump_integrals(const Integrals_array& new_integrals, const char* file_name) const;
+
+  std::vector<index_t> parameter_indices() const;
+
+  void fill_rot_matrix_with_parameters(
+      MatrixXd& rot, const VectorXd& parameters, const std::vector<index_t>& parameter_indices);
 
   VectorXd gradient(const std::vector<std::pair<unsigned, unsigned>>&) const;
 

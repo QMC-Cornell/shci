@@ -167,6 +167,10 @@ void Solver<S>::optimization_run() {
 
   double descent_param = 1e-3;
 
+  std::vector<std::vector<double>> history;
+  history.resize(2);
+  history[0].resize(0);
+  history[1].resize(0);
   while (i_iter < natorb_iter) {
     if (Parallel::is_master())
       std::cout << "\n== Iteration " << i_iter << ": natural orbitals ==\n";
@@ -188,6 +192,7 @@ void Solver<S>::optimization_run() {
     system.post_variation_optimization(
         nullptr,
         "natorb",
+        history,
         dump_integrals,
         descent_param);  // pass nullptr to indicate natorb optimization
 
@@ -227,17 +232,19 @@ void Solver<S>::optimization_run() {
 
     if (prev_energy_var - system.energy_var > 0) {
       descent_param *= 10;
-      if (Parallel::is_master()) std::cout<<"\n descent \nparameter increased ten-fold\n";
+      if (Parallel::is_master()) std::cout << "\n descent parameter increased ten-fold\n";
     } else {
       descent_param = 1e-3;
     }
 
     if (i_iter % 2 == 0) dump_integrals = true;  // dump integrals every 2 iterations
-    system.post_variation_optimization(
+    std::vector<std::vector<double>> current = system.post_variation_optimization(
         &connections,
         method,
+        history,
         dump_integrals,
         descent_param);  // pass ptr to connections to indicate full opt
+    history = current;
     connections.clear();
     connections.shrink_to_fit();
 

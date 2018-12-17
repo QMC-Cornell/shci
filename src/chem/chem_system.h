@@ -26,9 +26,10 @@ class ChemSystem : public BaseSystem {
 
   void post_variation(std::vector<std::vector<size_t>>& connections) override;
 
-  void post_variation_optimization(
+  std::vector<std::vector<double>> post_variation_optimization(
       std::vector<std::vector<size_t>>* connections_ptr,
       const std::string& method,
+      std::vector<std::vector<double>>& history,
       const bool dump_integrals = true,
       const double& descent_param = 1e-1) override;
 
