@@ -583,6 +583,9 @@ std::vector<std::vector<double>> ChemSystem::post_variation_optimization(
     } else if (Util::str_equals_ci("adadelta", method)) {
       Timer::start("Adadelta optimization");
       current = optorb_optimizer.generate_optorb_integrals_from_adadelta(history);
+    } else if (Util::str_equals_ci("amsgrad", method)) {
+      Timer::start("AMSGrad optimization");
+      current = optorb_optimizer.generate_optorb_integrals_from_amsgrad(history);
     } else {
       Timer::start("Approximate Newton optimization");
       optorb_optimizer.generate_optorb_integrals_from_approximate_newton(descent_param);
