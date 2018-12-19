@@ -30,8 +30,7 @@ class ChemSystem : public BaseSystem {
       std::vector<std::vector<size_t>>* connections_ptr,
       const std::string& method,
       std::vector<std::vector<double>>& history,
-      const bool dump_integrals = true,
-      const double& descent_param = 1e-1) override;
+      const bool dump_integrals = true) override;
 
   void variation_cleanup() override;
 

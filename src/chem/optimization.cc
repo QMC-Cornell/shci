@@ -321,23 +321,22 @@ void Optimization::generate_optorb_integrals_from_newton() {
   rotate_integrals(rot);
 }
 
-void Optimization::generate_optorb_integrals_from_approximate_newton(const double& descent_param) {
+void Optimization::generate_optorb_integrals_from_approximate_newton() {
   std::vector<index_t> param_indices = parameter_indices();
   VectorXd grad = gradient(param_indices);
   // std::cout << "\ngrad \n" << grad;
   std::cout << "\ngrad norm " << grad.norm();
 
   MatrixXd hess_diag = hessian_diagonal(param_indices);
-
+/*
   std::cout << "\n grad    hess_diag";
   for (unsigned i = 0; i < param_indices.size(); i++) {
     std::cout << "\n " << grad(i) << "   " << hess_diag(i);
   }
-
+*/
   VectorXd new_param(param_indices.size());
   for (unsigned i = 0; i < param_indices.size(); i++) {
-    // rotation_matrix(i) = -grad(i) / (hess_diag(i) + descent_param);
-    if (hess_diag(i) > 0.01) {
+    if (hess_diag(i) > 1e-5) {
       new_param(i) = -grad(i) / hess_diag(i);
     } else {
       new_param(i) = 0.;
@@ -353,8 +352,8 @@ void Optimization::generate_optorb_integrals_from_grad_descent() {
   std::vector<index_t> param_indices = parameter_indices();
 
   VectorXd grad = gradient(param_indices);
-  std::cout << "\ngrad \n" << grad;
-  std::cout << "\ngrad norm " << grad.norm();
+  //std::cout << "\ngrad \n" << grad;
+  //std::cout << "\ngrad norm " << grad.norm();
 
   VectorXd new_param = -0.01 * grad;  // old_parameters are all zeros by defn
   MatrixXd rot = MatrixXd::Zero(n_orbs, n_orbs);
@@ -362,83 +361,72 @@ void Optimization::generate_optorb_integrals_from_grad_descent() {
   rotate_integrals(rot);
 }
 
-std::vector<std::vector<double>> Optimization::generate_optorb_integrals_from_adadelta(
+std::vector<std::vector<double>>& Optimization::generate_optorb_integrals_from_adadelta(
     std::vector<std::vector<double>>& history) {
   std::vector<index_t> param_indices = parameter_indices();
   unsigned dim = param_indices.size();
-  
+
   if (history[0].size() == 0) {
-    history[0].resize(dim, 0.);
-    history[1].resize(dim, 0.);
+    history[0].resize(dim, 0.);  // E[update^2]
+    history[1].resize(dim, 0.);  // E[g^2]
   }
-  
+
   VectorXd grad = gradient(param_indices);
-  std::cout << "\ngrad \n" << grad;
+  //std::cout << "\ngrad \n" << grad;
   double eps = 1e-8;
   double gamma = 0.9;
   VectorXd new_param = VectorXd::Zero(dim);
-  double learning_rate;
+  double learning_rate, update;
   for (unsigned i = 0; i < dim; i++) {
     learning_rate = std::sqrt(history[0][i] + eps) /
-                   std::sqrt(gamma * history[1][i] + (1. - gamma) * std::pow(grad(i), 2) + eps); 
-    std::cout<<"\nlearning rate "<<learning_rate;
-    new_param(i) = - learning_rate * grad(i);
+                    std::sqrt(gamma * history[1][i] + (1. - gamma) * std::pow(grad(i), 2) + eps);
+    update = -learning_rate * grad(i);
+    std::cout << "\nlearning rate " << learning_rate;
+    new_param(i) = update;
+    history[0][i] = gamma * history[0][i] + (1. - gamma) * std::pow(update, 2);
+    history[1][i] = gamma * history[1][i] + (1. - gamma) * std::pow(grad(i), 2);
   }
   MatrixXd rot = MatrixXd::Zero(dim, dim);
   fill_rot_matrix_with_parameters(rot, new_param, param_indices);
   rotate_integrals(rot);
 
-  std::vector<std::vector<double>> current(2);
-  current[0].resize(dim);
-  current[1].resize(dim);
-  double current0, current1;
-  for (unsigned i = 0; i < dim; i++) {
-    current0 = gamma * history[0][i] + (1. - gamma) * std::pow(new_param(i), 2);
-    current1 = gamma * history[1][i] + (1. - gamma) * std::pow(grad(i), 2);
-    current[0][i] = current0;
-    current[1][i] = current1;
-  }
-  return current;
+  return history;
 }
 
-std::vector<std::vector<double>> Optimization::generate_optorb_integrals_from_amsgrad(
+std::vector<std::vector<double>>& Optimization::generate_optorb_integrals_from_amsgrad(
     std::vector<std::vector<double>>& history) {
   std::vector<index_t> param_indices = parameter_indices();
   unsigned dim = param_indices.size();
-  
+
   if (history[0].size() == 0) {
-    history[0].resize(dim, 0.); // m
-    history[1].resize(dim, 0.); // v_hat
-  }  
-  
-  std::vector<std::vector<double>> current(2);
-  current[0].resize(dim);
-  current[1].resize(dim);
-  
+    history[0].resize(dim, 0.);  // m
+    history[1].resize(dim, 0.);  // v_hat
+  }
+
   VectorXd grad = gradient(param_indices);
   std::cout << "\ngrad \n" << grad;
   double eps = 1e-8;
-  double eta = 0.01;  
+  double eta = 0.01;
   double beta1 = 0.1;
   double beta2 = 0.01;
   VectorXd new_param = VectorXd::Zero(dim);
-  double update, m_prev, v_hat_prev, m, v, v_hat;
+  double m_prev, v_hat_prev, m, v, v_hat;
   for (unsigned i = 0; i < dim; i++) {
     m_prev = history[0][i];
     v_hat_prev = history[1][i];
     m = beta1 * m_prev + (1 - beta1) * grad(i);
     v = beta2 * v_hat_prev + (1 - beta2) * std::pow(grad(i), 2);
-    v_hat = ( v_hat_prev > v ? v_hat_prev : v);
-    new_param(i) = - eta / (std::sqrt(v_hat) + eps) * m;
-    current[0][i] = m;
-    current[1][i] = v_hat;    
+    v_hat = (v_hat_prev > v ? v_hat_prev : v);
+    new_param(i) = -eta / (std::sqrt(v_hat) + eps) * m;
+    history[0][i] = m;
+    history[1][i] = v_hat;
   }
-  
+
   MatrixXd rot = MatrixXd::Zero(dim, dim);
   fill_rot_matrix_with_parameters(rot, new_param, param_indices);
   rotate_integrals(rot);
 
-  return current;    
+  return history;
 }
 
 std::vector<Optimization::index_t> Optimization::parameter_indices() const {

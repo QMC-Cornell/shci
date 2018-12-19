@@ -155,22 +155,22 @@ void Solver<S>::optimization_run() {
 
   unsigned natorb_iter = Config::get<unsigned>("optimization/natorb_iter", 1);
   unsigned optorb_iter = Config::get<unsigned>("optimization/optorb_iter", 20);
+  
   if (Parallel::is_master())
-    std::cout << "\n== Optimization started: " << natorb_iter << " natorb iterations and "
-              << optorb_iter << " optorb iterations ==\n";
+    std::cout << "\n==== Optimization started: " << natorb_iter << " natorb iterations and "
+              << optorb_iter << " optorb iterations ====\n";
 
   std::vector<std::vector<size_t>> connections;
   target_error = Config::get<double>("target_error", 5.0e-5);
-  unsigned i_iter = 0;
 
+  unsigned i_iter = 0;
   bool dump_integrals = false;
 
-  double descent_param = 1e-3;
-
-  std::vector<std::vector<double>> history;
-  history.resize(2);
+  // "history" for momentum methods
+  std::vector<std::vector<double>> history(2);
   history[0].resize(0);
   history[1].resize(0);
+  
   while (i_iter < natorb_iter) {
     if (Parallel::is_master())
       std::cout << "\n== Iteration " << i_iter << ": natural orbitals ==\n";
@@ -179,7 +179,6 @@ void Solver<S>::optimization_run() {
     if (i_iter == 0) {
       system.setup();
     } else {
-      system.variation_cleanup();
       system.setup(false);  // load_integrals_from_file = false
     }
     Result::put("energy_hf", system.energy_hf);
@@ -193,21 +192,22 @@ void Solver<S>::optimization_run() {
         nullptr,
         "natorb",
         history,
-        dump_integrals,
-        descent_param);  // pass nullptr to indicate natorb optimization
+        dump_integrals);
 
+    system.variation_cleanup();
     eps_tried_prev.clear();
     var_dets.clear_and_shrink();
     i_iter++;
   }
 
-  bool converged = false;
-
-  double prev_energy_var = 0;
-
+  double prev_energy_var = system.energy_var;
+  double min_energy_var = prev_energy_var;
+  double diff_energy_var;
+  unsigned iters_bt_dumps = 0;
+  
   std::string method = Config::get<std::string>("optimization/method", "app_newton");
-
-  while (i_iter < natorb_iter + optorb_iter && !converged) {
+  
+  while (i_iter < natorb_iter + optorb_iter) {
     if (Parallel::is_master())
       std::cout << "\n== Iteration " << i_iter << ": optimized orbitals (" << method << ") ==\n";
 
@@ -215,7 +215,6 @@ void Solver<S>::optimization_run() {
     if (i_iter == 0) {
       system.setup();
     } else {
-      system.variation_cleanup();
       system.setup(false);  // load_integrals_from_file = false
     }
     Result::put("energy_hf", system.energy_hf);
@@ -225,37 +224,36 @@ void Solver<S>::optimization_run() {
     connections = hamiltonian.matrix.get_connections();
     hamiltonian.clear();
 
-    converged =
-        (prev_energy_var - system.energy_var) > 0 && (prev_energy_var - system.energy_var) < 1e-6;
-
-    if (converged) break;
-
-    if (prev_energy_var - system.energy_var > 0) {
-      descent_param *= 10;
-      if (Parallel::is_master()) std::cout << "\n descent parameter increased ten-fold\n";
+    diff_energy_var = system.energy_var - prev_energy_var;
+    if (diff_energy_var < 0 && diff_energy_var > -1e-7) break;
+    
+    if (system.energy_var < min_energy_var && iters_bt_dumps > 3) {// dump integrals at most every 3 iterations
+      dump_integrals = true;  
+      min_energy_var = system.energy_var;
+      iters_bt_dumps = 0;
     } else {
-      descent_param = 1e-3;
+      dump_integrals = false;
+      iters_bt_dumps++;
     }
-
-    if (i_iter % 2 == 0) dump_integrals = true;  // dump integrals every 2 iterations
-    std::vector<std::vector<double>> current = system.post_variation_optimization(
+    
+    history = system.post_variation_optimization(
         &connections,
         method,
         history,
-        dump_integrals,
-        descent_param);  // pass ptr to connections to indicate full opt
-    history = current;
+        dump_integrals);
+
     connections.clear();
     connections.shrink_to_fit();
 
     prev_energy_var = system.energy_var;
 
+    system.variation_cleanup();
     eps_tried_prev.clear();
-    var_dets.clear_and_shrink();
+    var_dets.clear_and_shrink();    
     i_iter++;
   }
 
-  if (Parallel::is_master()) std::cout << "\n== Optimization finished ==\n";
+  if (Parallel::is_master()) std::cout << "\n==== Optimization finished ====\n";
 }
 
 template <class S>

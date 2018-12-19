@@ -547,10 +547,9 @@ std::vector<std::vector<double>> ChemSystem::post_variation_optimization(
     std::vector<std::vector<size_t>>* connections_ptr,
     const std::string& method,
     std::vector<std::vector<double>>& history,
-    const bool dump_integrals,
-    const double& descent_param) {
-  std::vector<std::vector<double>> current;
-  if (connections_ptr == nullptr) {  // natorb optimization
+    const bool dump_integrals) {
+//  std::vector<std::vector<double>> current;
+  if (method == "natorb") {  // natorb optimization
     unpack_time_sym();
     RDM rdm(&integrals);
     rdm.get_1rdm(dets, coefs);
@@ -582,13 +581,13 @@ std::vector<std::vector<double>> ChemSystem::post_variation_optimization(
       optorb_optimizer.generate_optorb_integrals_from_grad_descent();
     } else if (Util::str_equals_ci("adadelta", method)) {
       Timer::start("Adadelta optimization");
-      current = optorb_optimizer.generate_optorb_integrals_from_adadelta(history);
+      history = optorb_optimizer.generate_optorb_integrals_from_adadelta(history);
     } else if (Util::str_equals_ci("amsgrad", method)) {
       Timer::start("AMSGrad optimization");
-      current = optorb_optimizer.generate_optorb_integrals_from_amsgrad(history);
+      history = optorb_optimizer.generate_optorb_integrals_from_amsgrad(history);
     } else {
       Timer::start("Approximate Newton optimization");
-      optorb_optimizer.generate_optorb_integrals_from_approximate_newton(descent_param);
+      optorb_optimizer.generate_optorb_integrals_from_approximate_newton();
     }
     Timer::end();
 
@@ -597,7 +596,7 @@ std::vector<std::vector<double>> ChemSystem::post_variation_optimization(
 
     if (dump_integrals) optorb_optimizer.dump_integrals("FCIDUMP_optorb");
   }
-  return current;
+  return history;
 }
 
 void ChemSystem::variation_cleanup() {
@@ -610,7 +609,7 @@ void ChemSystem::variation_cleanup() {
   coefs.shrink_to_fit();
   max_hci_queue_elem = 0.;
   hci_queue.clear();
-  hci_queue.shrink_to_fit();
+  hci_queue.shrink_to_fit();  
 }
 
 //======================================================
