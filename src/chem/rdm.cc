@@ -103,6 +103,7 @@ void RDM::get_1rdm(
       fclose(pFile);
     }
   }
+  Timer::checkpoint("computing 1RDM");
 }
 
 /*
