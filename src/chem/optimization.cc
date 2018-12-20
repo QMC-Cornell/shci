@@ -404,7 +404,7 @@ std::vector<std::vector<double>>& Optimization::generate_optorb_integrals_from_a
   }
 
   VectorXd grad = gradient(param_indices);
-  std::cout << "\ngrad \n" << grad;
+  //std::cout << "\ngrad \n" << grad;
   double eps = 1e-8;
   double eta = 0.01;
   double beta1 = 0.1;
