@@ -691,7 +691,7 @@ UncertResult Solver<S>::get_energy_pt_sto(
     const size_t n_pt_dets = hc_sums.get_n_keys();
     hc_sums.clear();
     const size_t n_pt_dets_batch = n_pt_dets * 128 / n_batches;
-    double default_mem_usage = 0.2;
+    double default_mem_usage = 0.33;
     if (system.type == SystemType::HEG) default_mem_usage = 1.0;
     const double mem_usage = Config::get<double>("pt_sto_mem_usage", default_mem_usage);
     size_t n_unique_target =
