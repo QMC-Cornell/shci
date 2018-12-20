@@ -13,18 +13,18 @@
 #include "rdm.h"
 
 void ChemSystem::setup(const bool load_integrals_from_file) {
-  type = SystemType::Chemistry;
-  n_up = Config::get<unsigned>("n_up");
-  n_dn = Config::get<unsigned>("n_dn");
-  n_elecs = n_up + n_dn;
-  Result::put("n_elecs", n_elecs);
-
-  point_group = get_point_group(Config::get<std::string>("chem/point_group"));
-  product_table.set_point_group(point_group);
-  time_sym = Config::get<bool>("time_sym", false);
-  has_double_excitation = Config::get<bool>("has_double_excitation", true);
-
   if (load_integrals_from_file) {
+    type = SystemType::Chemistry;
+    n_up = Config::get<unsigned>("n_up");
+    n_dn = Config::get<unsigned>("n_dn");
+    n_elecs = n_up + n_dn;
+    Result::put("n_elecs", n_elecs);
+  
+    point_group = get_point_group(Config::get<std::string>("chem/point_group"));
+    product_table.set_point_group(point_group);
+    time_sym = Config::get<bool>("time_sym", false);
+    has_double_excitation = Config::get<bool>("has_double_excitation", true);
+
     Timer::start("load integrals");
     integrals.load();
     n_orbs = integrals.n_orbs;
@@ -52,6 +52,7 @@ void ChemSystem::setup_hci_queue() {
     if (sym >= sym_orbs.size()) sym_orbs.resize(sym + 1);  // For Dooh.
     sym_orbs[sym].push_back(orb);
   }
+
   size_t n_entries = 0;
   max_hci_queue_elem = 0.0;
   const int n_threads = Parallel::get_n_threads();
@@ -548,7 +549,6 @@ std::vector<std::vector<double>> ChemSystem::post_variation_optimization(
     const std::string& method,
     std::vector<std::vector<double>>& history,
     const bool dump_integrals) {
-//  std::vector<std::vector<double>> current;
   if (method == "natorb") {  // natorb optimization
     unpack_time_sym();
     RDM rdm(&integrals);
@@ -604,12 +604,10 @@ void ChemSystem::variation_cleanup() {
   energy_var = 0.;
   helper_size = 0;
   dets.clear();
-  dets.shrink_to_fit();
   coefs.clear();
-  coefs.shrink_to_fit();
   max_hci_queue_elem = 0.;
   hci_queue.clear();
-  hci_queue.shrink_to_fit();  
+  sym_orbs.clear();
 }
 
 //======================================================

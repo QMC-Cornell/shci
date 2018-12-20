@@ -63,11 +63,12 @@ void Optimization::generate_natorb_integrals() {
     }
   }  // irrep
 
-  std::cout << "Occupation numbers:\n";
-  for (unsigned i = 0; i < integrals_p->n_elecs && i < n_orbs; i++) {
-    std::cout << eigenvalues[i] << "\n";
+  if (Parallel::is_master()) {
+    std::cout << "Occupation numbers:\n";
+    for (unsigned i = 0; i < integrals_p->n_elecs && i < n_orbs; i++) {
+      std::cout << eigenvalues[i] << "\n";
+    }
   }
-
   Timer::checkpoint("compute natural orbitals");
 
   rotate_integrals(rot);
@@ -229,7 +230,7 @@ void Optimization::dump_integrals(const char* file_name) const {
             if ((p == r) && (q < s)) continue;
             integral_value = new_integrals[p][q][r][s];
             // integral_value = integrals_p->get_2b(p, q, r, s);
-            if (std::abs(integral_value) > 1e-8) {
+            if (std::abs(integral_value) > 1e-9) {
               fprintf(
                   pFile,
                   " %19.12E %3d %3d %3d %3d\n",
@@ -249,7 +250,7 @@ void Optimization::dump_integrals(const char* file_name) const {
       for (unsigned q = 0; q <= p; q++) {
         integral_value = new_integrals[p][q][n_orbs][n_orbs];
         // integral_value = integrals_p->get_1b(p, q);
-        if (std::abs(integral_value) > 1e-8) {
+        if (std::abs(integral_value) > 1e-9) {
           fprintf(
               pFile,
               " %19.12E %3d %3d %3d %3d\n",
@@ -277,14 +278,14 @@ void Optimization::rewrite_integrals() {
   integrals_p->integrals_1b.clear();
 
   unsigned p, q, r, s;
+  double value;
   for (p = 0; p < n_orbs; p++) {
     for (q = 0; q < n_orbs; q++) {
       for (r = 0; r < n_orbs; r++) {
         for (s = 0; s < n_orbs; s++) {
+          value = new_integrals[p][q][r][s];
           integrals_p->integrals_2b.set(
-              Integrals::combine4(p, q, r, s),
-              new_integrals[p][q][r][s],
-              [&](double& a, const double& b) {
+              Integrals::combine4(p, q, r, s), value, [&](double& a, const double& b) {
                 if (std::abs(a) < std::abs(b)) a = b;
               });
         }
@@ -294,10 +295,9 @@ void Optimization::rewrite_integrals() {
 
   for (p = 0; p < n_orbs; p++) {
     for (q = 0; q < n_orbs; q++) {
+      value = new_integrals[p][q][n_orbs][n_orbs];
       integrals_p->integrals_1b.set(
-          Integrals::combine2(p, q),
-          new_integrals[p][q][n_orbs][n_orbs],
-          [&](double& a, const double& b) {
+          Integrals::combine2(p, q), value, [&](double& a, const double& b) {
             if (std::abs(a) < std::abs(b)) a = b;
           });
     }
@@ -328,12 +328,12 @@ void Optimization::generate_optorb_integrals_from_approximate_newton() {
   std::cout << "\ngrad norm " << grad.norm();
 
   MatrixXd hess_diag = hessian_diagonal(param_indices);
-/*
-  std::cout << "\n grad    hess_diag";
-  for (unsigned i = 0; i < param_indices.size(); i++) {
-    std::cout << "\n " << grad(i) << "   " << hess_diag(i);
-  }
-*/
+  /*
+    std::cout << "\n grad    hess_diag";
+    for (unsigned i = 0; i < param_indices.size(); i++) {
+      std::cout << "\n " << grad(i) << "   " << hess_diag(i);
+    }
+  */
   VectorXd new_param(param_indices.size());
   for (unsigned i = 0; i < param_indices.size(); i++) {
     if (hess_diag(i) > 1e-5) {
@@ -352,8 +352,8 @@ void Optimization::generate_optorb_integrals_from_grad_descent() {
   std::vector<index_t> param_indices = parameter_indices();
 
   VectorXd grad = gradient(param_indices);
-  //std::cout << "\ngrad \n" << grad;
-  //std::cout << "\ngrad norm " << grad.norm();
+  // std::cout << "\ngrad \n" << grad;
+  // std::cout << "\ngrad norm " << grad.norm();
 
   VectorXd new_param = -0.01 * grad;  // old_parameters are all zeros by defn
   MatrixXd rot = MatrixXd::Zero(n_orbs, n_orbs);
@@ -372,7 +372,7 @@ std::vector<std::vector<double>>& Optimization::generate_optorb_integrals_from_a
   }
 
   VectorXd grad = gradient(param_indices);
-  //std::cout << "\ngrad \n" << grad;
+  // std::cout << "\ngrad \n" << grad;
   double eps = 1e-8;
   double gamma = 0.9;
   VectorXd new_param = VectorXd::Zero(dim);
@@ -381,7 +381,7 @@ std::vector<std::vector<double>>& Optimization::generate_optorb_integrals_from_a
     learning_rate = std::sqrt(history[0][i] + eps) /
                     std::sqrt(gamma * history[1][i] + (1. - gamma) * std::pow(grad(i), 2) + eps);
     update = -learning_rate * grad(i);
-    std::cout << "\nlearning rate " << learning_rate;
+    //std::cout << "\nlearning rate " << learning_rate;
     new_param(i) = update;
     history[0][i] = gamma * history[0][i] + (1. - gamma) * std::pow(update, 2);
     history[1][i] = gamma * history[1][i] + (1. - gamma) * std::pow(grad(i), 2);
