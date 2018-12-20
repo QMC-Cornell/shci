@@ -205,6 +205,7 @@ void Optimization::rotate_integrals(const MatrixXd& rot) {
       new_integrals[p][q][n_orbs][n_orbs] = new_val;
     }
   }
+  Timer::checkpoint("rotate integrals");
 }
 
 void Optimization::dump_integrals(const char* file_name) const {
