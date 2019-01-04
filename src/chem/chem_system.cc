@@ -547,8 +547,7 @@ void ChemSystem::post_variation(std::vector<std::vector<size_t>>& connections) {
 std::vector<std::vector<double>> ChemSystem::post_variation_optimization(
     std::vector<std::vector<size_t>>* connections_ptr,
     const std::string& method,
-    std::vector<std::vector<double>>& history,
-    const bool dump_integrals) {
+    std::vector<std::vector<double>>& history) {
   if (method == "natorb") {  // natorb optimization
     unpack_time_sym();
     RDM rdm(&integrals);
@@ -562,8 +561,6 @@ std::vector<std::vector<double>> ChemSystem::post_variation_optimization(
 
     natorb_optimizer.rewrite_integrals();
     Timer::checkpoint("rewrite integrals");
-
-    if (dump_integrals) natorb_optimizer.dump_integrals("FCIDUMP_natorb");
   } else {  // optorb optimization
     RDM rdm(&integrals);
     rdm.get_2rdm(dets, coefs, *connections_ptr);
@@ -593,8 +590,6 @@ std::vector<std::vector<double>> ChemSystem::post_variation_optimization(
 
     optorb_optimizer.rewrite_integrals();
     Timer::checkpoint("rewrite integrals");
-
-    if (dump_integrals) optorb_optimizer.dump_integrals("FCIDUMP_optorb");
   }
   return history;
 }
@@ -608,6 +603,10 @@ void ChemSystem::variation_cleanup() {
   max_hci_queue_elem = 0.;
   hci_queue.clear();
   sym_orbs.clear();
+}
+
+void ChemSystem::dump_integrals(const char* filename) {
+  integrals.dump_integrals(filename);
 }
 
 //======================================================

@@ -382,7 +382,7 @@ std::vector<std::vector<double>>& Optimization::generate_optorb_integrals_from_a
     learning_rate = std::sqrt(history[0][i] + eps) /
                     std::sqrt(gamma * history[1][i] + (1. - gamma) * std::pow(grad(i), 2) + eps);
     update = -learning_rate * grad(i);
-    //std::cout << "\nlearning rate " << learning_rate;
+    // std::cout << "\nlearning rate " << learning_rate;
     new_param(i) = update;
     history[0][i] = gamma * history[0][i] + (1. - gamma) * std::pow(update, 2);
     history[1][i] = gamma * history[1][i] + (1. - gamma) * std::pow(grad(i), 2);
@@ -405,11 +405,17 @@ std::vector<std::vector<double>>& Optimization::generate_optorb_integrals_from_a
   }
 
   VectorXd grad = gradient(param_indices);
-  //std::cout << "\ngrad \n" << grad;
+  // std::cout << "\ngrad \n" << grad;
   double eps = 1e-8;
-  double eta = 0.01;
-  double beta1 = 0.1;
-  double beta2 = 0.01;
+  double eta = Config::get<double>("optimization/parameters/eta", 0.01);
+  double beta1 = Config::get<double>("optimization/parameters/beta1", 0.1);
+  double beta2 = Config::get<double>("optimization/parameters/beta2", 0.01);
+
+  if (Parallel::is_master()) {
+    std::cout << "learning parameters: eta, beta1, beta2 = " << eta << ", " << beta1 << ", "
+              << beta2 << "\n";
+  }
+
   VectorXd new_param = VectorXd::Zero(dim);
   double m_prev, v_hat_prev, m, v, v_hat;
   for (unsigned i = 0; i < dim; i++) {

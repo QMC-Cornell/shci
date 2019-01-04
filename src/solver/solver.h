@@ -155,7 +155,7 @@ void Solver<S>::optimization_run() {
 
   unsigned natorb_iter = Config::get<unsigned>("optimization/natorb_iter", 1);
   unsigned optorb_iter = Config::get<unsigned>("optimization/optorb_iter", 20);
-  
+
   if (Parallel::is_master())
     std::cout << "\n==== Optimization started: " << natorb_iter << " natorb iterations and "
               << optorb_iter << " optorb iterations ====\n";
@@ -164,13 +164,12 @@ void Solver<S>::optimization_run() {
   target_error = Config::get<double>("target_error", 5.0e-5);
 
   unsigned i_iter = 0;
-  bool dump_integrals = false;
 
   // "history" for momentum methods
   std::vector<std::vector<double>> history(2);
   history[0].resize(0);
   history[1].resize(0);
-  
+
   while (i_iter < natorb_iter) {
     if (Parallel::is_master())
       std::cout << "\n== Iteration " << i_iter << ": natural orbitals ==\n";
@@ -187,12 +186,8 @@ void Solver<S>::optimization_run() {
     run_all_variations();
     hamiltonian.clear();
 
-    if (i_iter == natorb_iter - 1) dump_integrals = true;
-    system.post_variation_optimization(
-        nullptr,
-        "natorb",
-        history,
-        dump_integrals);
+    if (i_iter == natorb_iter - 1) system.dump_integrals("FCIDUMP_natorb");
+    system.post_variation_optimization(nullptr, "natorb", history);
 
     system.variation_cleanup();
     eps_tried_prev.clear();
@@ -203,10 +198,10 @@ void Solver<S>::optimization_run() {
   double prev_energy_var = system.energy_var;
   double min_energy_var = prev_energy_var;
   double diff_energy_var;
-  unsigned iters_bt_dumps = 0;
-  
+  unsigned iters_bt_dumps = 1;
+
   std::string method = Config::get<std::string>("optimization/method", "app_newton");
-  
+
   while (i_iter < natorb_iter + optorb_iter) {
     if (Parallel::is_master())
       std::cout << "\n== Iteration " << i_iter << ": optimized orbitals (" << method << ") ==\n";
@@ -225,22 +220,23 @@ void Solver<S>::optimization_run() {
     hamiltonian.clear();
 
     diff_energy_var = system.energy_var - prev_energy_var;
-    if (diff_energy_var < 0 && diff_energy_var > -1e-7) break;
-    
-    if (system.energy_var < min_energy_var && iters_bt_dumps > 3) {// dump integrals at most every 3 iterations
-      dump_integrals = true;  
+    if (diff_energy_var < 0 &&
+        (diff_energy_var > -1e-7 || i_iter == natorb_iter + optorb_iter - 1)) {
+      // dump integrals if converged or max iter reached
+      system.dump_integrals("FCIDUMP_optorb");
+      break;
+    }
+
+    if (system.energy_var < min_energy_var &&
+        iters_bt_dumps > 3) {  // dump integrals at most every 4 iterations
+      system.dump_integrals("FCIDUMP_optorb");
       min_energy_var = system.energy_var;
-      iters_bt_dumps = 0;
+      iters_bt_dumps = 1;
     } else {
-      dump_integrals = false;
       iters_bt_dumps++;
     }
-    
-    history = system.post_variation_optimization(
-        &connections,
-        method,
-        history,
-        dump_integrals);
+
+    history = system.post_variation_optimization(&connections, method, history);
 
     connections.clear();
     connections.shrink_to_fit();
@@ -249,7 +245,7 @@ void Solver<S>::optimization_run() {
 
     system.variation_cleanup();
     eps_tried_prev.clear();
-    var_dets.clear_and_shrink();    
+    var_dets.clear_and_shrink();
     i_iter++;
   }
 

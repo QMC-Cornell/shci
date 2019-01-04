@@ -37,6 +37,8 @@ class Integrals {
 
   static size_t combine4(const size_t a, const size_t b, const size_t c, const size_t d);
 
+  void dump_integrals(const char* filename) const;
+
   template <class B>
   void serialize(B& buf) const;
 

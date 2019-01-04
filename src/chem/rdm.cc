@@ -514,9 +514,9 @@ void RDM::get_2rdm_slow(const std::vector<Det>& dets, const std::vector<double>&
   Timer::checkpoint("computing 2RDM (slow)");
 }
 
-inline unsigned RDM::combine4_2rdm(unsigned p, unsigned q, unsigned r, unsigned s) const {
-  unsigned a = p * n_orbs + s;
-  unsigned b = q * n_orbs + r;
+inline size_t RDM::combine4_2rdm(size_t p, size_t q, size_t r, size_t s) const {
+  size_t a = p * n_orbs + s;
+  size_t b = q * n_orbs + r;
   if (a > b) {
     return (a * (a + 1)) / 2 + b;
   } else {
@@ -586,7 +586,7 @@ void RDM::dump_2rdm(const bool dump_csv) const {
       FILE* pFile;
       pFile = fopen("spatialRDM.txt", "w");
 
-      fprintf(pFile, "%d\n", n_orbs);
+      fprintf(pFile, "%zd\n", n_orbs);
 
       for (unsigned p = 0; p < n_orbs; p++) {
         for (unsigned q = 0; q < n_orbs; q++) {
@@ -639,11 +639,7 @@ void RDM::get_2rdm(
   //=====================================================
   bool time_sym = Config::get<bool>("time_sym", false);
 
-  unsigned size_two_rdm;
-  {  // size_t arithmetic to avoid integer overflow
-    const size_t n_orbs_sizet = (size_t)n_orbs;
-    size_two_rdm = n_orbs_sizet * n_orbs_sizet * (n_orbs_sizet * n_orbs_sizet + 1) / 2;
-  }
+  size_t size_two_rdm = n_orbs * n_orbs * (n_orbs * n_orbs + 1) / 2;
   two_rdm.resize(size_two_rdm, 0.);
 
 #pragma omp parallel for schedule(dynamic, 5)
@@ -939,10 +935,10 @@ void RDM::get_2rdm_elements(
   }
 }
 
-void RDM::write_in_2rdm(unsigned p, unsigned q, unsigned r, unsigned s, double value) {
+void RDM::write_in_2rdm(size_t p, size_t q, size_t r, size_t s, double value) {
   // By symmetry (p,s)<->(q,r) only half of the 2RDM needs storing.
-  unsigned a = p * n_orbs + s;
-  unsigned b = q * n_orbs + r;
+  size_t a = p * n_orbs + s;
+  size_t b = q * n_orbs + r;
   if (a >= b)
 #pragma omp atomic
     two_rdm[(a * (a + 1)) / 2 + b] += value;

@@ -371,3 +371,69 @@ void Integrals::save_to_cache(const std::string& filename) const {
     printf("FCIDUMP cache saved to: %s\n", filename.c_str());
   }
 }
+
+void Integrals::dump_integrals(const char* filename) const {
+  if (Parallel::is_master()) {
+    FILE* pFile;
+    pFile = fopen(filename, "w");
+
+    // Header
+    fprintf(pFile, "&FCI NORB=%d, NELEC=%d, MS2=%d,\n", n_orbs, n_elecs, 0);
+    fprintf(pFile, "ORBSYM=");
+    for (unsigned i = 0; i < n_orbs; i++) {
+      fprintf(pFile, "  %d", orb_sym[i]);
+    }
+    fprintf(pFile, "\nISYM=1\n&END\n");
+
+    double integral_value;
+    unsigned p, q, r, s;
+
+    // Two-body integrals
+    for (p = 0; p < n_orbs; p++) {
+      for (q = 0; q <= p; q++) {
+        for (r = 0; r <= p; r++) {
+          for (s = 0; s <= r; s++) {
+            if ((p == r) && (q < s)) continue;
+            integral_value = get_2b(p, q, r, s);
+            // integral_value = integrals_p->get_2b(p, q, r, s);
+            if (std::abs(integral_value) > 1e-9) {
+              fprintf(
+                  pFile,
+                  " %19.12E %3d %3d %3d %3d\n",
+                  integral_value,
+                  orb_order[p] + 1,
+                  orb_order[q] + 1,
+                  orb_order[r] + 1,
+                  orb_order[s] + 1);
+            }
+          }  // s
+        }  // r
+      }  // q
+    }  // p
+
+    // One-body integrals
+    for (p = 0; p < n_orbs; p++) {
+      for (q = 0; q <= p; q++) {
+        integral_value = get_1b(p, q);
+        // integral_value = integrals_p->get_1b(p, q);
+        if (std::abs(integral_value) > 1e-9) {
+          fprintf(
+              pFile,
+              " %19.12E %3d %3d %3d %3d\n",
+              integral_value,
+              orb_order[p] + 1,
+              orb_order[q] + 1,
+              0,
+              0);
+        }
+      }
+    }
+
+    // Nuclear-nuclear energy
+    fprintf(pFile, " %19.12E %3d %3d %3d %3d\n", energy_core, 0, 0, 0, 0);
+
+    fclose(pFile);
+  }
+
+  Timer::checkpoint("creating new FCIDUMP");
+}
