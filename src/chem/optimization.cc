@@ -308,14 +308,12 @@ void Optimization::rewrite_integrals() {
 void Optimization::generate_optorb_integrals_from_newton() {
   std::vector<index_t> param_indices = parameter_indices();
   VectorXd grad = gradient(param_indices);
-  std::cout << "\ngrad \n" << grad;
   std::cout << "\ngrad norm " << grad.norm();
 
   MatrixXd hess = hessian(param_indices);
-  std::cout << "\nhessian\n" << hess;
 
   // rotation matrix
-  VectorXd new_param = hess.colPivHouseholderQr().solve(-1 * grad);
+  VectorXd new_param = hess.householderQr().solve(-1 * grad);
 
   MatrixXd rot = MatrixXd::Zero(n_orbs, n_orbs);
   fill_rot_matrix_with_parameters(rot, new_param, param_indices);
@@ -514,13 +512,14 @@ MatrixXd Optimization::hessian(
   MatrixXd hessian(n_param, n_param);
 #pragma omp parallel for
   for (unsigned i = 0; i < n_param; i++) {
-    for (unsigned j = 0; j < n_param; j++) {
+    for (unsigned j = 0; j <= i; j++) {
       unsigned p = param_indices[i].first;
       unsigned q = param_indices[i].second;
       unsigned r = param_indices[j].first;
       unsigned s = param_indices[j].second;
       hessian(i, j) = hessian_part(p, q, r, s) - hessian_part(p, q, s, r) -
                       hessian_part(q, p, r, s) + hessian_part(q, p, s, r);
+      if (i != j) hessian(j, i) = hessian(i, j);
     }
   }
   Timer::checkpoint("compute hessian");
