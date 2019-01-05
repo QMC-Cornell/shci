@@ -194,7 +194,7 @@ void Solver<S>::optimization_run() {
     i_iter++;
   }
 
-  system.dump_integrals("FCIDUMP_natorb");
+  if (natorb_iter > 0) system.dump_integrals("FCIDUMP_natorb");
 
   double prev_energy_var = system.energy_var;
   double min_energy_var = prev_energy_var;
