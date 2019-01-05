@@ -186,7 +186,6 @@ void Solver<S>::optimization_run() {
     run_all_variations();
     hamiltonian.clear();
 
-    if (i_iter == natorb_iter - 1) system.dump_integrals("FCIDUMP_natorb");
     system.post_variation_optimization(nullptr, "natorb", history);
 
     system.variation_cleanup();
@@ -194,6 +193,8 @@ void Solver<S>::optimization_run() {
     var_dets.clear_and_shrink();
     i_iter++;
   }
+
+  system.dump_integrals("FCIDUMP_natorb");
 
   double prev_energy_var = system.energy_var;
   double min_energy_var = prev_energy_var;
