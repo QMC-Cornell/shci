@@ -188,7 +188,7 @@ void Solver<S>::optimization_run() {
 
     system.post_variation_optimization(nullptr, "natorb", history);
 
-    system.variation_cleanup();
+    //system.variation_cleanup();
     eps_tried_prev.clear();
     var_dets.clear_and_shrink();
     i_iter++;
@@ -244,7 +244,7 @@ void Solver<S>::optimization_run() {
 
     prev_energy_var = system.energy_var;
 
-    system.variation_cleanup();
+    //system.variation_cleanup();
     eps_tried_prev.clear();
     var_dets.clear_and_shrink();
     i_iter++;

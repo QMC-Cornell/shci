@@ -964,6 +964,12 @@ void RDM::get_1rdm_from_2rdm() {
   Timer::checkpoint("get 1rdm from 2rdm");
 }
 
+void RDM::clear() {
+  one_rdm.resize(0, 0);
+  two_rdm.clear();
+  two_rdm.shrink_to_fit();
+}
+
 void RDM::compute_energy_from_rdm() const {
   //=====================================================
   // Reproduce variational energy from 2RDM.

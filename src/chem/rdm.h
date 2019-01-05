@@ -44,6 +44,8 @@ class RDM {
 
   double two_rdm_elem(unsigned, unsigned, unsigned, unsigned) const;
 
+  void clear();
+
  private:
   Integrals* integrals_p;
 

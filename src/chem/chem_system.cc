@@ -552,7 +552,8 @@ std::vector<std::vector<double>> ChemSystem::post_variation_optimization(
     unpack_time_sym();
     RDM rdm(&integrals);
     rdm.get_1rdm(dets, coefs);
-
+    
+    variation_cleanup();
     Optimization natorb_optimizer(&rdm, &integrals);
 
     Timer::start("Natorb optimization");
@@ -568,6 +569,7 @@ std::vector<std::vector<double>> ChemSystem::post_variation_optimization(
     connections_ptr->clear();
     rdm.get_1rdm_from_2rdm();
 
+    variation_cleanup();
     Optimization optorb_optimizer(&rdm, &integrals);
 
     if (Util::str_equals_ci("newton", method)) {
@@ -599,7 +601,9 @@ void ChemSystem::variation_cleanup() {
   energy_var = 0.;
   helper_size = 0;
   dets.clear();
+  dets.shrink_to_fit();
   coefs.clear();
+  coefs.shrink_to_fit();
   max_hci_queue_elem = 0.;
   hci_queue.clear();
   sym_orbs.clear();

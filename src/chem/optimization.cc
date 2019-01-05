@@ -311,6 +311,7 @@ void Optimization::generate_optorb_integrals_from_newton() {
   std::cout << "\ngrad norm " << grad.norm();
 
   MatrixXd hess = hessian(param_indices);
+  rdm_p->clear();
 
   // rotation matrix
   VectorXd new_param = hess.householderQr().solve(-1 * grad);
@@ -333,6 +334,8 @@ void Optimization::generate_optorb_integrals_from_approximate_newton() {
       std::cout << "\n " << grad(i) << "   " << hess_diag(i);
     }
   */
+
+  rdm_p->clear();
   VectorXd new_param(param_indices.size());
   for (unsigned i = 0; i < param_indices.size(); i++) {
     if (hess_diag(i) > 1e-5) {
@@ -353,6 +356,7 @@ void Optimization::generate_optorb_integrals_from_grad_descent() {
   VectorXd grad = gradient(param_indices);
   // std::cout << "\ngrad \n" << grad;
   // std::cout << "\ngrad norm " << grad.norm();
+  rdm_p->clear();
 
   VectorXd new_param = -0.01 * grad;  // old_parameters are all zeros by defn
   MatrixXd rot = MatrixXd::Zero(n_orbs, n_orbs);
@@ -372,6 +376,8 @@ std::vector<std::vector<double>>& Optimization::generate_optorb_integrals_from_a
 
   VectorXd grad = gradient(param_indices);
   // std::cout << "\ngrad \n" << grad;
+  rdm_p->clear();
+
   double eps = 1e-8;
   double gamma = 0.9;
   VectorXd new_param = VectorXd::Zero(dim);
@@ -404,6 +410,8 @@ std::vector<std::vector<double>>& Optimization::generate_optorb_integrals_from_a
 
   VectorXd grad = gradient(param_indices);
   // std::cout << "\ngrad \n" << grad;
+  rdm_p->clear();
+
   double eps = 1e-8;
   double eta = Config::get<double>("optimization/parameters/eta", 0.01);
   double beta1 = Config::get<double>("optimization/parameters/beta1", 0.1);
