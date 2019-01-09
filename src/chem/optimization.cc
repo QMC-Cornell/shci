@@ -63,6 +63,8 @@ void Optimization::generate_natorb_integrals() {
     }
   }  // irrep
 
+  rdm_p->clear();
+
   if (Parallel::is_master()) {
     std::cout << "Occupation numbers:\n";
     for (unsigned i = 0; i < integrals_p->n_elecs && i < n_orbs; i++) {
@@ -379,7 +381,10 @@ std::vector<std::vector<double>>& Optimization::generate_optorb_integrals_from_a
   rdm_p->clear();
 
   double eps = 1e-8;
-  double gamma = 0.9;
+  double gamma = Config::get<double>("optimization/parameters/gamma", 0.9);
+  if (Parallel::is_master()) {
+    std::cout << "learning parameter: gamma = " << gamma << "\n";
+  }
   VectorXd new_param = VectorXd::Zero(dim);
   double learning_rate, update;
   for (unsigned i = 0; i < dim; i++) {
