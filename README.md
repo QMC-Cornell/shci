@@ -67,5 +67,9 @@ Many software packages can generate `FCIDUMP`, such as [`PySCF`](https://github.
 
 
 
-### Citation
-TBA
+## Citations
+Li, Junhao, Matthew Otten, Adam A. Holmes, Sandeep Sharma, and Cyrus J. Umrigar. "Fast semistochastic heat-bath configuration interaction." The Journal of chemical physics 149, no. 21 (2018): 214110.
+
+Holmes, Adam A., Norm M. Tubman, and C. J. Umrigar. "Heat-bath configuration interaction: An efficient selected configuration interaction algorithm inspired by heat-bath sampling." Journal of chemical theory and computation 12, no. 8 (2016): 3674-3680.
+
+Sharma, Sandeep, Adam A. Holmes, Guillaume Jeanmairet, Ali Alavi, and Cyrus J. Umrigar. "Semistochastic heat-bath configuration interaction method: selected configuration interaction with semistochastic perturbation theory." Journal of chemical theory and computation 13, no. 4 (2017): 1595-1604.
