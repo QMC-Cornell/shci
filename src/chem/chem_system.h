@@ -33,7 +33,7 @@ class ChemSystem : public BaseSystem {
   double max_hci_queue_elem;
 
   //max singles queue element
-  double max_squeue_elem;
+  double max_singles_queue_elem;
 
   std::vector<std::vector<unsigned>> sym_orbs;
 
@@ -46,19 +46,22 @@ class ChemSystem : public BaseSystem {
   std::vector<std::vector<Hrs>> hci_queue;
 
   //singles queue
-  std::vector<std::vector<Sr> > squeue;
+  std::vector<std::vector<Sr> > singles_queue;
+
+  //setup sym orbs
+  void setup_sym_orbs();
 
   void setup_hci_queue();
 
   //setup singles queue
-  void setup_squeue();
+  void setup_singles_queue();
 
   PointGroup get_point_group(const std::string& str) const;
 
   double get_hci_queue_elem(const unsigned p, const unsigned q, const unsigned r, const unsigned s);
 
   //get singles queue elements
-  double get_squeue_elem(const unsigned p, const unsigned r) const;
+  double get_singles_queue_elem(const unsigned p, const unsigned r) const;
 
   double get_hamiltonian_elem_no_time_sym(const Det& det_i, const Det& det_j, int n_excite) const;
 
