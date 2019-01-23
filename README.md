@@ -11,6 +11,7 @@ git clone --recursive https://github.com/jl2922/shci
 cd shci
 make -j
 ```
+`--recursive` will download all the dependencies from Github recursively.
 
 ## Example Run
 An example carbon atom calculation inputs is provided with the code.
@@ -33,6 +34,8 @@ Many software packages can generate `FCIDUMP`, such as [`PySCF`](https://github.
 * `target_error`: :palm_tree: target error for stochastic perturbation, default to 1.0e-5.
 * `var_only`: only run variation, default to false.
 * `force_var`: run variation even if valid wavefunction files already exists, default to false.
+* `var_sd`: :palm_tree: include all singles and doubles excitation, i.e. at least CISD, default to false.
+* `get_pair_contrib`: :palm_tree: calculate occupied pair contribution, default to false.
 * `eps_pt`: :palm_tree: perturbation epsilon, default to eps_var / 5000.
 * `eps_pt_psto`: :palm_tree: pseudo stochastic perturbation epsilon, default to eps_var / 500.
 * `eps_pt_dtm`: :palm_tree: deterministic perturbation epsilon, default to eps_var / 50.
@@ -64,5 +67,9 @@ Many software packages can generate `FCIDUMP`, such as [`PySCF`](https://github.
 
 
 
-### Citation
-TBA
+## Citations
+Li, Junhao, Matthew Otten, Adam A. Holmes, Sandeep Sharma, and Cyrus J. Umrigar. "Fast semistochastic heat-bath configuration interaction." The Journal of chemical physics 149, no. 21 (2018): 214110.
+
+Holmes, Adam A., Norm M. Tubman, and C. J. Umrigar. "Heat-bath configuration interaction: An efficient selected configuration interaction algorithm inspired by heat-bath sampling." Journal of chemical theory and computation 12, no. 8 (2016): 3674-3680.
+
+Sharma, Sandeep, Adam A. Holmes, Guillaume Jeanmairet, Ali Alavi, and Cyrus J. Umrigar. "Semistochastic heat-bath configuration interaction method: selected configuration interaction with semistochastic perturbation theory." Journal of chemical theory and computation 13, no. 4 (2017): 1595-1604.
