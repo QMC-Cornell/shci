@@ -76,9 +76,10 @@ void ChemSystem::setup_singles_queue() {
       singles_queue.at(p).push_back(Sr(S, r));
     }
     if (singles_queue.at(p).size() > 0) {
-      std::sort(singles_queue.at(p).begin(), singles_queue.at(p).end(), [](const Sr& a, const Sr& b) {
-        return a.S > b.S;
-      });
+      std::sort(
+          singles_queue.at(p).begin(), singles_queue.at(p).end(), [](const Sr& a, const Sr& b) {
+            return a.S > b.S;
+          });
       n_entries_local[thread_id] += singles_queue.at(p).size();
       max_singles_queue_elem_local[thread_id] =
           std::max(max_singles_queue_elem_local[thread_id], singles_queue.at(p).front().S);
@@ -94,7 +95,7 @@ void ChemSystem::setup_singles_queue() {
     printf("Max singles_queue elem: " ENERGY_FORMAT "\n", max_singles_queue_elem);
     printf("Number of entries in singles_queue: %'zu\n", n_entries);
   }
-  helper_size += n_entries * 16 * 2; //vector size <= 2 * number of elements
+  helper_size += n_entries * 16 * 2;  // vector size <= 2 * number of elements
 }
 
 void ChemSystem::setup_hci_queue() {
@@ -177,7 +178,7 @@ void ChemSystem::setup_hci_queue() {
     printf("Max hci queue elem: " ENERGY_FORMAT "\n", max_hci_queue_elem);
     printf("Number of entries in hci queue: %'zu\n", n_entries);
   }
-  helper_size += n_entries * 16 * 2; //vector size <= 2 * number of elements
+  helper_size += n_entries * 16 * 2;  // vector size <= 2 * number of elements
 }
 
 PointGroup ChemSystem::get_point_group(const std::string& str) const {
@@ -269,8 +270,7 @@ void ChemSystem::find_connected_dets(
   auto occ_orbs_dn = det.dn.get_occupied_orbs();
 
   // Filter such that S < epsilon not allowed
-  if (eps_min <= max_singles_queue_elem)
-  {
+  if (eps_min <= max_singles_queue_elem) {
     for (unsigned p_id = 0; p_id < n_elecs; p_id++) {
       const unsigned p = p_id < n_up ? occ_orbs_up[p_id] : occ_orbs_dn[p_id - n_up];
       for (const auto& connected_sr : singles_queue.at(p)) {
