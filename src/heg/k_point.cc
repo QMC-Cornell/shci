@@ -2,9 +2,9 @@
 
 size_t KPoint::squared_norm() const {
   size_t result = 0;
-  result += static_cast<size_t>(x) * x;
-  result += static_cast<size_t>(y) * y;
-  result += static_cast<size_t>(z) * z;
+  result += static_cast<int>(x) * x;
+  result += static_cast<int>(y) * y;
+  result += static_cast<int>(z) * z;
   return result;
 }
 

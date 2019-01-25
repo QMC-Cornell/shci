@@ -1,18 +1,12 @@
 language: cpp
 sudo: false
-dist: trusty
+dist: xenial
 compiler:
   - gcc
 os:
   - linux
-addons:
-  apt:
-    sources:
-      - ubuntu-toolchain-r-test
-    packages:
-      - g++-5
 env:
-  - CXX_COMPILER=g++-5 C_COMPILER=gcc-5 TOOLS_DIR=$TRAVIS_BUILD_DIR/tools
+  - TOOLS_DIR=$TRAVIS_BUILD_DIR/tools
 script: bash ./ci.sh
 cache:
   directories:
