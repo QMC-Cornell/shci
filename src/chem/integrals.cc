@@ -381,7 +381,7 @@ void Integrals::dump_integrals(const char* filename) const {
     fprintf(pFile, "&FCI NORB=%d, NELEC=%d, MS2=%d,\n", n_orbs, n_elecs, 0);
     fprintf(pFile, "ORBSYM=");
     for (unsigned i = 0; i < n_orbs; i++) {
-      fprintf(pFile, "  %d", orb_sym[i]);
+      fprintf(pFile, "  %d", orb_sym[orb_order_inv[i]]);
     }
     fprintf(pFile, "\nISYM=1\n&END\n");
 
