@@ -549,7 +549,7 @@ std::vector<std::vector<double>> ChemSystem::post_variation_optimization(
     const std::string& method,
     std::vector<std::vector<double>>& history) {
   if (method == "natorb") {  // natorb optimization
-    unpack_time_sym();
+    if (time_sym) unpack_time_sym();
     RDM rdm(&integrals);
     rdm.get_1rdm(dets, coefs);
     
