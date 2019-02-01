@@ -266,14 +266,8 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
             const double coef = system.coefs[i];
             double eps_min = eps_var / std::abs(coef);
             if (i == 0 && var_sd) eps_min = 0.0;
-            // if (system.time_sym && det.up != det.dn) eps_min *= Util::SQRT2;
             if (eps_min >= eps_tried_prev[i] * 0.99) return;
-            // Det connected_det_reg;
             const auto& connected_det_handler = [&](const Det& connected_det, const int n_excite) {
-              // connected_det_reg = connected_det;
-              // if (system.time_sym && connected_det.up > connected_det.dn) {
-              //   connected_det_reg.reverse_spin();
-              // }
               if (var_dets.has(connected_det)) return;
               if (n_excite == 1) {
                 const double h_ai = system.get_hamiltonian_elem(det, connected_det, 1);
