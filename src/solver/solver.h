@@ -236,49 +236,29 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
     if (!dets_converged) {
       n_dets_new = n_dets;
       for (size_t j = 0; j < 5; j++) {
-        if (system.time_sym) {
-          fgpl::DistRange<size_t>(j, n_dets, 5).for_each([&](const size_t i) {
-            const auto& det = system.dets[i];
-            const double coef = system.coefs[i];
-            double eps_min = eps_var / std::abs(coef);
-            if (i == 0 && var_sd) eps_min = 0.0;
-            if (det.up != det.dn) eps_min *= Util::SQRT2;
-            if (eps_min >= eps_tried_prev[i] * 0.99) return;
-            Det connected_det_reg;
-            const auto& connected_det_handler = [&](const Det& connected_det, const int n_excite) {
-              connected_det_reg = connected_det;
-              if (connected_det.up > connected_det.dn) {
-                connected_det_reg.reverse_spin();
-              }
-              if (var_dets.has(connected_det_reg)) return;
-              if (n_excite == 1) {
-                const double h_ai = system.get_hamiltonian_elem(det, connected_det, 1);
-                if (std::abs(h_ai) < eps_min) return;  // Filter out small single excitation.
-              }
-              dist_new_dets.async_set(connected_det_reg);
-            };
-            system.find_connected_dets(det, eps_tried_prev[i], eps_min, connected_det_handler);
-            eps_tried_prev[i] = eps_min;
-          });
-        } else {
-          fgpl::DistRange<size_t>(j, n_dets, 5).for_each([&](const size_t i) {
-            const auto& det = system.dets[i];
-            const double coef = system.coefs[i];
-            double eps_min = eps_var / std::abs(coef);
-            if (i == 0 && var_sd) eps_min = 0.0;
-            if (eps_min >= eps_tried_prev[i] * 0.99) return;
-            const auto& connected_det_handler = [&](const Det& connected_det, const int n_excite) {
-              if (var_dets.has(connected_det)) return;
-              if (n_excite == 1) {
-                const double h_ai = system.get_hamiltonian_elem(det, connected_det, 1);
-                if (std::abs(h_ai) < eps_min) return;  // Filter out small single excitation.
-              }
-              dist_new_dets.async_set(connected_det);
-            };
-            system.find_connected_dets(det, eps_tried_prev[i], eps_min, connected_det_handler);
-            eps_tried_prev[i] = eps_min;
-          });
-        }
+        fgpl::DistRange<size_t>(j, n_dets, 5).for_each([&](const size_t i) {
+          const auto& det = system.dets[i];
+          const double coef = system.coefs[i];
+          double eps_min = eps_var / std::abs(coef);
+          if (i == 0 && var_sd) eps_min = 0.0;
+          if (system.time_sym && det.up != det.dn) eps_min *= Util::SQRT2;
+          if (eps_min >= eps_tried_prev[i] * 0.99) return;
+          Det connected_det_reg;
+          const auto& connected_det_handler = [&](const Det& connected_det, const int n_excite) {
+            connected_det_reg = connected_det;
+            if (system.time_sym && connected_det.up > connected_det.dn) {
+              connected_det_reg.reverse_spin();
+            }
+            if (var_dets.has(connected_det_reg)) return;
+            if (n_excite == 1) {
+              const double h_ai = system.get_hamiltonian_elem(det, connected_det, 1);
+              if (std::abs(h_ai) < eps_min) return;  // Filter out small single excitation.
+            }
+            dist_new_dets.async_set(connected_det_reg);
+          };
+          system.find_connected_dets(det, eps_tried_prev[i], eps_min, connected_det_handler);
+          eps_tried_prev[i] = eps_min;
+        });
         dist_new_dets.sync();
         n_dets_new += dist_new_dets.get_n_keys();
         system.dets.reserve(n_dets_new);
