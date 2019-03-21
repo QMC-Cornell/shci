@@ -442,14 +442,6 @@ double Solver<S>::get_energy_pt_dtm(const double eps_var) {
           if (var_dets.has(det_a)) return;
           const double h_ai = system.get_hamiltonian_elem(det, det_a, n_excite);
           const double hc = h_ai * coef;
-          const double H_aa = system.get_hamiltonian_elem(det_a, det_a, 0);
-          // if (H_aa > 248.3 && H_aa < 248.35) {
-          //   det.up.print();
-          //   det.dn.print();
-          //   det_a.up.print();
-          //   det_a.dn.print();
-          //   printf("i coef h_ai: %zu %g %g\n", i, coef, h_ai);
-          // }
           if (std::abs(hc) < eps_pt_dtm) return;  // Filter out small single excitation.
           const MathVector<double, 1> contrib(hc);
           hc_sums.async_set(det_a, contrib, fgpl::Reducer<MathVector<double, 1>>::sum);
@@ -470,13 +462,6 @@ double Solver<S>::get_energy_pt_dtm(const double eps_var) {
         hc_sums, [&](const Det& det_a, const MathVector<double, 1>& hc_sum) {
           const double H_aa = system.get_hamiltonian_elem(det_a, det_a, 0);
           const double contrib = hc_sum[0] * hc_sum[0] / (system.energy_var - H_aa);
-          // if (H_aa > 248.3 && H_aa < 248.35) {
-          // det_a.up.print();
-          // det_a.dn.print();
-          // printf("det_a, hc_sum, contrib: %g %g %g\n", H_aa, hc_sum[0], contrib);
-          // return contrib;
-          // }
-          // return 0.0;
           return contrib;
         });
     energy_sum += energy_pt_dtm_batch[0];
@@ -492,7 +477,6 @@ double Solver<S>::get_energy_pt_dtm(const double eps_var) {
     }
 
     if (Parallel::is_master()) {
-      printf("PT dtm batch correction: %.20g \n", energy_pt_dtm_batch[0]);
       printf("PT dtm batch correction: " ENERGY_FORMAT "\n", energy_pt_dtm_batch[0]);
       printf("PT dtm correction (eps1= %.2e):", eps_var);
       printf(" %s Ha\n", energy_pt_dtm.to_string().c_str());
