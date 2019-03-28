@@ -8,6 +8,7 @@ import sys
 # Parse arguments
 parser = argparse.ArgumentParser()
 parser.add_argument('--result_file', default='result.json')
+parser.add_argument('--tab', default=False)
 
 args = parser.parse_args()
 
@@ -42,5 +43,6 @@ df = pd.DataFrame({
     'energy_var': np.array(energy_vars),
     'energy_total': np.array(energy_totals)
 }, columns=['eps_var', 'eps_pt', 'energy_var', 'energy_total'])
-df.sort_values(by=['eps_var'],ascending=False)
-df.to_csv(sys.stdout, index=False, float_format='%.9f')
+df.sort_values(by=['eps_var'], ascending=False, inplace=True)
+sep = '\t' if args.tab else ','
+df.to_csv(sys.stdout, sep=sep, index=False, float_format='%.9f')
