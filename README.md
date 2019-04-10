@@ -1,6 +1,6 @@
-# SHCI Arrow  
+# Arrow  
 
-` >>>====> ` Fast Semistochastic Heat Bath Configuration Interaction Solver for accurate quantum simulations.
+` >>>====> ` Fast Semistochastic Heat Bath Configuration Interaction (SHCI) Solver for accurate quantum simulations.
 
 [![Build Status](https://travis-ci.com/QMC-Cornell/shci.svg?token=Gy8pVWtUBHq57qdtpAKN&branch=master)](https://travis-ci.com/QMC-Cornell/shci) 
 
