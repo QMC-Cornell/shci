@@ -1,6 +1,6 @@
-# SHCI Arrow  
+# Arrow  
 
-` >>>====> ` Fast Semistochastic Heat Bath Configuration Interaction Solver for accurate quantum simulations.
+` >>>====> ` Fast Semistochastic Heat Bath Configuration Interaction (SHCI) Solver for accurate quantum simulations.
 
 [![Build Status](https://travis-ci.com/QMC-Cornell/shci.svg?token=Gy8pVWtUBHq57qdtpAKN&branch=master)](https://travis-ci.com/QMC-Cornell/shci) 
 
@@ -68,8 +68,42 @@ Many software packages can generate `FCIDUMP`, such as [`PySCF`](https://github.
 
 
 ## Citations
-Li, Junhao, Matthew Otten, Adam A. Holmes, Sandeep Sharma, and Cyrus J. Umrigar. "Fast semistochastic heat-bath configuration interaction." The Journal of chemical physics 149, no. 21 (2018): 214110.
+Any papers that use Arrow should cite the following 3 papers:
 
-Holmes, Adam A., Norm M. Tubman, and C. J. Umrigar. "Heat-bath configuration interaction: An efficient selected configuration interaction algorithm inspired by heat-bath sampling." Journal of chemical theory and computation 12, no. 8 (2016): 3674-3680.
+"Fast semistochastic heat-bath configuration interaction", Junhao Li, Matthew Otten, Adam A. Holmes, Sandeep Sharma, and C. J. Umrigar,  J. Chem. Phys., 149, 214110 (2018).
 
-Sharma, Sandeep, Adam A. Holmes, Guillaume Jeanmairet, Ali Alavi, and Cyrus J. Umrigar. "Semistochastic heat-bath configuration interaction method: selected configuration interaction with semistochastic perturbation theory." Journal of chemical theory and computation 13, no. 4 (2017): 1595-1604.
+"Heat-bath configuration interaction: An efficient selected configuration interaction algorithm inspired by heat-bath sampling", Adam A. Holmes, Norm M. Tubman, and C. J. Umrigar, J. Chem. Theory Comput. 12, 3674 (2016).
+
+"Semistochastic heat-bath configuration interaction method: selected configuration interaction with semistochastic perturbation theory", Sandeep Sharma, Adam A. Holmes, Guillaume Jeanmairet, Ali Alavi, and C. J. Umrigar, J. Chem. Theory Comput. 13, 1595 (2017).
+
+In bibfile format:
+```
+@article{LiOttHolShaUmr-JCP-18,
+Author = {Junhao Li and  Matthew Otten and Adam A. Holmes and Sandeep Sharma and C. J. Umrigar},
+Title = {Fast Semistochastic Heat-Bath Configuration Interaction},
+Journal = {J. Chem. Phys.},
+Year = {2018},
+Volume = {148},
+Pages = {214110}
+}
+
+@article{ShaHolJeaAlaUmr-JCTC-17,
+Author = {Sandeep Sharma and Adam A. Holmes and Guillaume Jeanmairet and Ali Alavi and C. J. Umrigar},
+Title = {Semistochastic Heat-Bath Configuration Interaction Method: Selected
+   Configuration Interaction with Semistochastic Perturbation Theory},
+Journal = {J. Chem. Theory Comput.},
+Year = {2017},
+Volume = {13},
+Pages = {1595-1604},
+DOI = {10.1021/acs.jctc.6b01028},
+}
+
+@article{HolTubUmr-JCTC-16,
+Author = {Adam A. Holmes and Norm M. Tubman and C. J. Umrigar},
+Title = {Heat-bath Configuration Interaction: An efficient selected CI algorithm inspired by heat-bath sampling},
+Journal = {J. Chem. Theory Comput.},
+Volume = {12},
+Pages = {3674-3680},
+Year = {2016}}
+}
+```
