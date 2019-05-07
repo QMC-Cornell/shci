@@ -315,6 +315,12 @@ void Optimization::generate_optorb_integrals_from_newton() {
   MatrixXd hess = hessian(param_indices);
   rdm_p->clear();
 
+  /*
+  std::cout << "\n gradient: ";
+  for (unsigned i = 0; i < param_indices.size(); i++) {
+    std::cout << grad(i) << " ";
+  }*/
+
   // rotation matrix
   VectorXd new_param = hess.householderQr().solve(-1 * grad);
 
@@ -326,15 +332,21 @@ void Optimization::generate_optorb_integrals_from_newton() {
 void Optimization::generate_optorb_integrals_from_approximate_newton() {
   std::vector<index_t> param_indices = parameter_indices();
   VectorXd grad = gradient(param_indices);
-  // std::cout << "\ngrad \n" << grad;
-  std::cout << "\ngrad norm " << grad.norm();
+
+  //std::cout << "\ngrad \n" << grad << "\n";
+  //std::cout << "\ngrad norm " << grad.norm() << "\n";
 
   MatrixXd hess_diag = hessian_diagonal(param_indices);
+  
   /*
-    std::cout << "\n grad    hess_diag";
-    for (unsigned i = 0; i < param_indices.size(); i++) {
-      std::cout << "\n " << grad(i) << "   " << hess_diag(i);
-    }
+  std::cout << "\n gradient: ";
+  for (unsigned i = 0; i < param_indices.size(); i++) {
+    std::cout << grad(i) << " ";
+  }
+  std::cout << "\n hessian diagonal: ";
+  for (unsigned i = 0; i < param_indices.size(); i++) {
+    std::cout << hess_diag(i) << " ";
+  }
   */
 
   rdm_p->clear();
@@ -419,8 +431,8 @@ std::vector<std::vector<double>>& Optimization::generate_optorb_integrals_from_a
 
   double eps = 1e-8;
   double eta = Config::get<double>("optimization/parameters/eta", 0.01);
-  double beta1 = Config::get<double>("optimization/parameters/beta1", 0.1);
-  double beta2 = Config::get<double>("optimization/parameters/beta2", 0.01);
+  double beta1 = Config::get<double>("optimization/parameters/beta1", 0.5);
+  double beta2 = Config::get<double>("optimization/parameters/beta2", 0.5);
 
   if (Parallel::is_master()) {
     std::cout << "learning parameters: eta, beta1, beta2 = " << eta << ", " << beta1 << ", "

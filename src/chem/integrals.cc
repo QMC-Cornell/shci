@@ -37,7 +37,7 @@ void Integrals::read_fcidump() {
   std::string line;
   enum class State { NONE, ORBSYM, END };
   State state = State::NONE;
-  std::vector<int> orb_syms_raw;
+  //std::vector<int> orb_syms_raw;
   while (!fcidump.eof()) {
     std::getline(fcidump, line);
     const auto& words_begin = std::sregex_iterator(line.begin(), line.end(), words);
@@ -329,6 +329,10 @@ void Integrals::reorder_orbs(const std::vector<double>& orb_energies) {
   raw_integrals.shrink_to_fit();
 }
 
+void Integrals::set_point_group(const PointGroup& group_name) {
+  point_group = group_name;
+}
+
 double Integrals::get_1b(const unsigned p, const unsigned q) const {
   const size_t combined = combine2(p, q);
   return integrals_1b.get(combined, 0.0);
@@ -336,6 +340,18 @@ double Integrals::get_1b(const unsigned p, const unsigned q) const {
 
 double Integrals::get_2b(
     const unsigned p, const unsigned q, const unsigned r, const unsigned s) const {
+  unsigned p_sym = orb_sym[p];
+  unsigned q_sym = orb_sym[q];
+  unsigned r_sym = orb_sym[r];
+  unsigned s_sym = orb_sym[s];
+  int gu;
+  if (point_group == PointGroup::Dooh) {
+    if ((DoohUtil::get_lz(p_sym, gu) + DoohUtil::get_lz(r_sym, gu)) != (DoohUtil::get_lz(q_sym, gu) + DoohUtil::get_lz(s_sym, gu))) 
+    return 0.;
+  } else if (point_group == PointGroup::Coov) {
+    if ((DoohUtil::get_lz(p_sym, gu) + DoohUtil::get_lz(r_sym, gu)) != (DoohUtil::get_lz(q_sym, gu) + DoohUtil::get_lz(s_sym, gu)))
+    return 0.;
+  }
   const size_t combined = combine4(p, q, r, s);
   return integrals_2b.get(combined, 0.0);
 }
@@ -378,10 +394,10 @@ void Integrals::dump_integrals(const char* filename) const {
     pFile = fopen(filename, "w");
 
     // Header
-    fprintf(pFile, "&FCI NORB=%d, NELEC=%d, MS2=%d,\n", n_orbs, n_elecs, 0);
+    fprintf(pFile, " &FCI NORB=%d, NELEC=%d, MS2=%d,\n", n_orbs, n_elecs, 0);
     fprintf(pFile, "ORBSYM=");
     for (unsigned i = 0; i < n_orbs; i++) {
-      fprintf(pFile, "  %d", orb_sym[orb_order_inv[i]]);
+      fprintf(pFile, "  %d", orb_syms_raw[orb_order_inv[i]]);
     }
     fprintf(pFile, "\nISYM=1\n&END\n");
 

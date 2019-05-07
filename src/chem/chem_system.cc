@@ -27,6 +27,7 @@ void ChemSystem::setup(const bool load_integrals_from_file) {
 
     Timer::start("load integrals");
     integrals.load();
+    integrals.set_point_group(point_group);
     n_orbs = integrals.n_orbs;
     orb_sym = integrals.orb_sym;
     check_group_elements();
