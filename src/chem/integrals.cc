@@ -37,7 +37,7 @@ void Integrals::read_fcidump() {
   std::string line;
   enum class State { NONE, ORBSYM, END };
   State state = State::NONE;
-  std::vector<int> orb_syms_raw;
+  //std::vector<int> orb_syms_raw;
   while (!fcidump.eof()) {
     std::getline(fcidump, line);
     const auto& words_begin = std::sregex_iterator(line.begin(), line.end(), words);
@@ -329,6 +329,10 @@ void Integrals::reorder_orbs(const std::vector<double>& orb_energies) {
   raw_integrals.shrink_to_fit();
 }
 
+void Integrals::set_point_group(const PointGroup& group_name) {
+  point_group = group_name;
+}
+
 double Integrals::get_1b(const unsigned p, const unsigned q) const {
   const size_t combined = combine2(p, q);
   return integrals_1b.get(combined, 0.0);
@@ -336,6 +340,15 @@ double Integrals::get_1b(const unsigned p, const unsigned q) const {
 
 double Integrals::get_2b(
     const unsigned p, const unsigned q, const unsigned r, const unsigned s) const {
+  unsigned p_sym = orb_sym[p];
+  unsigned q_sym = orb_sym[q];
+  unsigned r_sym = orb_sym[r];
+  unsigned s_sym = orb_sym[s];
+  int gu;
+  if ((point_group == PointGroup::Dooh) || (point_group == PointGroup::Coov)) {
+    if ((DoohUtil::get_lz(p_sym, gu) + DoohUtil::get_lz(r_sym, gu)) != (DoohUtil::get_lz(q_sym, gu) + DoohUtil::get_lz(s_sym, gu))) 
+    return 0.;
+  }
   const size_t combined = combine4(p, q, r, s);
   return integrals_2b.get(combined, 0.0);
 }
@@ -370,4 +383,92 @@ void Integrals::save_to_cache(const std::string& filename) const {
     hps::to_stream(*this, file);
     printf("FCIDUMP cache saved to: %s\n", filename.c_str());
   }
+}
+
+void Integrals::dump_integrals(const char* filename) const {
+  if (Parallel::is_master()) {
+    FILE* pFile;
+    pFile = fopen(filename, "w");
+
+    // Header
+    fprintf(pFile, " &FCI NORB=%d, NELEC=%d, MS2=%d,\n", n_orbs, n_elecs, 0);
+    fprintf(pFile, "ORBSYM=");
+    for (unsigned i = 0; i < n_orbs; i++) {
+      //fprintf(pFile, "  %d", orb_sym[orb_order_inv[i]]);
+      fprintf(pFile, "  %d", orb_syms_raw[i]); // same syms as original FCIDUMP
+    }
+    fprintf(pFile, "\nISYM=1\n&END\n");
+
+    double integral_value;
+    unsigned p, q, r, s;
+
+    // Two-body integrals
+    if ((point_group == PointGroup::Dooh) || (point_group == PointGroup::Coov)) { // 4-fold symmetry
+      for (p = 0; p < n_orbs; p++) {
+        for (q = 0; q <= p; q++) {
+          for (r = 0; r <= p; r++) {
+            for (s = 0; s < n_orbs; s++) {
+  	      if ((p == r) && (q < s)) continue;
+              integral_value = get_2b(p, q, r, s);
+              if (std::abs(integral_value) > 1e-9) {
+                fprintf(
+                    pFile,
+                    " %19.12E %3d %3d %3d %3d\n",
+                    integral_value,
+                    orb_order[p] + 1,
+                    orb_order[q] + 1,
+                    orb_order[r] + 1,
+                    orb_order[s] + 1);
+              }
+            }  // s
+          }  // r
+        }  // q
+      }  // p
+    } else { // 8-fold symmetry
+      for (p = 0; p < n_orbs; p++) {
+        for (q = 0; q <= p; q++) {
+          for (r = 0; r <= p; r++) {
+            for (s = 0; s <= r; s++) {
+              if ((p == r) && (q < s)) continue;
+              integral_value = get_2b(p, q, r, s);
+              if (std::abs(integral_value) > 1e-9) {
+                fprintf(
+                    pFile,
+                    " %19.12E %3d %3d %3d %3d\n",
+                    integral_value,
+                    orb_order[p] + 1,
+                    orb_order[q] + 1,
+                    orb_order[r] + 1,
+                    orb_order[s] + 1);
+              }
+            }  // s
+          }  // r
+        }  // q
+      }  // p
+    }
+
+    // One-body integrals
+    for (p = 0; p < n_orbs; p++) {
+      for (q = 0; q <= p; q++) {
+        integral_value = get_1b(p, q);
+        if (std::abs(integral_value) > 1e-9) {
+          fprintf(
+              pFile,
+              " %19.12E %3d %3d %3d %3d\n",
+              integral_value,
+              orb_order[p] + 1,
+              orb_order[q] + 1,
+              0,
+              0);
+        }
+      }
+    }
+
+    // Nuclear-nuclear energy
+    fprintf(pFile, " %19.12E %3d %3d %3d %3d\n", energy_core, 0, 0, 0, 0);
+
+    fclose(pFile);
+  }
+
+  Timer::checkpoint("creating new FCIDUMP");
 }

@@ -16,7 +16,7 @@ ifeq ($(UNAME), Linux)
 	TOOLS_DIR := $(HOME)/tools
 	GPERFTOOLS_DIR := $(TOOLS_DIR)/gperftools
 	ifneq ($(wildcard $(GPERFTOOLS_DIR)),)
-		LDLIBS := -L $(GPERFTOOLS_DIR)/lib $(LDLIBS) -ltcmalloc
+#		LDLIBS := -L $(GPERFTOOLS_DIR)/lib $(LDLIBS) -ltcmalloc
 	endif
 endif
 

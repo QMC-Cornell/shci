@@ -33,6 +33,8 @@ class Solver {
  public:
   void run();
 
+  void optimization_run();
+
  private:
   S system;
 
@@ -101,7 +103,8 @@ void Solver<S>::run() {
     Timer::start("variation");
     run_all_variations();
 
-    if (Config::get<bool>("2rdm", false) || Config::get<bool>("get_2rdm_csv", false)) {
+    if (Config::get<bool>("2rdm", false) || Config::get<bool>("get_2rdm_csv", false) ||
+        Config::get<bool>("optorb", false)) {
       connections = hamiltonian.matrix.get_connections();
     }
 
@@ -144,6 +147,126 @@ void Solver<S>::run() {
   run_all_perturbations();
   system.post_perturbation();
   Timer::end();
+}
+
+template <class S>
+void Solver<S>::optimization_run() {
+  std::setlocale(LC_ALL, "en_US.UTF-8");
+
+  unsigned natorb_iter = Config::get<unsigned>("optimization/natorb_iter", 1);
+  unsigned optorb_iter = Config::get<unsigned>("optimization/optorb_iter", 20);
+
+  if (Parallel::is_master())
+    std::cout << "\n==== Optimization started: " << natorb_iter << " natorb iterations and "
+              << optorb_iter << " optorb iterations ====" << std::endl;
+
+  std::vector<std::vector<size_t>> connections;
+  target_error = Config::get<double>("target_error", 5.0e-5);
+
+  unsigned i_iter = 0;
+  double prev_energy_var = 0., diff_energy_var;
+
+  while (i_iter < natorb_iter) {
+    if (Parallel::is_master())
+      std::cout << "\n== Iteration " << i_iter << ": natural orbitals ==\n";
+
+    Timer::start("setup");
+    if (i_iter == 0) {
+      system.setup();
+    } else {
+      system.setup(false);  // load_integrals_from_file = false
+    }
+    Result::put("energy_hf", system.energy_hf);
+    Timer::end();
+
+    run_all_variations();
+    hamiltonian.clear();
+
+    diff_energy_var = system.energy_var - prev_energy_var;
+
+    if (Parallel::is_master()) {
+      if (i_iter == 0) {
+        std::printf("\nIter 0: HF orbitals E: %.8f ndet: %'zu\n", system.energy_var, system.dets.size());
+      } else {
+        std::printf("\nIter %d: natural orbitals E: %.8f ndet: %'zu dE: %.8f\n", i_iter, system.energy_var, system.dets.size(), diff_energy_var);
+      }
+    }
+
+    prev_energy_var = system.energy_var;
+
+    system.post_variation_optimization(nullptr, "natorb");
+
+    eps_tried_prev.clear();
+    var_dets.clear_and_shrink();
+    i_iter++;
+  }
+
+  if (natorb_iter > 0) {
+    system.dump_integrals("FCIDUMP_natorb");
+  }
+
+  double min_energy_var = prev_energy_var;
+  unsigned iters_bt_dumps = 1;
+
+  std::string method = Config::get<std::string>("optimization/method", "app_newton");
+
+  while (i_iter < natorb_iter + optorb_iter) {
+    if (Parallel::is_master())
+      std::cout << "\n== Iteration " << i_iter << ": optimized orbitals (" << method << ") ==" << std::endl;
+
+    Timer::start("setup");
+    if (i_iter == 0) {
+      system.setup();
+    } else {
+      system.setup(false);  // load_integrals_from_file = false
+    }
+    Result::put("energy_hf", system.energy_hf);
+    Timer::end();
+
+    run_all_variations();
+    connections = hamiltonian.matrix.get_connections();
+    hamiltonian.clear();
+
+    diff_energy_var = system.energy_var - prev_energy_var;
+    if (Parallel::is_master()) {
+      if (i_iter == 0) {
+        std::printf("\nIter 0: HF orbitals E: %.8f ndet: %'zu\n", system.energy_var, system.dets.size());
+      } else if (natorb_iter != 0 && i_iter == natorb_iter) {
+        std::printf("\nIter %d: natural orbitals E: %.8f ndet: %'zu dE: %.8f\n", i_iter, system.energy_var, system.dets.size(), diff_energy_var);
+      } else {
+        std::printf("\nIter %d: optimized orbitals (%s) E: %.8f ndet: %'zu dE: %.8f\n", i_iter, method.c_str(), system.energy_var, system.dets.size(), diff_energy_var);
+      }
+    }
+
+    if (diff_energy_var < 0 &&
+        (diff_energy_var > -1e-7 || i_iter == natorb_iter + optorb_iter - 1)) {
+      // dump integrals if converged or max iter reached
+      system.dump_integrals("FCIDUMP_optorb");
+      break;
+    }
+
+    if (system.energy_var < min_energy_var &&
+        iters_bt_dumps > 3) {  // dump integrals at most every 4 iterations
+      system.dump_integrals("FCIDUMP_optorb");
+      min_energy_var = system.energy_var;
+      iters_bt_dumps = 1;
+    } else {
+      iters_bt_dumps++;
+    }
+
+    prev_energy_var = system.energy_var;
+    
+    system.post_variation_optimization(&connections, method);
+
+    connections.clear();
+    connections.shrink_to_fit();
+
+    eps_tried_prev.clear();
+    var_dets.clear_and_shrink();
+    i_iter++;
+  }
+
+  if (Parallel::is_master()) std::cout << "\n==== Optimization finished ====\n";
 }
 
 template <class S>
@@ -257,7 +380,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
       dist_new_dets.for_each_serial([&](const Det& connected_det, const size_t) {
         var_dets.set(connected_det);
         system.dets.push_back(connected_det);
-        system.coefs.push_back(1.0e-6);
+        system.coefs.push_back(1.0e-15);
       });
       dist_new_dets.clear_and_shrink();
 

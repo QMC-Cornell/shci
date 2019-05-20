@@ -5,7 +5,7 @@
 
 class HegSystem : public BaseSystem {
  public:
-  void setup() override;
+  void setup(const bool load_integrals_from_file = true) override;
 
   void find_connected_dets(
       const Det&,

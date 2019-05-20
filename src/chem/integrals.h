@@ -6,6 +6,7 @@
 #include "../det/det.h"
 #include "hpqrs.h"
 #include "integrals_hasher.h"
+#include "point_group.h"
 
 class Integrals {
  public:
@@ -29,6 +30,8 @@ class Integrals {
 
   void load();
 
+  void set_point_group(const PointGroup& group_name);
+
   double get_1b(const unsigned p, const unsigned q) const;
 
   double get_2b(const unsigned p, const unsigned q, const unsigned r, const unsigned s) const;
@@ -36,6 +39,8 @@ class Integrals {
   static size_t combine2(const size_t a, const size_t b);
 
   static size_t combine4(const size_t a, const size_t b, const size_t c, const size_t d);
+
+  void dump_integrals(const char* filename) const;
 
   template <class B>
   void serialize(B& buf) const;
@@ -50,7 +55,11 @@ class Integrals {
  private:
   bool explicit_orbs;
 
+  PointGroup point_group;
+
   std::vector<Hpqrs> raw_integrals;
+
+  std::vector<int> orb_syms_raw;
 
   void read_fcidump();
 

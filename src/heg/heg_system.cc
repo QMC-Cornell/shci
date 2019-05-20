@@ -6,7 +6,7 @@
 #include "../timer.h"
 #include "../util.h"
 
-void HegSystem::setup() {
+void HegSystem::setup(const bool) {
   type = SystemType::HEG;
   n_up = Config::get<unsigned>("n_up");
   n_dn = Config::get<unsigned>("n_dn");
@@ -48,8 +48,8 @@ void HegSystem::setup_hci_queue() {
 
   // Common dependencies.
   const auto& k_diffs = k_points.get_k_diffs();
-  const auto& sort_comparison = [](const std::pair<KPoint, double>& a,
-                                   const std::pair<KPoint, double>& b) -> bool {
+  const auto& sort_comparison = [](
+      const std::pair<KPoint, double>& a, const std::pair<KPoint, double>& b) -> bool {
     return a.second > b.second;
   };
 

@@ -7,8 +7,8 @@
 #include <vector>
 #include "det/det.h"
 #include "solver/sparse_matrix.h"
-#include "util.h"
 #include "system_type.h"
+#include "util.h"
 
 class BaseSystem {
  public:
@@ -42,7 +42,7 @@ class BaseSystem {
 
   size_t get_n_dets() const { return dets.size(); }
 
-  virtual void setup() = 0;
+  virtual void setup(const bool){};
 
   virtual void find_connected_dets(
       const Det& det,
@@ -55,7 +55,12 @@ class BaseSystem {
 
   virtual void update_diag_helper() = 0;
 
-  virtual void post_variation(const std::vector<std::vector<size_t>>&){};
+  virtual void post_variation(std::vector<std::vector<size_t>>&){};
+
+  virtual void post_variation_optimization(
+      std::vector<std::vector<size_t>>*, const std::string&) {};
+
+  virtual void dump_integrals(const char*){};
 
   virtual void post_perturbation(){};
 
@@ -100,4 +105,6 @@ class BaseSystem {
   void parse(B& buf) {
     buf >> n_up >> n_dn >> dets >> coefs >> energy_hf >> energy_var;
   }
+
+  virtual void variation_cleanup(){};
 };

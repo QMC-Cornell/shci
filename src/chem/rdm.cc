@@ -9,10 +9,7 @@
 #include "../util.h"
 
 void RDM::get_1rdm(
-    const std::vector<Det>& dets,
-    const std::vector<double>& coefs,
-    const Integrals& integrals,
-    const bool dump_csv) {
+    const std::vector<Det>& dets, const std::vector<double>& coefs, const bool dump_csv) {
   //=====================================================
   // Create 1RDM using the variational wavefunction
   //
@@ -20,11 +17,7 @@ void RDM::get_1rdm(
   //=====================================================
   bool time_sym = Config::get<bool>("time_sym", false);
 
-  n_orbs = integrals.n_orbs;
-  n_up = integrals.n_up;
-  n_dn = integrals.n_dn;
-
-  std::vector<unsigned int> orb_sym = integrals.orb_sym;
+  std::vector<unsigned int> orb_sym = integrals_p->orb_sym;
 
   one_rdm = MatrixXd::Zero(n_orbs, n_orbs);
 
@@ -99,272 +92,18 @@ void RDM::get_1rdm(
         for (unsigned r = p; r < n_orbs; r++) {
           const double rdm_pr = one_rdm(p, r);
           if (std::abs(rdm_pr) < 1e-9) continue;
-          fprintf(pFile, "%d,%d,%#.15g\n", integrals.orb_order[p], integrals.orb_order[r], rdm_pr);
+          fprintf(
+              pFile,
+              "%d,%d,%#.15g\n",
+              integrals_p->orb_order[p],
+              integrals_p->orb_order[r],
+              rdm_pr);
         }
       }
       fclose(pFile);
     }
   }
-}
-
-void RDM::generate_natorb_integrals(const Integrals& integrals) const {
-  //======================================================
-  // Compute natural orbitals by diagonalizing the 1RDM.
-  // Rotate integrals to natural orbital basis and generate
-  // new FCIDUMP file.
-  // The original 1RDM (rdm) is left untouched.
-  // This version stores the integrals in a 4D array
-  //
-  // Created: Y. Yao, June 2018
-  //======================================================
-
-  unsigned n_orbs = integrals.n_orbs;
-  std::vector<unsigned int> orb_sym = integrals.orb_sym;
-
-  // Determine number of point gourp elements used for current system
-  unsigned n_group_elements = orb_sym[1];
-  for (size_t i = 1; i < orb_sym.size(); i++) {
-    if (orb_sym[i] > n_group_elements) n_group_elements = orb_sym[i];
-  }
-
-  // Diagonalize rdm in the subspace of each irrep separately
-  std::vector<std::vector<unsigned>> inds(n_group_elements);
-  std::vector<unsigned> n_in_group(n_group_elements);
-
-  for (unsigned irrep = 0; irrep < n_group_elements; irrep++) {
-    n_in_group[irrep] = 0;
-    for (unsigned i = 0; i < n_orbs; i++) {
-      if (orb_sym[i] == irrep + 1) {
-        n_in_group[irrep] = n_in_group[irrep] + 1;
-        inds[irrep].push_back(i);
-      }
-    }
-  }
-
-  double eigenvalues[n_orbs];
-  MatrixXd rot = MatrixXd::Zero(n_orbs, n_orbs);  // rotation matrix
-
-  for (unsigned irrep = 0; irrep < n_group_elements; irrep++) {
-    if (n_in_group[irrep] == 0) continue;
-    unsigned n = n_in_group[irrep];
-
-    MatrixXd tmp_rdm(n, n);  // rdm in the subspace of current irrep
-    for (unsigned i = 0; i < n; i++) {
-      for (unsigned j = 0; j < n; j++) {
-        tmp_rdm(i, j) = one_rdm(inds[irrep][i], inds[irrep][j]);
-      }
-    }
-
-    SelfAdjointEigenSolver<MatrixXd> es(tmp_rdm);
-    MatrixXd tmp_eigenvalues, tmp_eigenvectors;
-    tmp_eigenvalues = es.eigenvalues().transpose();
-    tmp_eigenvectors = es.eigenvectors();
-
-    // columns of rot (rotation matrix) = eigenvectors of rdm
-    for (unsigned i = 0; i < n; i++) {
-      eigenvalues[inds[irrep][i]] = tmp_eigenvalues(n - i - 1);
-      for (unsigned j = 0; j < n; j++) {
-        rot(inds[irrep][i], inds[irrep][j]) = tmp_eigenvectors(i, n - j - 1);
-      }
-    }
-  }  // irrep
-
-  std::cout << "Occupation numbers:\n";
-  for (unsigned i = 0; i < integrals.n_elecs && i < n_orbs; i++) {
-    std::cout << eigenvalues[i] << "\n";
-  }
-
-  Timer::checkpoint("compute natural orbitals");
-
-  // Rotate orbitals and generate new integrals
-  std::vector<std::vector<std::vector<std::vector<double>>>> new_integrals(n_orbs);
-  std::vector<std::vector<std::vector<std::vector<double>>>> tmp_integrals(n_orbs);
-
-#pragma omp parallel for
-  for (unsigned i = 0; i < n_orbs; i++) {
-    new_integrals[i].resize(n_orbs);
-    tmp_integrals[i].resize(n_orbs);
-    for (unsigned j = 0; j < n_orbs; j++) {
-      new_integrals[i][j].resize(n_orbs + 1);
-      tmp_integrals[i][j].resize(n_orbs + 1);
-
-      for (unsigned k = 0; k < n_orbs + 1; k++) {
-        new_integrals[i][j][k].resize(n_orbs + 1);
-        tmp_integrals[i][j][k].resize(n_orbs + 1);
-        std::fill(new_integrals[i][j][k].begin(), new_integrals[i][j][k].end(), 0.);
-        std::fill(tmp_integrals[i][j][k].begin(), tmp_integrals[i][j][k].end(), 0.);
-      }
-    }
-  }
-
-// Two-body integrals
-#pragma omp parallel for
-  for (unsigned p = 0; p < n_orbs; p++) {
-    for (unsigned q = 0; q < n_orbs; q++) {
-      for (unsigned r = 0; r < n_orbs; r++) {
-        for (unsigned s = 0; s < n_orbs; s++) {
-          tmp_integrals[p][q][r][s] = integrals.get_2b(p, q, r, s);
-        }  // s
-      }  // r
-    }  // q
-  }  // p
-
-#pragma omp parallel for
-  for (unsigned p = 0; p < n_orbs; p++) {
-    for (unsigned q = 0; q < n_orbs; q++) {
-      for (unsigned r = 0; r < n_orbs; r++) {
-        for (unsigned s = 0; s < n_orbs; s++) {
-          double new_val = 0.;
-          for (unsigned i = 0; i < n_orbs; i++) {
-            new_val += rot(i, p) * tmp_integrals[i][q][r][s];
-          }
-          new_integrals[p][q][r][s] = new_val;
-        }  // s
-      }  // r
-    }  // q
-  }  // p
-
-  tmp_integrals = new_integrals;
-
-#pragma omp parallel for
-  for (unsigned p = 0; p < n_orbs; p++) {
-    for (unsigned q = 0; q < n_orbs; q++) {
-      for (unsigned r = 0; r < n_orbs; r++) {
-        for (unsigned s = 0; s < n_orbs; s++) {
-          double new_val = 0.;
-          for (unsigned i = 0; i < n_orbs; i++) {
-            new_val += rot(i, q) * tmp_integrals[p][i][r][s];
-          }
-          new_integrals[p][q][r][s] = new_val;
-        }  // s
-      }  // r
-    }  // q
-  }  // p
-
-  tmp_integrals = new_integrals;
-
-#pragma omp parallel for
-  for (unsigned p = 0; p < n_orbs; p++) {
-    for (unsigned q = 0; q < n_orbs; q++) {
-      for (unsigned r = 0; r < n_orbs; r++) {
-        for (unsigned s = 0; s < n_orbs; s++) {
-          double new_val = 0.;
-          for (unsigned i = 0; i < n_orbs; i++) {
-            new_val += rot(i, r) * tmp_integrals[p][q][i][s];
-          }
-          new_integrals[p][q][r][s] = new_val;
-        }  // s
-      }  // r
-    }  // q
-  }  // p
-
-  tmp_integrals = new_integrals;
-
-#pragma omp parallel for
-  for (unsigned p = 0; p < n_orbs; p++) {
-    for (unsigned q = 0; q < n_orbs; q++) {
-      for (unsigned r = 0; r < n_orbs; r++) {
-        for (unsigned s = 0; s < n_orbs; s++) {
-          double new_val = 0.;
-          for (unsigned i = 0; i < n_orbs; i++) {
-            new_val += rot(i, s) * tmp_integrals[p][q][r][i];
-          }
-          new_integrals[p][q][r][s] = new_val;
-        }  // s
-      }  // r
-    }  // q
-  }  // p
-
-// One-body integrals
-#pragma omp parallel for
-  for (unsigned p = 0; p < n_orbs; p++) {
-    for (unsigned q = 0; q < n_orbs; q++) {
-      tmp_integrals[p][q][n_orbs][n_orbs] = integrals.get_1b(p, q);
-    }
-  }
-
-#pragma omp parallel for
-  for (unsigned p = 0; p < n_orbs; p++) {
-    for (unsigned q = 0; q < n_orbs; q++) {
-      double new_val = 0.;
-      for (unsigned i = 0; i < n_orbs; i++) {
-        new_val += rot(i, p) * tmp_integrals[i][q][n_orbs][n_orbs];
-      }
-      new_integrals[p][q][n_orbs][n_orbs] = new_val;
-    }
-  }
-
-  tmp_integrals = new_integrals;
-
-#pragma omp parallel for
-  for (unsigned p = 0; p < n_orbs; p++) {
-    for (unsigned q = 0; q < n_orbs; q++) {
-      double new_val = 0.;
-      for (unsigned i = 0; i < n_orbs; i++) {
-        new_val += rot(i, q) * tmp_integrals[p][i][n_orbs][n_orbs];
-      }
-      new_integrals[p][q][n_orbs][n_orbs] = new_val;
-    }
-  }
-
-  Timer::checkpoint("computing new integrals");
-
-  if (Parallel::is_master()) {
-    FILE* pFile;
-    pFile = fopen("FCIDUMP_natorb", "w");
-
-    // Header
-    fprintf(pFile, "&FCI NORB=%d, NELEC=%d, MS2=%d,\n", n_orbs, integrals.n_elecs, 0);
-    fprintf(pFile, "ORBSYM=");
-    for (unsigned i = 0; i < n_orbs; i++) {
-      fprintf(pFile, "  %d", orb_sym[integrals.orb_order_inv[i]]);
-    }
-    fprintf(pFile, "\nISYM=1\n&END\n");
-
-    // Two-body integrals
-    for (unsigned p = 0; p < n_orbs; p++) {
-      for (unsigned q = 0; q <= p; q++) {
-        for (unsigned r = 0; r <= p; r++) {
-          for (unsigned s = 0; s <= r; s++) {
-            if ((p == r) && (q < s)) continue;
-            if (std::abs(new_integrals[p][q][r][s]) > 1e-8) {
-              fprintf(
-                  pFile,
-                  " %19.12E %3d %3d %3d %3d\n",
-                  new_integrals[p][q][r][s],
-                  integrals.orb_order[p] + 1,
-                  integrals.orb_order[q] + 1,
-                  integrals.orb_order[r] + 1,
-                  integrals.orb_order[s] + 1);
-            }
-          }  // s
-        }  // r
-      }  // q
-    }  // p
-
-    // One-body integrals
-    for (unsigned p = 0; p < n_orbs; p++) {
-      for (unsigned q = 0; q <= p; q++) {
-        if (std::abs(new_integrals[p][q][n_orbs][n_orbs]) > 1e-8) {
-          fprintf(
-              pFile,
-              " %19.12E %3d %3d %3d %3d\n",
-              new_integrals[p][q][n_orbs][n_orbs],
-              integrals.orb_order[p] + 1,
-              integrals.orb_order[q] + 1,
-              0,
-              0);
-        }
-      }
-    }
-
-    // Nuclear-nuclear energy
-    fprintf(pFile, " %19.12E %3d %3d %3d %3d\n", integrals.energy_core, 0, 0, 0, 0);
-
-    fclose(pFile);
-  }
-
-  Timer::checkpoint("creating new FCIDUMP");
+  Timer::checkpoint("computing 1RDM");
 }
 
 /*
@@ -621,8 +360,7 @@ size_t RDM::nonsym_combine4(const size_t a, const size_t b, const size_t c, cons
 }
 */
 
-void RDM::get_2rdm_slow(
-    const std::vector<Det>& dets, const std::vector<double>& coefs, const Integrals& integrals) {
+void RDM::get_2rdm_slow(const std::vector<Det>& dets, const std::vector<double>& coefs) {
   //=====================================================
   // Create spatial 2RDM using the variational wavefunction.
   // This version does not make use of Hamiltonian connections
@@ -643,10 +381,7 @@ void RDM::get_2rdm_slow(
   // Created: Y. Yao, June 2018
   //=====================================================
 
-  unsigned n_orbs = integrals.n_orbs;
-  unsigned n_up = integrals.n_up;
-  unsigned n_dn = integrals.n_dn;
-  std::vector<unsigned int> orb_sym = integrals.orb_sym;
+  std::vector<unsigned int> orb_sym = integrals_p->orb_sym;
 
   two_rdm.resize((n_orbs * n_orbs * (n_orbs * n_orbs + 1) / 2), 0.);
 
@@ -685,9 +420,9 @@ void RDM::get_2rdm_slow(
               if (Config::get<bool>("time_sym", false)) element *= 2.;
 
 #pragma omp atomic
-              two_rdm[combine4_2rdm(p, q, r, s, n_orbs)] += element;
+              two_rdm[combine4_2rdm(p, q, r, s)] += element;
 #pragma omp atomic
-              two_rdm[combine4_2rdm(p, q, s, r, n_orbs)] -= element;  // since p<q, r>s
+              two_rdm[combine4_2rdm(p, q, s, r)] -= element;  // since p<q, r>s
               // exclude (q,p,r,s,-=) and (q,p,s,r,+=) since we are taking advantage of
               // the symmetry (p,s) <-> (q,r) and only constructing half of the 2RDM
             }
@@ -721,9 +456,9 @@ void RDM::get_2rdm_slow(
                 double element = this_coef * coef * permfac_ccaa(this_det.dn, p, q, r, s);
 
 #pragma omp atomic
-                two_rdm[combine4_2rdm(p, q, r, s, n_orbs)] += element;
+                two_rdm[combine4_2rdm(p, q, r, s)] += element;
 #pragma omp atomic
-                two_rdm[combine4_2rdm(p, q, s, r, n_orbs)] -= element;
+                two_rdm[combine4_2rdm(p, q, s, r)] -= element;
               }
 
               new_det.dn.unset(p);
@@ -758,10 +493,10 @@ void RDM::get_2rdm_slow(
               double element = this_coef * coef * perm_fac;
 
 #pragma omp atomic
-              two_rdm[combine4_2rdm(p, q, r, s, n_orbs)] += element;
+              two_rdm[combine4_2rdm(p, q, r, s)] += element;
               if (p == q && s == r) {
 #pragma omp atomic
-                two_rdm[combine4_2rdm(q, p, s, r, n_orbs)] += element;
+                two_rdm[combine4_2rdm(q, p, s, r)] += element;
               }
               // this line needed as a result of storing only half of 2RDM, (p,s) = (q,r)
             }
@@ -776,77 +511,12 @@ void RDM::get_2rdm_slow(
 
   }  // i_det
 
-  Timer::checkpoint("computing 2RDM");
-
-  std::cout << "writing out 2RDM\n";
-
-  if (Parallel::is_master()) {
-    // csv format
-    FILE* pFile = fopen("2rdm.csv", "w");
-    fprintf(pFile, "p,q,r,s,2rdm\n");
-    for (unsigned p = 0; p < n_orbs; p++) {
-      for (unsigned q = p; q < n_orbs; q++) {
-        for (unsigned s = 0; s < n_orbs; s++) {
-          for (unsigned r = 0; r < n_orbs; r++) {
-            if (p == q && s > r) continue;
-            const double rdm_pqrs = two_rdm[combine4_2rdm(p, q, r, s, n_orbs)];
-            if (std::abs(rdm_pqrs) < 1.0e-9) continue;
-            fprintf(
-                pFile,
-                "%d,%d,%d,%d,%#.15g\n",
-                integrals.orb_order[p],
-                integrals.orb_order[q],
-                integrals.orb_order[r],
-                integrals.orb_order[s],
-                rdm_pqrs);
-          }
-        }
-      }
-    }
-    fclose(pFile);
-
-    // txt format
-    /*
-    FILE* pFile;
-    pFile = fopen("spatialRDM.txt", "w");
-
-    fprintf(pFile, "%d\n", n_orbs);
-
-    for (unsigned p = 0; p < n_orbs; p++) {
-      for (unsigned q = 0; q < n_orbs; q++) {
-        for (unsigned s = 0; s < n_orbs; s++) {
-          for (unsigned r = 0; r < n_orbs; r++) {
-            if (std::abs(
-                    two_rdm[combine4_2rdm(
-                        integrals.orb_order_inv[p],
-                        integrals.orb_order_inv[q],
-                        integrals.orb_order_inv[r],
-                        integrals.orb_order_inv[s],
-                        n_orbs)]) > 1.e-6)
-              fprintf(
-                  pFile,
-                  "%3d   %3d   %3d   %3d   %10.8g\n",
-                  p,
-                  q,
-                  s,
-                  r,
-                  two_rdm[combine4_2rdm(
-                      integrals.orb_order_inv[p],
-                      integrals.orb_order_inv[q],
-                      integrals.orb_order_inv[r],
-                      integrals.orb_order_inv[s],
-                      n_orbs)]);
-          }  // r
-        }  // s
-      }  // q
-    }  // p
-    */
-  }
+  Timer::checkpoint("computing 2RDM (slow)");
 }
 
-unsigned RDM::combine4_2rdm(unsigned p, unsigned q, unsigned r, unsigned s, unsigned n_orbs) const {
-  unsigned a = p * n_orbs + s;
-  unsigned b = q * n_orbs + r;
+inline size_t RDM::combine4_2rdm(size_t p, size_t q, size_t r, size_t s) const {
+  size_t a = p * n_orbs + s;
+  size_t b = q * n_orbs + r;
   if (a > b) {
     return (a * (a + 1)) / 2 + b;
   } else {
@@ -882,12 +552,72 @@ int RDM::permfac_ccaa(HalfDet halfket, unsigned p, unsigned q, unsigned r, unsig
     return -1;
 }
 
+void RDM::dump_2rdm(const bool dump_csv) const {
+  auto orb_order = integrals_p->orb_order;
+  auto orb_order_inv = integrals_p->orb_order_inv;
+
+  if (Parallel::is_master()) {
+    std::cout << "writing out 2RDM\n";
+
+    if (dump_csv) {  // .csv format
+      FILE* pFile = fopen("2rdm.csv", "w");
+      fprintf(pFile, "p,q,r,s,2rdm\n");
+      for (unsigned p = 0; p < n_orbs; p++) {
+        for (unsigned q = p; q < n_orbs; q++) {
+          for (unsigned s = 0; s < n_orbs; s++) {
+            for (unsigned r = 0; r < n_orbs; r++) {
+              if (p == q && s > r) continue;
+              const double rdm_pqrs = two_rdm_elem(p, q, r, s);
+              if (std::abs(rdm_pqrs) < 1.0e-9) continue;
+              fprintf(
+                  pFile,
+                  "%d,%d,%d,%d,%#.15g\n",
+                  orb_order[p],
+                  orb_order[q],
+                  orb_order[r],
+                  orb_order[s],
+                  rdm_pqrs);
+            }
+          }
+        }
+      }
+      fclose(pFile);
+    } else {  // .txt format
+      FILE* pFile;
+      pFile = fopen("spatialRDM.txt", "w");
+
+      fprintf(pFile, "%zd\n", n_orbs);
+
+      for (unsigned p = 0; p < n_orbs; p++) {
+        for (unsigned q = 0; q < n_orbs; q++) {
+          for (unsigned s = 0; s < n_orbs;
+               s++) {  // r and s switched in keeping with Dice conventions
+            for (unsigned r = 0; r < n_orbs; r++) {
+              if (std::abs(
+                      two_rdm_elem(
+                          orb_order_inv[p], orb_order_inv[q], orb_order_inv[r], orb_order_inv[s])) >
+                  1.e-6)
+                fprintf(
+                    pFile,
+                    "%3d   %3d   %3d   %3d   %10.8g\n",
+                    p,
+                    q,
+                    s,
+                    r,
+                    two_rdm_elem(
+                        orb_order_inv[p], orb_order_inv[q], orb_order_inv[r], orb_order_inv[s]));
+            }  // r
+          }  // s
+        }  // q
+      }  // p
+    }
+  }
+}
+
 void RDM::get_2rdm(
     const std::vector<Det>& dets,
     const std::vector<double>& coefs,
-    const Integrals& integrals,
-    const std::vector<std::vector<size_t>>& connections,
-    const bool dump_csv) {
+    const std::vector<std::vector<size_t>>& connections) {
   //=====================================================
   // Create spatial 2RDM using the variational wavefunction
   // and Hamiltonian connections.
@@ -909,11 +639,7 @@ void RDM::get_2rdm(
   //=====================================================
   bool time_sym = Config::get<bool>("time_sym", false);
 
-  n_orbs = integrals.n_orbs;
-  n_up = integrals.n_up;
-  n_dn = integrals.n_dn;
-
-  const unsigned size_two_rdm = n_orbs * n_orbs * (n_orbs * n_orbs + 1) / 2;
+  size_t size_two_rdm = n_orbs * n_orbs * (n_orbs * n_orbs + 1) / 2;
   two_rdm.resize(size_two_rdm, 0.);
 
 #pragma omp parallel for schedule(dynamic, 5)
@@ -977,80 +703,18 @@ void RDM::get_2rdm(
     unsigned n_elems_left = size_two_rdm;
 
     while (n_elems_left > CHUNK_SIZE) {
-      MPI_Reduce(src_ptr, dest_ptr, CHUNK_SIZE, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+      //MPI_Reduce(src_ptr, dest_ptr, CHUNK_SIZE, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+      MPI_Allreduce(src_ptr, dest_ptr, CHUNK_SIZE, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
       n_elems_left -= CHUNK_SIZE;
       src_ptr += CHUNK_SIZE;
       dest_ptr += CHUNK_SIZE;
     }
-    MPI_Reduce(src_ptr, dest_ptr, n_elems_left, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+    //MPI_Reduce(src_ptr, dest_ptr, n_elems_left, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+    MPI_Allreduce(src_ptr, dest_ptr, n_elems_left, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     two_rdm = global_two_rdm;
   }
 
   Timer::checkpoint("computing 2RDM");
-
-  std::cout << "writing out 2RDM\n";
-
-  if (Parallel::is_master()) {
-    if (dump_csv) {
-      FILE* pFile = fopen("2rdm.csv", "w");
-      fprintf(pFile, "p,q,r,s,2rdm\n");
-      for (unsigned p = 0; p < n_orbs; p++) {
-        for (unsigned q = p; q < n_orbs; q++) {
-          for (unsigned s = 0; s < n_orbs; s++) {
-            for (unsigned r = 0; r < n_orbs; r++) {
-              if (p == q && s > r) continue;
-              const double rdm_pqrs = two_rdm[combine4_2rdm(p, q, r, s, n_orbs)];
-              if (std::abs(rdm_pqrs) < 1.0e-9) continue;
-              fprintf(
-                  pFile,
-                  "%d,%d,%d,%d,%#.15g\n",
-                  integrals.orb_order[p],
-                  integrals.orb_order[q],
-                  integrals.orb_order[r],
-                  integrals.orb_order[s],
-                  rdm_pqrs);
-            }
-          }
-        }
-      }
-      fclose(pFile);
-    } else {
-      FILE* pFile;
-      pFile = fopen("spatialRDM.txt", "w");
-
-      fprintf(pFile, "%d\n", n_orbs);
-
-      for (unsigned p = 0; p < n_orbs; p++) {
-        for (unsigned q = 0; q < n_orbs; q++) {
-          for (unsigned s = 0; s < n_orbs;
-               s++) {  // r and s switched in keeping with Dice conventions
-            for (unsigned r = 0; r < n_orbs; r++) {
-              if (std::abs(
-                      two_rdm[combine4_2rdm(
-                          integrals.orb_order_inv[p],
-                          integrals.orb_order_inv[q],
-                          integrals.orb_order_inv[r],
-                          integrals.orb_order_inv[s],
-                          n_orbs)]) > 1.e-6)
-                fprintf(
-                    pFile,
-                    "%3d   %3d   %3d   %3d   %10.8g\n",
-                    p,
-                    q,
-                    s,
-                    r,
-                    two_rdm[combine4_2rdm(
-                        integrals.orb_order_inv[p],
-                        integrals.orb_order_inv[q],
-                        integrals.orb_order_inv[r],
-                        integrals.orb_order_inv[s],
-                        n_orbs)]);
-            }  // r
-          }  // s
-        }  // q
-      }  // p
-    }
-  }
 }
 
 void RDM::get_2rdm_elements(
@@ -1271,16 +935,42 @@ void RDM::get_2rdm_elements(
   }
 }
 
-void RDM::write_in_2rdm(unsigned p, unsigned q, unsigned r, unsigned s, double value) {
+void RDM::write_in_2rdm(size_t p, size_t q, size_t r, size_t s, double value) {
   // By symmetry (p,s)<->(q,r) only half of the 2RDM needs storing.
-  unsigned a = p * n_orbs + s;
-  unsigned b = q * n_orbs + r;
+  size_t a = p * n_orbs + s;
+  size_t b = q * n_orbs + r;
   if (a >= b)
 #pragma omp atomic
     two_rdm[(a * (a + 1)) / 2 + b] += value;
 }
 
-void RDM::compute_energy_from_rdm(const Integrals& integrals) const {
+double RDM::one_rdm_elem(unsigned p, unsigned q) const { return one_rdm(p, q); }
+
+double RDM::two_rdm_elem(unsigned p, unsigned q, unsigned r, unsigned s) const {
+  return two_rdm[combine4_2rdm(p, q, r, s)];
+}
+
+void RDM::get_1rdm_from_2rdm() {
+  // construct 1rdm from 2rdm //move to chem_system.cc
+  one_rdm = MatrixXd::Zero(n_orbs, n_orbs);
+  for (unsigned p = 0; p < n_orbs; p++) {
+    for (unsigned s = 0; s < n_orbs; s++) {
+      for (unsigned k = 0; k < n_orbs; k++) {
+        one_rdm(p, s) += two_rdm_elem(p, k, k, s) / (1. * (n_up + n_dn) - 1.);
+      }
+    }
+  }
+
+  Timer::checkpoint("get 1rdm from 2rdm");
+}
+
+void RDM::clear() {
+  one_rdm.resize(0, 0);
+  two_rdm.clear();
+  two_rdm.shrink_to_fit();
+}
+
+void RDM::compute_energy_from_rdm() const {
   //=====================================================
   // Reproduce variational energy from 2RDM.
   // Currently not used in the program;
@@ -1289,16 +979,12 @@ void RDM::compute_energy_from_rdm(const Integrals& integrals) const {
   // Created: Y. Yao, July 2018
   //=====================================================
 
-  unsigned n_orbs = integrals.n_orbs;
-  unsigned n_up = integrals.n_up;
-  unsigned n_dn = integrals.n_dn;
-
   MatrixXd tmp_1rdm = MatrixXd::Zero(n_orbs, n_orbs);
 
   for (unsigned p = 0; p < n_orbs; p++) {
     for (unsigned s = 0; s < n_orbs; s++) {
       for (unsigned k = 0; k < n_orbs; k++) {
-        tmp_1rdm(p, s) += two_rdm[combine4_2rdm(p, k, k, s, n_orbs)] / (1. * (n_up + n_dn) - 1.);
+        tmp_1rdm(p, s) += two_rdm_elem(p, k, k, s) / (1. * (n_up + n_dn) - 1.);
       }
     }
   }
@@ -1310,7 +996,7 @@ void RDM::compute_energy_from_rdm(const Integrals& integrals) const {
 
   for (unsigned p = 0; p < n_orbs; p++) {
     for (unsigned q = 0; q < n_orbs; q++) {
-      onebody += tmp_1rdm(p, q) * integrals.get_1b(p, q);
+      onebody += tmp_1rdm(p, q) * integrals_p->get_1b(p, q);
     }
   }
 
@@ -1318,14 +1004,16 @@ void RDM::compute_energy_from_rdm(const Integrals& integrals) const {
     for (unsigned q = 0; q < n_orbs; q++) {
       for (unsigned r = 0; r < n_orbs; r++) {
         for (unsigned s = 0; s < n_orbs; s++) {
-          twobody +=
-              0.5 * two_rdm[combine4_2rdm(p, q, r, s, n_orbs)] * integrals.get_2b(p, s, q, r);
+          twobody += 0.5 * two_rdm_elem(p, q, r, s) * integrals_p->get_2b(p, s, q, r);
         }
       }
     }
   }
 
-  std::cout << "core energy: " << integrals.energy_core << "\none-body energy: " << onebody
-            << "\ntwo-body energy: " << twobody
-            << "\ntotal-energy: " << onebody + twobody + integrals.energy_core << "\n";
+  std::printf(
+      "Energy:\ncore: %.10f\none-body: %.10f\ntwo-body: %.10f\ntotal: %.10f\n",
+      integrals_p->energy_core,
+      onebody,
+      twobody,
+      onebody + twobody + integrals_p->energy_core);
 }
