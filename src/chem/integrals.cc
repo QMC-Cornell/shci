@@ -15,10 +15,18 @@
 #include "dooh_util.h"
 
 void Integrals::load() {
+  integrals_1b.set_storage(Config::get<bool>("hash_integrals", true));
+  integrals_2b.set_storage(Config::get<bool>("hash_integrals", true));
   const std::string& cache_filename = "integrals_cache.dat";
   if (Config::get<bool>("load_integrals_cache", false) && load_from_cache(cache_filename)) return;
   read_fcidump();
   Timer::checkpoint("load fcidump");
+  if (!Config::get<bool>("hash_integrals", true)) {
+    printf("Vector storage in use.\n");
+    size_t num_filled = integrals_2b.num_elements() + integrals_1b.num_elements();
+    double percent = 100 * 8 * (float)num_filled / (n_orbs * n_orbs * n_orbs * n_orbs);
+    printf("%.2f%% of vector elements are filled.\n", percent);
+  }
   generate_det_hf();
   const auto& orb_energies = get_orb_energies();
   reorder_orbs(orb_energies);
@@ -97,9 +105,10 @@ void Integrals::read_fcidump() {
         if (std::abs(a) < std::abs(b)) a = b;
       });
     } else {
-      integrals_2b.set(combine4(p - 1, q - 1, r - 1, s - 1), integral, [&](double& a, const double& b) {
-        if (std::abs(a) < std::abs(b)) a = b;
-      });
+      integrals_2b.set(
+          combine4(p - 1, q - 1, r - 1, s - 1), integral, [&](double& a, const double& b) {
+            if (std::abs(a) < std::abs(b)) a = b;
+          });
     }
   }
 }
@@ -310,9 +319,12 @@ void Integrals::reorder_orbs(const std::vector<double>& orb_energies) {
     if (p == q && q == r && r == s && s == 0) {
       continue;
     } else if (r == s && s == 0) {
-      integrals_1b.set(combine2(orb_order_inv[p - 1], orb_order_inv[q - 1]), integral, [&](double& a, const double& b) {
-        if (std::abs(a) < std::abs(b)) a = b;
-      });
+      integrals_1b.set(
+          combine2(orb_order_inv[p - 1], orb_order_inv[q - 1]),
+          integral,
+          [&](double& a, const double& b) {
+            if (std::abs(a) < std::abs(b)) a = b;
+          });
     } else {
       integrals_2b.set(
           combine4(
@@ -320,9 +332,10 @@ void Integrals::reorder_orbs(const std::vector<double>& orb_energies) {
               orb_order_inv[q - 1],
               orb_order_inv[r - 1],
               orb_order_inv[s - 1]),
-          integral, [&](double& a, const double& b) {
-        if (std::abs(a) < std::abs(b)) a = b;
-      });
+          integral,
+          [&](double& a, const double& b) {
+            if (std::abs(a) < std::abs(b)) a = b;
+          });
     }
   }
   raw_integrals.clear();

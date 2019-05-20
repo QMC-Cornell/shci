@@ -78,6 +78,8 @@ class Solver {
 
   void save_variation_result(const std::string& filename);
 
+  void save_pair_contrib(const double eps_var);
+
   void print_dets_info() const;
 
   std::string get_wf_filename(const double eps_var) const;
@@ -281,6 +283,7 @@ void Solver<S>::run_all_variations() {
   auto it_schedule = eps_vars_schedule.begin();
   var_iteration_global = 0;
   eps_var_min = eps_vars.back();
+  const bool get_pair_contrib = Config::get<bool>("get_pair_contrib", false);
   for (const double eps_var : eps_vars) {
     Timer::start(Util::str_printf("eps_var %#.2e", eps_var));
     const auto& filename = get_wf_filename(eps_var);
@@ -306,6 +309,10 @@ void Solver<S>::run_all_variations() {
       for (const auto& det : system.dets) var_dets.set(det);
       //      hamiltonian.clear();
       Result::put<double>(Util::str_printf("energy_var/%#.2e", eps_var), system.energy_var);
+    }
+
+    if (Parallel::is_master() && get_pair_contrib) {
+      save_pair_contrib(eps_var);
     }
     eps_var_prev = eps_var;
     Timer::end();
@@ -341,6 +348,8 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
   bool converged = false;
   size_t iteration = 0;
   bool dets_converged = false;
+  const bool get_pair_contrib = Config::get<bool>("get_pair_contrib", false);
+  bool var_sd = Config::get<bool>("var_sd", get_pair_contrib);
 
   while (!converged) {
     eps_tried_prev.resize(n_dets, Util::INF);
@@ -348,44 +357,46 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
 
     // Random execution and broadcast.
     if (!dets_converged) {
-      fgpl::DistRange<size_t>(0, n_dets).for_each(
-          [&](const size_t i) {
-            const auto& det = system.dets[i];
-            const double coef = system.coefs[i];
-            double eps_min = eps_var / std::abs(coef);
-            if (system.time_sym && det.up != det.dn) eps_min *= Util::SQRT2;
-            if (eps_min >= eps_tried_prev[i] * 0.99) return;
-            Det connected_det_reg;
-            const auto& connected_det_handler = [&](const Det& connected_det, const int n_excite) {
-              connected_det_reg = connected_det;
-              if (system.time_sym && connected_det.up > connected_det.dn) {
-                connected_det_reg.reverse_spin();
-              }
-              if (var_dets.has(connected_det_reg)) return;
-              if (n_excite == 1) {
-                const double h_ai = system.get_hamiltonian_elem(det, connected_det, 1);
-                if (std::abs(h_ai) < eps_min) return;  // Filter out small single excitation.
-              }
-              dist_new_dets.async_set(connected_det_reg);
-            };
-            system.find_connected_dets(det, eps_tried_prev[i], eps_min, connected_det_handler);
-            eps_tried_prev[i] = eps_min;
-          },
-          Parallel::is_master());
-
-      dist_new_dets.sync();
-      n_dets_new = n_dets + dist_new_dets.get_n_keys();
-      system.dets.reserve(n_dets_new);
-      system.coefs.reserve(n_dets_new);
-      dist_new_dets.for_each_serial([&](const Det& connected_det, const size_t) {
-        var_dets.set(connected_det);
-        system.dets.push_back(connected_det);
-        system.coefs.push_back(1.0e-15);
-      });
-      dist_new_dets.clear_and_shrink();
+      n_dets_new = n_dets;
+      for (size_t j = 0; j < 5; j++) {
+        fgpl::DistRange<size_t>(j, n_dets, 5).for_each([&](const size_t i) {
+          const auto& det = system.dets[i];
+          const double coef = system.coefs[i];
+          double eps_min = eps_var / std::abs(coef);
+          if (i == 0 && var_sd) eps_min = 0.0;
+          if (system.time_sym && det.up != det.dn) eps_min *= Util::SQRT2;
+          if (eps_min >= eps_tried_prev[i] * 0.99) return;
+          Det connected_det_reg;
+          const auto& connected_det_handler = [&](const Det& connected_det, const int n_excite) {
+            connected_det_reg = connected_det;
+            if (system.time_sym && connected_det.up > connected_det.dn) {
+              connected_det_reg.reverse_spin();
+            }
+            if (var_dets.has(connected_det_reg)) return;
+            if (n_excite == 1) {
+              const double h_ai = system.get_hamiltonian_elem(det, connected_det, 1);
+              if (std::abs(h_ai) < eps_min) return;  // Filter out small single excitation.
+            }
+            dist_new_dets.async_set(connected_det_reg);
+          };
+          system.find_connected_dets(det, eps_tried_prev[i], eps_min, connected_det_handler);
+          eps_tried_prev[i] = eps_min;
+        });
+        dist_new_dets.sync();
+        n_dets_new += dist_new_dets.get_n_keys();
+        system.dets.reserve(n_dets_new);
+        system.coefs.reserve(n_dets_new);
+        dist_new_dets.for_each_serial([&](const Det& connected_det, const size_t) {
+          var_dets.set(connected_det);
+          system.dets.push_back(connected_det);
+          system.coefs.push_back(1.0e-16);
+        });
+        dist_new_dets.clear();
+        if (Parallel::is_master()) printf("%zu%% ", (j + 1) * 20);
+      }
 
       if (Parallel::is_master()) {
-        printf("Number of dets / new dets: %'zu / %'zu\n", n_dets_new, n_dets_new - n_dets);
+        printf("\nNumber of dets / new dets: %'zu / %'zu\n", n_dets_new, n_dets_new - n_dets);
       }
       Timer::checkpoint("get next det list");
 
@@ -436,10 +447,8 @@ void Solver<S>::run_perturbation(const double eps_var) {
   eps_pt_dtm = Config::get<double>("eps_pt_dtm", default_eps_pt_dtm);
   eps_pt_psto = Config::get<double>("eps_pt_psto", default_eps_pt_psto);
   eps_pt = Config::get<double>("eps_pt", default_eps_pt);
-
   if (eps_pt_psto < eps_pt) eps_pt_psto = eps_pt;
   if (eps_pt_dtm < eps_pt_psto) eps_pt_dtm = eps_pt_psto;
-
   // If result already exists, return.
   const auto& value_entry = Util::str_printf("energy_total/%#.2e/%#.2e/value", eps_var, eps_pt);
   const auto& uncert_entry = Util::str_printf("energy_total/%#.2e/%#.2e/uncert", eps_var, eps_pt);
@@ -471,7 +480,7 @@ void Solver<S>::run_perturbation(const double eps_var) {
   mem_total *= 0.8;
 #endif
   const size_t mem_var = system.get_n_dets() * (bytes_per_det * 3 + 8);
-  const double mem_left = mem_total * 0.8 - mem_var - system.helper_size;
+  const double mem_left = mem_total * 0.7 - mem_var - system.helper_size;
   assert(mem_left > 0);
   pt_mem_avail = mem_left;
   const size_t n_procs = Parallel::get_n_procs();
@@ -528,7 +537,7 @@ double Solver<S>::get_energy_pt_dtm(const double eps_var) {
     hc_sums.sync();
     const size_t n_pt_dets = hc_sums.get_n_keys();
     n_batches =
-        static_cast<size_t>(ceil(1.5 * 128 * 100 * n_pt_dets * bytes_per_entry / pt_mem_avail));
+        static_cast<size_t>(ceil(2.0 * 128 * 100 * n_pt_dets * bytes_per_entry / pt_mem_avail));
     if (n_batches == 0) n_batches = 1;
     if (Parallel::is_master()) {
       printf("Number of dtm batches: %zu\n", n_batches);
@@ -645,7 +654,7 @@ UncertResult Solver<S>::get_energy_pt_psto(const double eps_var, const double en
     const size_t n_pt_dets = hc_sums.get_n_keys();
     const double mem_usage = Config::get<double>("pt_psto_mem_usage", 1.0);
     n_batches = static_cast<size_t>(
-        ceil(1.5 * 128 * 100 * n_pt_dets * bytes_per_entry / (pt_mem_avail * mem_usage)));
+        ceil(2.0 * 128 * 100 * n_pt_dets * bytes_per_entry / (pt_mem_avail * mem_usage)));
     if (n_batches < 16) n_batches = 16;
     if (Parallel::is_master()) {
       printf("Number of psto batches: %zu\n", n_batches);
@@ -757,7 +766,9 @@ UncertResult Solver<S>::get_energy_pt_sto(
 
   // Contruct probs.
   double sum_weights = 0.0;
-  for (size_t i = 0; i < n_var_dets; i++) sum_weights += std::abs(system.coefs[i]);
+  for (size_t i = 0; i < n_var_dets; i++) {
+    sum_weights += std::abs(system.coefs[i]);
+  }
   for (size_t i = 0; i < n_var_dets; i++) {
     probs[i] = std::abs(system.coefs[i]) / sum_weights;
     cum_probs[i] = probs[i];
@@ -803,11 +814,11 @@ UncertResult Solver<S>::get_energy_pt_sto(
     const size_t n_pt_dets = hc_sums.get_n_keys();
     hc_sums.clear();
     const size_t n_pt_dets_batch = n_pt_dets * 128 / n_batches;
-    double default_mem_usage = 0.2;
+    double default_mem_usage = 0.4;
     if (system.type == SystemType::HEG) default_mem_usage = 1.0;
     const double mem_usage = Config::get<double>("pt_sto_mem_usage", default_mem_usage);
     size_t n_unique_target =
-        pt_mem_avail * mem_usage * n_unique_samples / bytes_per_entry / 3.0 / n_pt_dets_batch;
+        pt_mem_avail * mem_usage * n_unique_samples / bytes_per_entry / 5.0 / n_pt_dets_batch;
     const size_t max_unique_targets = n_var_dets / 8 + 1;
     if (n_unique_target >= max_unique_targets) n_unique_target = max_unique_targets;
     sample_dets.clear();
@@ -991,6 +1002,79 @@ void Solver<S>::save_variation_result(const std::string& filename) {
     hps::to_stream(system, file);
     printf("Variational results saved to: %s\n", filename.c_str());
   }
+}
+
+template <class S>
+void Solver<S>::save_pair_contrib(const double eps_var) {
+  const auto& det_hf = system.dets[0];
+  // const size_t n_elecs = system.n_elecs;
+  const size_t n_up = system.n_up;
+  // const size_t n_dn = system.n_dn;
+  if (det_hf.up != det_hf.dn) {
+    throw std::invalid_argument("non sym det_hf not implemented");
+  }
+  std::vector<std::vector<double>> contribs(n_up);
+  std::string contrib_filename = Util::str_printf("pair_contrib_%#.2e.csv", eps_var);
+  const auto& contrib_entry = Util::str_printf("pair_contrib/%#.2e", eps_var);
+  Result::put<std::string>(contrib_entry, contrib_filename);
+  std::ofstream contrib_file(contrib_filename);
+  contrib_file << "i,j,pair_contrib" << std::endl;
+  for (size_t i = 0; i < n_up; i++) {
+    contribs[i].assign(n_up, 0.0);
+  }
+  const double c0 = system.coefs[0];
+  for (size_t det_id = 1; det_id < system.dets.size(); det_id++) {
+    const auto& det = system.dets[det_id];
+    const double coef = system.coefs[det_id];
+    const auto& diff_up = det_hf.up.diff(det.up);
+    const auto& diff_dn = det_hf.dn.diff(det.dn);
+    const unsigned n_excite = diff_up.n_diffs + diff_dn.n_diffs;
+    if (n_excite > 2) continue;
+    size_t i = 0;
+    size_t j = 0;
+    const auto& H = system.get_hamiltonian_elem(det_hf, det, -1);
+    if (diff_up.n_diffs == 2) {
+      i = diff_up.left_only[0];
+      j = diff_up.left_only[1];
+    } else if (diff_up.n_diffs == 1) {
+      i = diff_up.left_only[0];
+      if (diff_dn.n_diffs == 1) {
+        j = diff_dn.left_only[0];
+        if (j < i) {
+          std::swap(i, j);
+        }
+      } else {
+        j = i;
+      }
+    } else {
+      i = diff_dn.left_only[0];
+      if (diff_dn.n_diffs == 2) {
+        j = diff_dn.left_only[1];
+        if (j < i) {
+          std::swap(i, j);
+        }
+      } else {
+        j = i;
+      }
+    }
+    if (det.up == det.dn) {
+      contribs[i][j] += H * coef / c0;
+    } else if (system.time_sym) {
+      contribs[i][j] += H * coef / c0 * Util::SQRT2;
+    } else {
+      contribs[i][j] += H * coef / c0;
+    }
+  }
+  contrib_file.precision(15);
+  for (size_t i = 0; i < n_up; i++) {
+    for (size_t j = i; j < n_up; j++) {
+      if (i != j) {
+        contribs[i][j] /= 2;
+      }
+      contrib_file << i << "," << j << "," << contribs[i][j] << std::endl;
+    }
+  }
+  contrib_file.close();
 }
 
 template <class S>

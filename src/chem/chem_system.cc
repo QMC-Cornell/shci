@@ -34,8 +34,14 @@ void ChemSystem::setup(const bool load_integrals_from_file) {
     Timer::end();
   }
 
+  setup_sym_orbs();
+
   Timer::start("setup hci queue");
   setup_hci_queue();
+  Timer::end();
+
+  Timer::start("setup singles_queue");
+  setup_singles_queue();
   Timer::end();
 
   dets.push_back(integrals.det_hf);
@@ -46,16 +52,60 @@ void ChemSystem::setup(const bool load_integrals_from_file) {
   }
 }
 
-void ChemSystem::setup_hci_queue() {
+void ChemSystem::setup_sym_orbs() {
   sym_orbs.resize(product_table.get_n_syms() + 1);  // Symmetry starts from 1.
   for (unsigned orb = 0; orb < n_orbs; orb++) {
     unsigned sym = orb_sym[orb];
     if (sym >= sym_orbs.size()) sym_orbs.resize(sym + 1);  // For Dooh.
     sym_orbs[sym].push_back(orb);
   }
+}
 
+void ChemSystem::setup_singles_queue() {
+  size_t n_entries = 0;
+  max_singles_queue_elem = 0.0;
+
+  const int n_threads = Parallel::get_n_threads();
+  std::vector<size_t> n_entries_local(n_threads, 0);
+  std::vector<double> max_singles_queue_elem_local(n_threads, 0.0);
+
+  singles_queue.resize(n_orbs);
+#pragma omp parallel for schedule(dynamic, 5)
+  for (unsigned p = 0; p < n_orbs; p++) {
+    const int thread_id = omp_get_thread_num();
+    const unsigned sym_p = orb_sym[p];
+    for (const unsigned r : sym_orbs[sym_p]) {
+      const double S = get_singles_queue_elem(p, r);
+      if (S == 0.0) continue;
+      singles_queue.at(p).push_back(Sr(S, r));
+    }
+    if (singles_queue.at(p).size() > 0) {
+      std::sort(
+          singles_queue.at(p).begin(), singles_queue.at(p).end(), [](const Sr& a, const Sr& b) {
+            return a.S > b.S;
+          });
+      n_entries_local[thread_id] += singles_queue.at(p).size();
+      max_singles_queue_elem_local[thread_id] =
+          std::max(max_singles_queue_elem_local[thread_id], singles_queue.at(p).front().S);
+    }
+  }
+  for (int i = 0; i < n_threads; i++) {
+    n_entries += n_entries_local[i];
+    max_singles_queue_elem = std::max(max_singles_queue_elem, max_singles_queue_elem_local[i]);
+  }
+
+  const int proc_id = Parallel::get_proc_id();
+  if (proc_id == 0) {
+    printf("Max singles_queue elem: " ENERGY_FORMAT "\n", max_singles_queue_elem);
+    printf("Number of entries in singles_queue: %'zu\n", n_entries);
+  }
+  helper_size += n_entries * 16 * 2;  // vector size <= 2 * number of elements
+}
+
+void ChemSystem::setup_hci_queue() {
   size_t n_entries = 0;
   max_hci_queue_elem = 0.0;
+
   const int n_threads = Parallel::get_n_threads();
   std::vector<size_t> n_entries_local(n_threads, 0);
   std::vector<double> max_hci_queue_elem_local(n_threads, 0.0);
@@ -132,7 +182,7 @@ void ChemSystem::setup_hci_queue() {
     printf("Max hci queue elem: " ENERGY_FORMAT "\n", max_hci_queue_elem);
     printf("Number of entries in hci queue: %'zu\n", n_entries);
   }
-  helper_size = n_entries * 16 * 2;
+  helper_size += n_entries * 16 * 2;  // vector size <= 2 * number of elements
 }
 
 PointGroup ChemSystem::get_point_group(const std::string& str) const {
@@ -174,6 +224,20 @@ void ChemSystem::check_group_elements() const {
   if (point_group == PointGroup::D2h) assert(num_group_elems <= 8);
 }
 
+double ChemSystem::get_singles_queue_elem(const unsigned orb_i, const unsigned orb_j) const {
+  if (orb_i == orb_j) return 0.0;
+  double S = std::abs(integrals.get_1b(orb_i, orb_j));
+  for (unsigned orb = 0; orb < n_orbs; orb++) {
+    const double exchange = integrals.get_2b(orb_i, orb, orb, orb_j);
+    const double direct = integrals.get_2b(orb_i, orb_j, orb, orb);
+    if (orb == orb_i or orb == orb_j)
+      S += std::abs(direct);  // opposite spin only
+    else
+      S += std::abs(direct - exchange) + std::abs(direct);  // same spin + opposite spin
+  }
+  return S;
+}
+
 double ChemSystem::get_hci_queue_elem(
     const unsigned p, const unsigned q, const unsigned r, const unsigned s) {
   if (p == q || r == s || p == r || q == s || p == s || q == r) return 0.0;
@@ -212,24 +276,24 @@ void ChemSystem::find_connected_dets(
   auto occ_orbs_up = det.up.get_occupied_orbs();
   auto occ_orbs_dn = det.dn.get_occupied_orbs();
 
-  // Add single excitations.
-  for (unsigned p_id = 0; p_id < n_elecs; p_id++) {
-    const unsigned p = p_id < n_up ? occ_orbs_up[p_id] : occ_orbs_dn[p_id - n_up];
-    const unsigned sym_p = orb_sym[p];
-    for (unsigned r = 0; r < n_orbs; r++) {
-      if (p_id < n_up) {
-        if (det.up.has(r)) continue;
-      } else {
-        if (det.dn.has(r)) continue;
-      }
-      if (orb_sym[r] != sym_p) continue;
-      Det connected_det(det);
-      if (p_id < n_up) {
-        connected_det.up.unset(p).set(r);
-        handler(connected_det, 1);
-      } else {
-        connected_det.dn.unset(p).set(r);
-        handler(connected_det, 1);
+  // Filter such that S < epsilon not allowed
+  if (eps_min <= max_singles_queue_elem) {
+    for (unsigned p_id = 0; p_id < n_elecs; p_id++) {
+      const unsigned p = p_id < n_up ? occ_orbs_up[p_id] : occ_orbs_dn[p_id - n_up];
+      for (const auto& connected_sr : singles_queue.at(p)) {
+        auto S = connected_sr.S;
+        if (S < eps_min) break;
+        unsigned r = connected_sr.r;
+        Det connected_det(det);
+        if (p_id < n_up) {
+          if (det.up.has(r)) continue;
+          connected_det.up.unset(p).set(r);
+          handler(connected_det, 1);
+        } else {
+          if (det.dn.has(r)) continue;
+          connected_det.dn.unset(p).set(r);
+          handler(connected_det, 1);
+        }
       }
     }
   }
