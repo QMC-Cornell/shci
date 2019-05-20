@@ -27,11 +27,7 @@ class Optimization {
 
   void generate_optorb_integrals_from_grad_descent();
 
-  std::vector<std::vector<double>>& generate_optorb_integrals_from_adadelta(
-      std::vector<std::vector<double>>& history);
-
-  std::vector<std::vector<double>>& generate_optorb_integrals_from_amsgrad(
-      std::vector<std::vector<double>>& history); 
+  void generate_optorb_integrals_from_amsgrad(); 
     
   void dump_integrals(const char* file_name) const;
 

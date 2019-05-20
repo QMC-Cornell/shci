@@ -310,7 +310,7 @@ void Optimization::rewrite_integrals() {
 void Optimization::generate_optorb_integrals_from_newton() {
   std::vector<index_t> param_indices = parameter_indices();
   VectorXd grad = gradient(param_indices);
-  std::cout << "\ngrad norm " << grad.norm();
+  //std::cout << "\ngrad norm " << grad.norm();
 
   MatrixXd hess = hessian(param_indices);
   rdm_p->clear();
@@ -332,9 +332,7 @@ void Optimization::generate_optorb_integrals_from_newton() {
 void Optimization::generate_optorb_integrals_from_approximate_newton() {
   std::vector<index_t> param_indices = parameter_indices();
   VectorXd grad = gradient(param_indices);
-
   //std::cout << "\ngrad \n" << grad << "\n";
-  //std::cout << "\ngrad norm " << grad.norm() << "\n";
 
   MatrixXd hess_diag = hessian_diagonal(param_indices);
   
@@ -350,6 +348,7 @@ void Optimization::generate_optorb_integrals_from_approximate_newton() {
   */
 
   rdm_p->clear();
+
   VectorXd new_param(param_indices.size());
   for (unsigned i = 0; i < param_indices.size(); i++) {
     if (hess_diag(i) > 1e-5) {
@@ -364,69 +363,28 @@ void Optimization::generate_optorb_integrals_from_approximate_newton() {
   rotate_integrals(rot);
 }
 
+
 void Optimization::generate_optorb_integrals_from_grad_descent() {
   std::vector<index_t> param_indices = parameter_indices();
 
   VectorXd grad = gradient(param_indices);
   // std::cout << "\ngrad \n" << grad;
-  // std::cout << "\ngrad norm " << grad.norm();
   rdm_p->clear();
 
-  VectorXd new_param = -0.01 * grad;  // old_parameters are all zeros by defn
+  VectorXd new_param = -0.01 * grad;
   MatrixXd rot = MatrixXd::Zero(n_orbs, n_orbs);
   fill_rot_matrix_with_parameters(rot, new_param, param_indices);
   rotate_integrals(rot);
 }
 
-std::vector<std::vector<double>>& Optimization::generate_optorb_integrals_from_adadelta(
-    std::vector<std::vector<double>>& history) {
+void Optimization::generate_optorb_integrals_from_amsgrad() {
   std::vector<index_t> param_indices = parameter_indices();
   unsigned dim = param_indices.size();
 
-  if (history[0].size() == 0) {
-    history[0].resize(dim, 0.);  // E[update^2]
-    history[1].resize(dim, 0.);  // E[g^2]
-  }
+  static std::vector<std::vector<double>> history(2, std::vector<double>(dim, 0.));
 
   VectorXd grad = gradient(param_indices);
-  // std::cout << "\ngrad \n" << grad;
-  rdm_p->clear();
-
-  double eps = 1e-8;
-  double gamma = Config::get<double>("optimization/parameters/gamma", 0.9);
-  if (Parallel::is_master()) {
-    std::cout << "learning parameter: gamma = " << gamma << "\n";
-  }
-  VectorXd new_param = VectorXd::Zero(dim);
-  double learning_rate, update;
-  for (unsigned i = 0; i < dim; i++) {
-    learning_rate = std::sqrt(history[0][i] + eps) /
-                    std::sqrt(gamma * history[1][i] + (1. - gamma) * std::pow(grad(i), 2) + eps);
-    update = -learning_rate * grad(i);
-    // std::cout << "\nlearning rate " << learning_rate;
-    new_param(i) = update;
-    history[0][i] = gamma * history[0][i] + (1. - gamma) * std::pow(update, 2);
-    history[1][i] = gamma * history[1][i] + (1. - gamma) * std::pow(grad(i), 2);
-  }
-  MatrixXd rot = MatrixXd::Zero(dim, dim);
-  fill_rot_matrix_with_parameters(rot, new_param, param_indices);
-  rotate_integrals(rot);
-
-  return history;
-}
-
-std::vector<std::vector<double>>& Optimization::generate_optorb_integrals_from_amsgrad(
-    std::vector<std::vector<double>>& history) {
-  std::vector<index_t> param_indices = parameter_indices();
-  unsigned dim = param_indices.size();
-
-  if (history[0].size() == 0) {
-    history[0].resize(dim, 0.);  // m
-    history[1].resize(dim, 0.);  // v_hat
-  }
-
-  VectorXd grad = gradient(param_indices);
-  // std::cout << "\ngrad \n" << grad;
+  //std::cout << "\ngrad \n" << grad << "\n";
   rdm_p->clear();
 
   double eps = 1e-8;
@@ -456,7 +414,6 @@ std::vector<std::vector<double>>& Optimization::generate_optorb_integrals_from_a
   fill_rot_matrix_with_parameters(rot, new_param, param_indices);
   rotate_integrals(rot);
 
-  return history;
 }
 
 std::vector<Optimization::index_t> Optimization::parameter_indices() const {
@@ -469,6 +426,9 @@ std::vector<Optimization::index_t> Optimization::parameter_indices() const {
         indices.push_back(std::make_pair(i, j));
       }
     }
+  }
+  if (Parallel::is_master()) {
+    std::cout << "Number of optimization parameters: " << indices.size();
   }
   return indices;
 }

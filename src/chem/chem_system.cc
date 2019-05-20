@@ -504,6 +504,7 @@ void ChemSystem::post_variation(std::vector<std::vector<size_t>>& connections) {
     Result::put("s2", s2);
   }
 
+  /*
   if (Config::get<bool>("natorb", false)) {
     if (time_sym && !unpacked) {
       unpack_time_sym();
@@ -520,6 +521,7 @@ void ChemSystem::post_variation(std::vector<std::vector<size_t>>& connections) {
 
     std::exit(0);
   }
+  */
 
   if (Config::get<bool>("2rdm_slow", false)) {
     if (time_sym && !unpacked) {
@@ -545,10 +547,10 @@ void ChemSystem::post_variation(std::vector<std::vector<size_t>>& connections) {
   }
 }
 
-std::vector<std::vector<double>> ChemSystem::post_variation_optimization(
+void ChemSystem::post_variation_optimization(
     std::vector<std::vector<size_t>>* connections_ptr,
-    const std::string& method,
-    std::vector<std::vector<double>>& history) {
+    const std::string& method) {
+
   if (method == "natorb") {  // natorb optimization
     if (time_sym) unpack_time_sym();
     RDM rdm(&integrals);
@@ -563,6 +565,7 @@ std::vector<std::vector<double>> ChemSystem::post_variation_optimization(
 
     natorb_optimizer.rewrite_integrals();
     Timer::checkpoint("rewrite integrals");
+
   } else {  // optorb optimization
     RDM rdm(&integrals);
     rdm.get_2rdm(dets, coefs, *connections_ptr);
@@ -579,12 +582,9 @@ std::vector<std::vector<double>> ChemSystem::post_variation_optimization(
     } else if (Util::str_equals_ci("grad_descent", method)) {
       Timer::start("Gradient descent optimization");
       optorb_optimizer.generate_optorb_integrals_from_grad_descent();
-    } else if (Util::str_equals_ci("adadelta", method)) {
-      Timer::start("Adadelta optimization");
-      history = optorb_optimizer.generate_optorb_integrals_from_adadelta(history);
     } else if (Util::str_equals_ci("amsgrad", method)) {
       Timer::start("AMSGrad optimization");
-      history = optorb_optimizer.generate_optorb_integrals_from_amsgrad(history);
+      optorb_optimizer.generate_optorb_integrals_from_amsgrad();
     } else {
       Timer::start("Approximate Newton optimization");
       optorb_optimizer.generate_optorb_integrals_from_approximate_newton();
@@ -594,7 +594,6 @@ std::vector<std::vector<double>> ChemSystem::post_variation_optimization(
     optorb_optimizer.rewrite_integrals();
     Timer::checkpoint("rewrite integrals");
   }
-  return history;
 }
 
 void ChemSystem::variation_cleanup() {

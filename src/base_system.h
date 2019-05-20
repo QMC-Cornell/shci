@@ -57,10 +57,8 @@ class BaseSystem {
 
   virtual void post_variation(std::vector<std::vector<size_t>>&){};
 
-  virtual std::vector<std::vector<double>> post_variation_optimization(
-      std::vector<std::vector<size_t>>*, const std::string&, std::vector<std::vector<double>>&) {
-    return std::vector<std::vector<double>>();
-  };
+  virtual void post_variation_optimization(
+      std::vector<std::vector<size_t>>*, const std::string&) {};
 
   virtual void dump_integrals(const char*){};
 
