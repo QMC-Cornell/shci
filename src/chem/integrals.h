@@ -29,6 +29,10 @@ class Integrals {
 
   Det det_hf;
 
+  IntegralsContainer integrals_1b;
+
+  IntegralsContainer integrals_2b;
+
   void load();
 
   void set_point_group(const PointGroup& group_name);
@@ -50,8 +54,6 @@ class Integrals {
   void parse(B& buf);
 
  private:
-  IntegralsContainer integrals_1b;
-  IntegralsContainer integrals_2b;
 
   bool explicit_orbs;
 

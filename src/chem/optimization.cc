@@ -336,7 +336,7 @@ void Optimization::generate_optorb_integrals_from_approximate_newton() {
 
   MatrixXd hess_diag = hessian_diagonal(param_indices);
   
-  /*
+  /*  
   std::cout << "\n gradient: ";
   for (unsigned i = 0; i < param_indices.size(); i++) {
     std::cout << grad(i) << " ";
