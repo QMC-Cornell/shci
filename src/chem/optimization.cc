@@ -351,11 +351,8 @@ void Optimization::generate_optorb_integrals_from_approximate_newton() {
 
   VectorXd new_param(param_indices.size());
   for (unsigned i = 0; i < param_indices.size(); i++) {
-    if (hess_diag(i) > 1e-5) {
-      new_param(i) = -grad(i) / hess_diag(i);
-    } else {
-      new_param(i) = 0.;
-    }
+    hess_diag(i) = (hess_diag(i) > 0 ? std::max(hess_diag(i), 1e-5) : std::min(hess_diag(i), -1e-5));
+    new_param(i) = -8*grad(i) / hess_diag(i);
   }
 
   MatrixXd rot = MatrixXd::Zero(n_orbs, n_orbs);
