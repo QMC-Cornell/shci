@@ -45,7 +45,7 @@ void Integrals::read_fcidump() {
   std::string line;
   enum class State { NONE, ORBSYM, END };
   State state = State::NONE;
-  //std::vector<int> orb_syms_raw;
+  std::vector<int> orb_syms_raw;
   while (!fcidump.eof()) {
     std::getline(fcidump, line);
     const auto& words_begin = std::sregex_iterator(line.begin(), line.end(), words);
@@ -399,6 +399,8 @@ void Integrals::save_to_cache(const std::string& filename) const {
 }
 
 void Integrals::dump_integrals(const char* filename) const {
+  bool is_infinity_group = (point_group == PointGroup::Dooh) || (point_group == PointGroup::Coov);
+
   if (Parallel::is_master()) {
     FILE* pFile;
     pFile = fopen(filename, "w");
@@ -407,16 +409,16 @@ void Integrals::dump_integrals(const char* filename) const {
     fprintf(pFile, " &FCI NORB=%d, NELEC=%d, MS2=%d,\n", n_orbs, n_elecs, 0);
     fprintf(pFile, "ORBSYM=");
     for (unsigned i = 0; i < n_orbs; i++) {
-      //fprintf(pFile, "  %d", orb_sym[orb_order_inv[i]]);
-      fprintf(pFile, "  %d", orb_syms_raw[i]); // same syms as original FCIDUMP
+      fprintf(pFile, "  %d", orb_sym[orb_order_inv[i]]);
     }
+    if (is_infinity_group) fprintf(pFile, "\ninfinity group");
     fprintf(pFile, "\nISYM=1\n&END\n");
 
     double integral_value;
     unsigned p, q, r, s;
 
     // Two-body integrals
-    if ((point_group == PointGroup::Dooh) || (point_group == PointGroup::Coov)) { // 4-fold symmetry
+    if (is_infinity_group) { // 4-fold symmetry
       for (p = 0; p < n_orbs; p++) {
         for (q = 0; q <= p; q++) {
           for (r = 0; r <= p; r++) {

@@ -61,8 +61,6 @@ class Integrals {
 
   std::vector<Hpqrs> raw_integrals;
 
-  std::vector<int> orb_syms_raw;
-
   void read_fcidump();
 
   std::vector<unsigned> get_adams_syms(const std::vector<int>& orb_syms_raw) const;
