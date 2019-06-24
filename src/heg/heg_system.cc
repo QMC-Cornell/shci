@@ -12,6 +12,7 @@ void HegSystem::setup(const bool) {
   n_dn = Config::get<unsigned>("n_dn");
   n_elecs = n_up + n_dn;
   Result::put("n_elecs", n_elecs);
+  n_states = Config::get<unsigned>("n_states", 1);
 
   r_s = Config::get<double>("heg/r_s");
   r_cut = Config::get<double>("heg/r_cut");
@@ -133,7 +134,11 @@ void HegSystem::setup_hf() {
   }
 
   dets.push_back(det_hf);
-  coefs.push_back(1.0);
+  coefs.resize(n_states);
+  coefs[0].push_back(1.0);
+  for (unsigned i_state = 1; i_state < n_states; i_state++) {
+    coefs[i_state].push_back(1e-16);
+  }
 }
 
 void HegSystem::find_connected_dets(

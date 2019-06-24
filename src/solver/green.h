@@ -56,7 +56,7 @@ template <class S>
 void Green<S>::run() {
   // Store dets and coefs.
   dets_store = system.dets;
-  coefs_store = system.coefs;
+  coefs_store = system.coefs[0];
   n_dets = dets_store.size();
   n_orbs = system.n_orbs;
 
@@ -65,7 +65,7 @@ void Green<S>::run() {
 
   // Construct new dets.
   system.dets.clear();
-  system.coefs.clear();
+  system.coefs[0].clear();
   advanced = Config::get<bool>("advanced_green", false);
   if (Parallel::is_master()) {
     if (advanced) {
@@ -98,9 +98,9 @@ void Green<S>::run() {
       if (std::abs(bj[k]) > 1.0e-6) {
         std::complex<double> diag = hamiltonian.matrix.get_diag(k);
         if (advanced) {
-          diag = w + n * Util::I - (diag - system.energy_var);
+          diag = w + n * Util::I - (diag - system.energy_var[0]);
         } else {
-          diag = w + n * Util::I + (diag - system.energy_var);
+          diag = w + n * Util::I + (diag - system.energy_var[0]);
         }
         x0[k] = bj[k] / diag;
       }
@@ -162,7 +162,7 @@ void Green<S>::construct_pdets() {
     }
   }
   n_pdets = system.dets.size();
-  system.coefs.assign(n_pdets, 0.0);
+  system.coefs[0].assign(n_pdets, 0.0);
 }
 
 template <class S>
@@ -265,9 +265,9 @@ std::vector<std::complex<double>> Green<S>::mul_green(
 
   for (size_t i = 0; i < n_pdets; i++) {
     if (advanced) {
-      G_vec[i] = (w + n * Util::I + system.energy_var) * vec[i] - G_vec[i];
+      G_vec[i] = (w + n * Util::I + system.energy_var[0]) * vec[i] - G_vec[i];
     } else {
-      G_vec[i] = (w + n * Util::I - system.energy_var) * vec[i] + G_vec[i];
+      G_vec[i] = (w + n * Util::I - system.energy_var[0]) * vec[i] + G_vec[i];
     }
   }
 
