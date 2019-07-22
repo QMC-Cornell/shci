@@ -155,6 +155,8 @@ template <class S>
 void Solver<S>::optimization_run() {
   std::setlocale(LC_ALL, "en_US.UTF-8");
 
+  Config::set<bool>("force_var", true);
+
   unsigned natorb_iter = Config::get<unsigned>("optimization/natorb_iter", 1);
   unsigned optorb_iter = Config::get<unsigned>("optimization/optorb_iter", 20);
 
@@ -172,6 +174,7 @@ void Solver<S>::optimization_run() {
     if (Parallel::is_master())
       std::cout << "\n== Iteration " << i_iter << ": natural orbitals ==\n";
 
+    Timer::start("Iteration");
     Timer::start("setup");
     if (i_iter == 0) {
       system.setup();
@@ -201,6 +204,7 @@ void Solver<S>::optimization_run() {
     eps_tried_prev.clear();
     var_dets.clear_and_shrink();
     i_iter++;
+    Timer::end();
   }
 
   if (natorb_iter > 0) {

@@ -12,6 +12,7 @@ class Optimization {
     rdm_p = rdm_ptr;
     integrals_p = integrals_ptr;
     n_orbs = integrals_ptr->n_orbs;
+    rot = MatrixXd::Zero(n_orbs, n_orbs);
   }
 
   ~Optimization() {
@@ -33,6 +34,7 @@ class Optimization {
 
   void rewrite_integrals();
 
+  MatrixXd get_rotation_matrix() const { return rot; };
  private:
   RDM* rdm_p;
 
@@ -45,6 +47,8 @@ class Optimization {
   typedef std::pair<unsigned, unsigned> index_t;
 
   Integrals_array new_integrals;
+
+  MatrixXd rot;
 
   void rotate_integrals(const MatrixXd& rot);
 

@@ -11,6 +11,8 @@
 #include "dooh_util.h"
 #include "optimization.h"
 #include "rdm.h"
+#include <eigen/Eigen/Dense>
+#include <fstream>
 
 void ChemSystem::setup(const bool load_integrals_from_file) {
   if (load_integrals_from_file) {
@@ -50,6 +52,8 @@ void ChemSystem::setup(const bool load_integrals_from_file) {
   if (Parallel::is_master()) {
     printf("HF energy: " ENERGY_FORMAT "\n", energy_hf);
   }
+
+  if (rotation_matrix.size() != n_orbs * n_orbs) rotation_matrix = Eigen::MatrixXd::Identity(n_orbs, n_orbs);
 }
 
 void ChemSystem::setup_sym_orbs() {
@@ -627,8 +631,10 @@ void ChemSystem::post_variation_optimization(
     natorb_optimizer.generate_natorb_integrals();
     Timer::end();
 
+    rotation_matrix *= natorb_optimizer.get_rotation_matrix();
+    Timer::start("rewrite integrals");
     natorb_optimizer.rewrite_integrals();
-    Timer::checkpoint("rewrite integrals");
+    Timer::end();
 
   } else {  // optorb optimization
     RDM rdm(&integrals);
@@ -655,8 +661,10 @@ void ChemSystem::post_variation_optimization(
     }
     Timer::end();
 
+    rotation_matrix *= optorb_optimizer.get_rotation_matrix();
+    Timer::start("rewrite integrals");
     optorb_optimizer.rewrite_integrals();
-    Timer::checkpoint("rewrite integrals");
+    Timer::end();
   }
 }
 
@@ -675,6 +683,11 @@ void ChemSystem::variation_cleanup() {
 
 void ChemSystem::dump_integrals(const char* filename) {
   integrals.dump_integrals(filename);
+  //std::cout << "\nrotation matrix:\n" << rotation_matrix << std::endl;
+  std::ofstream pFile;
+  pFile.open("rotation_matrix");
+  pFile << rotation_matrix;
+  pFile.close();
 }
 
 //======================================================

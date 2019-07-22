@@ -36,7 +36,7 @@ void Optimization::generate_natorb_integrals() {
   }
 
   double eigenvalues[n_orbs];
-  MatrixXd rot = MatrixXd::Zero(n_orbs, n_orbs);  // rotation matrix
+  //MatrixXd rot = MatrixXd::Zero(n_orbs, n_orbs);  // rotation matrix
 
   for (unsigned irrep = 0; irrep < n_group_elements; irrep++) {
     if (n_in_group[irrep] == 0) continue;
@@ -324,7 +324,7 @@ void Optimization::generate_optorb_integrals_from_newton() {
   // rotation matrix
   VectorXd new_param = hess.householderQr().solve(-1 * grad);
 
-  MatrixXd rot = MatrixXd::Zero(n_orbs, n_orbs);
+  //MatrixXd rot = MatrixXd::Zero(n_orbs, n_orbs);
   fill_rot_matrix_with_parameters(rot, new_param, param_indices);
   rotate_integrals(rot);
 }
@@ -336,7 +336,7 @@ void Optimization::generate_optorb_integrals_from_approximate_newton() {
 
   MatrixXd hess_diag = hessian_diagonal(param_indices);
   
-  /*  
+ /*   
   std::cout << "\n gradient: ";
   for (unsigned i = 0; i < param_indices.size(); i++) {
     std::cout << grad(i) << " ";
@@ -349,14 +349,103 @@ void Optimization::generate_optorb_integrals_from_approximate_newton() {
 
   rdm_p->clear();
 
-  VectorXd new_param(param_indices.size());
-  for (unsigned i = 0; i < param_indices.size(); i++) {
+  size_t dim = param_indices.size();
+
+  VectorXd new_param(dim);
+  for (size_t i = 0; i < dim; i++) {
     hess_diag(i) = (hess_diag(i) > 0 ? std::max(hess_diag(i), 1e-5) : std::min(hess_diag(i), -1e-5));
-    new_param(i) = -8*grad(i) / hess_diag(i);
+    new_param(i) = -grad(i) / hess_diag(i);
   }
 
-  MatrixXd rot = MatrixXd::Zero(n_orbs, n_orbs);
-  fill_rot_matrix_with_parameters(rot, new_param, param_indices);
+  static double eps = 0.05;
+  static bool is_first_iter = true;
+//  static VectorXd history(dim);
+//  if (Config::get<bool>("optimization/accelerate", false)) {
+//	  std::cout<<"\nAccelerate optimization step by overshooting" << std::endl;
+//    if (is_first_iter) {
+//      history = new_param;
+//      //new_param *= 2;
+//      is_first_iter = false;
+//    } else {
+//      double inner_prod = history.dot(new_param);
+//      double norm = new_param.norm();
+//      double old_norm = history.norm();
+//      history = new_param;
+//  
+//      double step_size = std::max(std::min(1./(1. - inner_prod/old_norm/norm), 1/eps),1.);
+//      std::cout<<"\ninner_prod: "<<inner_prod<<" norm: "<<norm<<" old_norm: "<<old_norm<<" cos(prev_param, current_param): "<<inner_prod/old_norm/norm<<"\n";
+//      std::cout<<"cos(steepest_descent, newton): "<< -grad.dot(new_param)/grad.norm()/new_param.norm() <<"\n";
+//      if (inner_prod < 0.) {
+//        eps = std::min(std::pow(eps, .8),.5);
+//        std::cout<<"eps for Newton step enhancement changes to "<<eps<<"\n";
+//      }
+//      //new_param *= step_size;
+//    }
+//  }
+  static VectorXd old_param(dim), old_update(dim);
+  VectorXd new_update(dim);
+  if (Config::get<bool>("optimization/accelerate", false)) {
+    std::cout<<"\nAccelerate optimization step by overshooting" << std::endl;
+    if (is_first_iter) {
+      new_update = 4 * new_param;
+      old_param = new_param;
+      old_update = new_update;
+      is_first_iter = false;
+    } else {
+      //new_update = old_param + new_param;
+      //new_update = 0.5 * (old_param + new_param);
+      new_update = new_param;
+      old_param = new_param;
+      //double inner_prod = old_update.dot(new_update);
+      //double new_norm = new_update.norm();
+      //double old_norm = old_update.norm();
+      //double cos = inner_prod / new_norm / old_norm; 
+      /*double cos = 0.;
+      for (size_t i = 0; i < dim; i++) {
+	if (new_update(i) * old_update(i) < 0.) {
+	  cos -= 1;
+	} else {
+	  cos += 1;
+	}
+      }
+      cos /= dim;*/
+
+      double grad_normalization=0., new_norm=0., old_norm=0., inner_prod=0.;
+      /*for (size_t i = 0; i < dim; i++) grad_normalization += 1/(0.5+std::abs(grad(i)));
+      for (size_t i = 0; i < dim; i++) {
+	inner_prod += old_update(i)*new_update(i)/(0.5+std::abs(grad(i)))/grad_normalization;
+	new_norm += new_update(i)*new_update(i)/(0.5+std::abs(grad(i)))/grad_normalization;
+	old_norm += old_update(i)*old_update(i)/(0.5+std::abs(grad(i)))/grad_normalization;
+      }
+      new_norm = std::sqrt(new_norm); old_norm = std::sqrt(old_norm);
+      double cos = inner_prod/new_norm/old_norm;*/
+
+      for (size_t i = 0; i < dim; i++) {
+	inner_prod += old_update(i)*new_update(i)*hess_diag(i);
+	new_norm += new_update(i)*new_update(i)*hess_diag(i);
+	old_norm += old_update(i)*old_update(i)*hess_diag(i);
+      }
+      new_norm = std::sqrt(new_norm); old_norm = std::sqrt(old_norm);
+      double cos = inner_prod/new_norm/old_norm;
+
+      double step_size = std::max(std::min(2./(1. - cos), 1/eps), 1.);
+      //step_size = 1;
+      //std::cout<<"cos(steepest_descent, newton): "<< -grad.dot(new_param)/grad.norm()/new_param.norm() <<"\n";
+      if (inner_prod < 0.) {
+        eps = std::min(std::pow(eps, .8),.5);
+        std::cout<<"eps for Newton step enhancement changes to "<<eps<<"\n";
+      }
+      new_update *= step_size;
+      old_update = new_update;
+      std::cout<<"\ngrad "<<grad.norm()<<" inner_prod "<<inner_prod<<" new_norm "<<new_norm<<" old_norm "<<old_norm<<" cos(o_up, n_up) "<<cos<<" step "<<step_size<<"\n";
+    }
+  } else {
+    new_update = new_param;
+  }
+
+  //MatrixXd rot = MatrixXd::Zero(n_orbs, n_orbs);
+  //fill_rot_matrix_with_parameters(rot, new_param, param_indices);
+  fill_rot_matrix_with_parameters(rot, new_update, param_indices);
   rotate_integrals(rot);
 }
 
@@ -369,7 +458,7 @@ void Optimization::generate_optorb_integrals_from_grad_descent() {
   rdm_p->clear();
 
   VectorXd new_param = -0.01 * grad;
-  MatrixXd rot = MatrixXd::Zero(n_orbs, n_orbs);
+  //MatrixXd rot = MatrixXd::Zero(n_orbs, n_orbs);
   fill_rot_matrix_with_parameters(rot, new_param, param_indices);
   rotate_integrals(rot);
 }
@@ -407,7 +496,7 @@ void Optimization::generate_optorb_integrals_from_amsgrad() {
     history[1][i] = v_hat;
   }
 
-  MatrixXd rot = MatrixXd::Zero(dim, dim);
+  //MatrixXd rot = MatrixXd::Zero(dim, dim);
   fill_rot_matrix_with_parameters(rot, new_param, param_indices);
   rotate_integrals(rot);
 
@@ -425,7 +514,7 @@ std::vector<Optimization::index_t> Optimization::parameter_indices() const {
     }
   }
   if (Parallel::is_master()) {
-    std::cout << "Number of optimization parameters: " << indices.size();
+    std::cout << "Number of optimization parameters: " << indices.size() << std::endl;
   }
   return indices;
 }

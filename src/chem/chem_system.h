@@ -9,6 +9,7 @@
 #include "point_group.h"
 #include "product_table.h"
 #include "sr.h"
+#include <eigen/Eigen/Dense>
 
 class ChemSystem : public BaseSystem {
  public:
@@ -55,6 +56,8 @@ class ChemSystem : public BaseSystem {
 
   // singles queue
   std::vector<std::vector<Sr>> singles_queue;
+
+  Eigen::MatrixXd rotation_matrix;
 
   // setup sym orbs
   void setup_sym_orbs();
