@@ -451,6 +451,14 @@ void Solver<S>::run_perturbation(const double eps_var) {
   eps_pt_dtm = Config::get<double>("eps_pt_dtm", default_eps_pt_dtm);
   eps_pt_psto = Config::get<double>("eps_pt_psto", default_eps_pt_psto);
   eps_pt = Config::get<double>("eps_pt", default_eps_pt);
+
+  double eps_pt_psto_ratio = Config::get<double>("eps_pt_psto_ratio", -1);
+  if (eps_pt_psto_ratio > 0) {
+    eps_pt_dtm = eps_var;
+    eps_pt_psto = eps_pt_psto_ratio * eps_var;
+    eps_pt = eps_pt_psto;
+  }
+
   if (eps_pt_psto < eps_pt) eps_pt_psto = eps_pt;
   if (eps_pt_dtm < eps_pt_psto) eps_pt_dtm = eps_pt_psto;
   // If result already exists, return.
@@ -543,6 +551,11 @@ double Solver<S>::get_energy_pt_dtm(const double eps_var) {
     n_batches =
         static_cast<size_t>(ceil(2.0 * 128 * 100 * n_pt_dets * bytes_per_entry / pt_mem_avail));
     if (n_batches == 0) n_batches = 1;
+    size_t n_batches_node = n_batches;
+    fgpl::broadcast(n_batches);
+    if (n_batches_node > n_batches) {
+      throw std::runtime_error("insufficient memory for node.");
+    }
     if (Parallel::is_master()) {
       printf("Number of dtm batches: %zu\n", n_batches);
     }
@@ -660,6 +673,11 @@ UncertResult Solver<S>::get_energy_pt_psto(const double eps_var, const double en
     n_batches = static_cast<size_t>(
         ceil(2.0 * 128 * 100 * n_pt_dets * bytes_per_entry / (pt_mem_avail * mem_usage)));
     if (n_batches < 16) n_batches = 16;
+    size_t n_batches_node = n_batches;
+    fgpl::broadcast(n_batches);
+    if (n_batches_node > n_batches) {
+      throw std::runtime_error("insufficient memory for node.");
+    }
     if (Parallel::is_master()) {
       printf("Number of psto batches: %zu\n", n_batches);
     }
@@ -970,6 +988,10 @@ std::array<double, 2> Solver<S>::mapreduce_sum(
 
 template <class S>
 bool Solver<S>::load_variation_result(const std::string& filename) {
+  if (Parallel::is_master()) {
+    printf("Try Loading Wavefunction %s\n", filename.c_str());
+    fflush(stdout);
+  }
   std::string serialized;
   const int TRUNK_SIZE = 1 << 20;
   char buffer[TRUNK_SIZE];
