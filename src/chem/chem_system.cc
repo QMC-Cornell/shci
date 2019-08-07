@@ -220,15 +220,22 @@ PointGroup ChemSystem::get_point_group(const std::string& str) const {
 double ChemSystem::get_singles_queue_elem(const unsigned orb_i, const unsigned orb_j) const {
   if (orb_i == orb_j) return 0.0;
   double S = std::abs(integrals.get_1b(orb_i, orb_j));
+  std::vector<double> singles_queue_elems(n_orbs);
   for (unsigned orb = 0; orb < n_orbs; orb++) {
     const double exchange = integrals.get_2b(orb_i, orb, orb, orb_j);
     const double direct = integrals.get_2b(orb_i, orb_j, orb, orb);
     if (orb == orb_i or orb == orb_j)
-      S += std::abs(direct);  // opposite spin only
+      singles_queue_elems[orb] = direct;  // opposite spin only
     else
-      S += std::abs(direct - exchange) + std::abs(direct);  // same spin + opposite spin
+      singles_queue_elems[orb] = 2*direct - exchange; // same spin + opposite spin
   }
-  return S;
+  std::sort(singles_queue_elems.begin(), singles_queue_elems.end());
+  double min_sum = 0, max_sum = 0;
+  for (unsigned i = 0; i < min(n_elecs - 2, n_orb); i++) {
+    min_sum += singles_queue_elems[i];
+    max_sum += singels_queue_elems[n_orb-i-1];
+  } 
+  return S + std::max(std::abs(min_sum), std::abs(max_sum));
 }
 
 double ChemSystem::get_hci_queue_elem(
