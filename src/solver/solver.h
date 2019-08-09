@@ -865,6 +865,10 @@ std::array<double, 2> Solver<S>::mapreduce_sum(
 
 template <class S>
 bool Solver<S>::load_variation_result(const std::string& filename) {
+  if (Parallel::is_master()) {
+    printf("Try Loading Wavefunction %s\n", filename.c_str());
+    fflush(stdout);
+  }
   std::string serialized;
   const int TRUNK_SIZE = 1 << 20;
   char buffer[TRUNK_SIZE];
