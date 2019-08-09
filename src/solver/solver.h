@@ -14,6 +14,7 @@
 #include <functional>
 #include <numeric>
 #include <unordered_set>
+#include <queue>
 
 #include "../config.h"
 #include "../det/det.h"
@@ -242,7 +243,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
           double eps_min = eps_var / std::abs(coef);
           if (i == 0 && var_sd) eps_min = 0.0;
           if (system.time_sym && det.up != det.dn) eps_min *= Util::SQRT2;
-          if (eps_min >= eps_tried_prev[i] * 0.99) return;
+          if (eps_min >= eps_tried_prev[i] * 0.999) return;
           Det connected_det_reg;
           const auto& connected_det_handler = [&](const Det& connected_det, const int n_excite) {
             connected_det_reg = connected_det;
@@ -280,7 +281,8 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
       hamiltonian.update(system);
     }
 
-    const double davidson_target_error = until_converged ? target_error / 5000 : target_error / 50;
+    const double davidson_target_error =
+        until_converged ? target_error * target_error * 1e-4 : target_error * target_error;
     davidson.diagonalize(
         hamiltonian.matrix, system.coefs, davidson_target_error, Parallel::is_master());
     const double energy_var_new = davidson.get_lowest_eigenvalue();
@@ -291,12 +293,14 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
       printf("Iteration %zu ", var_iteration_global);
       printf("eps1= %#.2e ndets= %'zu energy= %.8f\n", eps_var, n_dets_new, energy_var_new);
     }
-    if (std::abs(energy_var_new - energy_var_prev) < target_error * 0.001) {
+    if (std::abs(energy_var_new - energy_var_prev) < target_error * target_error * 1e-2) {
       converged = true;
     }
     if (n_dets_new < n_dets * 1.001) {
       dets_converged = true;
-      if (davidson.converged) converged = true;
+    }
+    if (dets_converged && davidson.converged) {
+      converged = true;
     }
     n_dets = n_dets_new;
     energy_var_prev = energy_var_new;
@@ -316,7 +320,7 @@ template <class S>
 void Solver<S>::run_perturbation(const double eps_var) {
   double default_eps_pt_dtm = 2.0e-6;
   double default_eps_pt_psto = 1.0e-7;
-  double default_eps_pt = eps_var * 1.0e-6;
+  double default_eps_pt = 1.0e-20;
   if (system.type == SystemType::HEG) {
     default_eps_pt_psto = default_eps_pt_dtm;
     default_eps_pt = eps_var * 1.0e-20;
@@ -422,12 +426,12 @@ double Solver<S>::get_energy_pt_dtm(const double eps_var) {
     hc_sums.sync();
     const size_t n_pt_dets = hc_sums.get_n_keys();
     n_batches =
-        static_cast<size_t>(ceil(2.0 * 128 * 100 * n_pt_dets * bytes_per_entry / pt_mem_avail));
+        static_cast<size_t>(ceil(2.5 * 128 * 100 * n_pt_dets * bytes_per_entry / pt_mem_avail));
     if (n_batches == 0) n_batches = 1;
     size_t n_batches_node = n_batches;
     fgpl::broadcast(n_batches);
     if (n_batches_node > n_batches) {
-      throw std::runtime_error("insufficient memory for node.");
+      printf("Warning: insufficient memory for node id %d.\n", Parallel::get_proc_id());
     }
     if (Parallel::is_master()) {
       printf("Number of dtm batches: %zu\n", n_batches);
@@ -544,12 +548,12 @@ UncertResult Solver<S>::get_energy_pt_psto(const double eps_var, const double en
     const size_t n_pt_dets = hc_sums.get_n_keys();
     const double mem_usage = Config::get<double>("pt_psto_mem_usage", 1.0);
     n_batches = static_cast<size_t>(
-        ceil(2.0 * 128 * 100 * n_pt_dets * bytes_per_entry / (pt_mem_avail * mem_usage)));
+        ceil(2.5 * 128 * 100 * n_pt_dets * bytes_per_entry / (pt_mem_avail * mem_usage)));
     if (n_batches < 16) n_batches = 16;
     size_t n_batches_node = n_batches;
     fgpl::broadcast(n_batches);
     if (n_batches_node > n_batches) {
-      throw std::runtime_error("insufficient memory for node.");
+      printf("Warning: insufficient memory for node id %d.\n", Parallel::get_proc_id());
     }
     if (Parallel::is_master()) {
       printf("Number of psto batches: %zu\n", n_batches);
@@ -822,7 +826,7 @@ UncertResult Solver<S>::get_energy_pt_sto(
     hc_sums.clear();
     Timer::end();
     iteration++;
-    if (iteration >= 6 && (energy_pt_sto + energy_pt_psto).uncert <= target_error * 0.5) {
+    if (iteration >= 6 && energy_pt_sto.uncert <= target_error * 0.7) {
       break;
     }
     if (iteration >= 10 && (energy_pt_sto + energy_pt_psto).uncert <= target_error) {
@@ -861,10 +865,6 @@ std::array<double, 2> Solver<S>::mapreduce_sum(
 
 template <class S>
 bool Solver<S>::load_variation_result(const std::string& filename) {
-  if (Parallel::is_master()) {
-    printf("Try Loading Wavefunction %s\n", filename.c_str());
-    fflush(stdout);
-  }
   std::string serialized;
   const int TRUNK_SIZE = 1 << 20;
   char buffer[TRUNK_SIZE];
@@ -1022,10 +1022,11 @@ void Solver<S>::print_dets_info() const {
 
   // Print orb occupations.
   std::vector<double> orb_occupations(system.n_orbs, 0.0);
-  for (size_t i = 0; i < system.dets.size(); i++) {
-    const auto& det = system.dets[i];
-    const double coef = system.coefs[i];
-    for (unsigned j = 0; j < system.n_orbs; j++) {
+#pragma omp parallel for schedule(static, 1)
+  for (unsigned j = 0; j < system.n_orbs; j++) {
+    for (size_t i = 0; i < system.dets.size(); i++) {
+      const auto& det = system.dets[i];
+      const double coef = system.coefs[i];
       if (det.up.has(j)) {
         orb_occupations[j] += coef * coef;
       }
@@ -1049,13 +1050,19 @@ void Solver<S>::print_dets_info() const {
   for (size_t i = 0; i < system.dets.size(); i++) {
     det_order[i] = i;
   }
-  std::stable_sort(det_order.begin(), det_order.end(), [&](const size_t a, const size_t b) {
-    return std::abs(system.coefs[a]) > std::abs(system.coefs[b]);
-  });
+  const auto& comp = [&](const size_t a, const size_t b) {
+    if (std::abs(system.coefs[a]) != std::abs(system.coefs[b])) {
+      return std::abs(system.coefs[a]) < std::abs(system.coefs[b]);
+    }
+    return a > b;
+  };
+  std::priority_queue<size_t, std::vector<size_t>, decltype(comp)> det_ordered(comp, det_order);
   printf("%-10s%12s      %-12s\n", "Excite Lv", "Coef", "Det (Reordered orb)");
   for (size_t i = 0; i < std::min((size_t)20, system.dets.size()); i++) {
-    const double coef = system.coefs[det_order[i]];
-    const auto& det = system.dets[det_order[i]];
+    size_t ordered_i = det_ordered.top();
+    det_ordered.pop();
+    const double coef = system.coefs[ordered_i];
+    const auto& det = system.dets[ordered_i];
     const auto& occs_up = det.up.get_occupied_orbs();
     const auto& occs_dn = det.dn.get_occupied_orbs();
     const unsigned n_excite = det_hf.up.n_diffs(det.up) + det_hf.dn.n_diffs(det.dn);
