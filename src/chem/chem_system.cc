@@ -219,7 +219,8 @@ PointGroup ChemSystem::get_point_group(const std::string& str) const {
 
 double ChemSystem::get_singles_queue_elem(const unsigned orb_i, const unsigned orb_j) const {
   if (orb_i == orb_j) return 0.0;
-  double S = std::abs(integrals.get_1b(orb_i, orb_j));
+  double S_min = integrals.get_1b(orb_i, orb_j);
+  double S_max = S_min;
   std::vector<double> singles_queue_elems(n_orbs);
   for (unsigned orb = 0; orb < n_orbs; orb++) {
     const double exchange = integrals.get_2b(orb_i, orb, orb, orb_j);
@@ -230,13 +231,43 @@ double ChemSystem::get_singles_queue_elem(const unsigned orb_i, const unsigned o
       singles_queue_elems[orb] = 2*direct - exchange; // same spin + opposite spin
   }
   std::sort(singles_queue_elems.begin(), singles_queue_elems.end());
-  double min_sum = 0, max_sum = 0;
-  for (unsigned i = 0; i < min(n_elecs - 2, n_orb); i++) {
-    min_sum += singles_queue_elems[i];
-    max_sum += singels_queue_elems[n_orb-i-1];
+  for (unsigned i = 0; i < std::min(n_elecs - 2, n_orbs); i++) {
+    S_min += singles_queue_elems[i];
+    S_max += singles_queue_elems[n_orbs-i-1];
   } 
+  return std::max(std::abs(S_min), std::abs(S_max));
+}
+
+/**
+double ChemSystem::get_singles_queue_elem_heap(const unsigned orb_i, const unsigned orb_j) const {
+  if (orb_i == orb_j) return 0.0;
+  double S = std::abs(integrals.get_1b(orb_i, orb_j));
+  using MinHeap = std::priority_queue<double, std::vector<double>, std::greater<double>>;
+  using MaxHeap = std::priority_queue<double>
+  MaxHeap min_elems;
+  MinHeap max_elems;
+  for (unsigned orb = 0; orb < n_orbs; orb++) {
+    double elem = 0;
+    const double exchange = integrals.get_2b(orb_i, orb, orb, orb_j);
+    const double direct = integrals.get_2b(orb_i, orb_j, orb, orb);
+    if (orb == orb_i or orb == orb_j)
+      elem = direct;  // opposite spin only
+    else
+      elem = 2*direct - exchange; // same spin + opposite spin
+    if (elem > max_elems.front()) {
+      max_elems.pop();
+      max_elems.push(elem);
+    }
+    if (elem < min_elems.front()) {
+      min_elems.pop();
+      min_elems.push(elem);
+    }
+  }
+  double max_sum = std::accumulate(max_elems.begin(), max_elems.end(), 0);
+  double min_sum = std::accumulate(min_elems.begin(), min_elems.end(), 0);
   return S + std::max(std::abs(min_sum), std::abs(max_sum));
 }
+**/
 
 double ChemSystem::get_hci_queue_elem(
     const unsigned p, const unsigned q, const unsigned r, const unsigned s) {
