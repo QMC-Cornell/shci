@@ -325,16 +325,21 @@ void Solver<S>::run_perturbation(const double eps_var) {
     default_eps_pt_psto = default_eps_pt_dtm;
     default_eps_pt = eps_var * 1.0e-20;
   }
+
+  double eps_pt_psto_ratio = Config::get<double>("eps_pt_psto_ratio", -1);
+  if (eps_pt_psto_ratio > 0) {
+    default_eps_pt_psto = std::min(eps_pt_dtm, eps_pt_psto_ratio * eps_var);
+  }
+
+  double eps_pt_ratio = Config::get<double>("eps_pt_ratio", -1);
+  if (eps_pt_ratio > 0) {
+    default_eps_pt = std::min(eps_pt_psto, eps_pt_ratio * eps_var);
+  }
+
   eps_pt_dtm = Config::get<double>("eps_pt_dtm", default_eps_pt_dtm);
   eps_pt_psto = Config::get<double>("eps_pt_psto", default_eps_pt_psto);
   eps_pt = Config::get<double>("eps_pt", default_eps_pt);
 
-  double eps_pt_psto_ratio = Config::get<double>("eps_pt_psto_ratio", -1);
-  if (eps_pt_psto_ratio > 0) {
-    eps_pt_dtm = eps_var;
-    eps_pt_psto = eps_pt_psto_ratio * eps_var;
-    eps_pt = eps_pt_psto;
-  }
 
   if (eps_pt_psto < eps_pt) eps_pt_psto = eps_pt;
   if (eps_pt_dtm < eps_pt_psto) eps_pt_dtm = eps_pt_psto;
@@ -412,7 +417,7 @@ double Solver<S>::get_energy_pt_dtm(const double eps_var) {
         if (var_dets.has(det_a)) return;
         const size_t det_a_hash = det_hasher(det_a);
         const size_t batch_hash = Util::rehash(det_a_hash);
-        if ((batch_hash & 127) != 0) return;  // use 1st of 16 batches.
+        if ((batch_hash & 127) != 0) return; // For n a power of 2, "% n" = "& (n-1)"
         if (n_excite == 1) {
           const double h_ai = system.get_hamiltonian_elem(det, det_a, n_excite);
           const double hc = h_ai * coef;
@@ -533,7 +538,7 @@ UncertResult Solver<S>::get_energy_pt_psto(const double eps_var, const double en
         if (var_dets.has(det_a)) return;
         const size_t det_a_hash = det_hasher(det_a);
         const size_t batch_hash = Util::rehash(det_a_hash);
-        if ((batch_hash & 127) != 0) return;  // use 1st of 16 batches.
+        if ((batch_hash & 127) != 0) return; // For n a power of 2, "% n" = "& (n-1)"
         if (n_excite == 1) {
           const double h_ai = system.get_hamiltonian_elem(det, det_a, n_excite);
           const double hc = h_ai * coef;
@@ -698,7 +703,7 @@ UncertResult Solver<S>::get_energy_pt_sto(
         if (var_dets.has(det_a)) return;
         const size_t det_a_hash = det_hasher(det_a);
         const size_t batch_hash = Util::rehash(det_a_hash);
-        if ((batch_hash & 127) != 0) return;
+        if ((batch_hash & 127) != 0) return; // For n a power of 2, "% n" = "& (n-1)"
         if (n_excite == 1) {
           const double h_ai = system.get_hamiltonian_elem(det, det_a, n_excite);
           const double hc = h_ai * coef;
