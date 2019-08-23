@@ -26,7 +26,7 @@ Many software packages can generate `FCIDUMP`, such as [`PySCF`](https://github.
 ## Configurations
 
 This program should be regarded as a preliminary research program rather than a fully tested catch-all software package.
-The efficiency and correctness of any edge cases, any configurations significantly from the default values or values in published papers are not garenteed.
+The efficiency and correctness of any edge cases, any configurations significantly from the default values or values in published papers, are not garenteed.
 
 ### General
 * `n_up`, `n_dn` (required): number of up / down electrons.
