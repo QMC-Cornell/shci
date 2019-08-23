@@ -24,6 +24,10 @@ To run other systems, you will have to obtain an `FCIDUMP` file and modify the v
 Many software packages can generate `FCIDUMP`, such as [`PySCF`](https://github.com/sunqm/pyscf) and [`Molpro`](https://www.molpro.net/).
 
 ## Configurations
+
+This program should be regarded as a preliminary research program rather than a fully tested catch-all software package.
+The efficiency and correctness of any edge cases are not garenteed.
+
 ### General
 * `n_up`, `n_dn` (required): number of up / down electrons.
 * `system` (required): only support `chem` for now.
