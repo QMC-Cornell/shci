@@ -281,8 +281,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
       hamiltonian.update(system);
     }
 
-    const double davidson_target_error =
-        until_converged ? target_error * target_error * 1e-4 : target_error * target_error;
+    const double davidson_target_error = until_converged ? target_error / 5000 : target_error / 50;
     davidson.diagonalize(
         hamiltonian.matrix, system.coefs, davidson_target_error, Parallel::is_master());
     const double energy_var_new = davidson.get_lowest_eigenvalue();
@@ -293,7 +292,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
       printf("Iteration %zu ", var_iteration_global);
       printf("eps1= %#.2e ndets= %'zu energy= %.8f\n", eps_var, n_dets_new, energy_var_new);
     }
-    if (std::abs(energy_var_new - energy_var_prev) < target_error * target_error * 1e-2) {
+    if (std::abs(energy_var_new - energy_var_prev) < target_error * 0.001) {
       converged = true;
     }
     if (n_dets_new < n_dets * 1.001) {
@@ -318,28 +317,35 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
 
 template <class S>
 void Solver<S>::run_perturbation(const double eps_var) {
-  double default_eps_pt_dtm = 2.0e-6;
-  double default_eps_pt_psto = 1.0e-7;
-  double default_eps_pt = 1.0e-20;
+//double default_eps_pt_dtm = 2.0e-6;
+//double default_eps_pt_psto = 1.0e-7;
+//double default_eps_pt = eps_var * 1.0e-6;
+  double default_eps_pt_dtm = std::max(2.0e-6,0.1*eps_var);
+  double default_eps_pt_psto = std::max(1.0e-7,1.0e-3*eps_var);
+  double default_eps_pt = 1.0e-3*eps_var;
   if (system.type == SystemType::HEG) {
     default_eps_pt_psto = default_eps_pt_dtm;
     default_eps_pt = eps_var * 1.0e-20;
   }
 
+  double eps_pt_dtm_ratio = Config::get<double>("eps_pt_dtm_ratio", -1);
+  if (eps_pt_dtm_ratio > 0) {
+    default_eps_pt_dtm = std::min(eps_var, eps_pt_dtm_ratio * eps_var);
+  }
+
   double eps_pt_psto_ratio = Config::get<double>("eps_pt_psto_ratio", -1);
   if (eps_pt_psto_ratio > 0) {
-    default_eps_pt_psto = std::min(eps_pt_dtm, eps_pt_psto_ratio * eps_var);
+    default_eps_pt_psto = std::min(default_eps_pt_dtm, eps_pt_psto_ratio * eps_var);
   }
 
   double eps_pt_ratio = Config::get<double>("eps_pt_ratio", -1);
   if (eps_pt_ratio > 0) {
-    default_eps_pt = std::min(eps_pt_psto, eps_pt_ratio * eps_var);
+    default_eps_pt = std::min(default_eps_pt_psto, eps_pt_ratio * eps_var);
   }
 
   eps_pt_dtm = Config::get<double>("eps_pt_dtm", default_eps_pt_dtm);
   eps_pt_psto = Config::get<double>("eps_pt_psto", default_eps_pt_psto);
   eps_pt = Config::get<double>("eps_pt", default_eps_pt);
-
 
   if (eps_pt_psto < eps_pt) eps_pt_psto = eps_pt;
   if (eps_pt_dtm < eps_pt_psto) eps_pt_dtm = eps_pt_psto;
@@ -399,8 +405,12 @@ void Solver<S>::run_perturbation(const double eps_var) {
 }
 
 template <class S>
+// This is just so dtm can be skipped. We don't use eps_pt_dtm >= eps_var, because a few more dets could be picked up when doing PT
+// We use safety_f=1.2 rather than 1 because the coefficients of dets change upon last HCI iteration,
+// so if we use 1 then a few borderline determinants would be neither in the variational nor in the dtm space.
 double Solver<S>::get_energy_pt_dtm(const double eps_var) {
-  if (eps_pt_dtm >= 1.0) return system.energy_var;
+  const double safety_f=1.2;
+  if (eps_pt_dtm >= safety_f*eps_var) return system.energy_var;
   Timer::start(Util::str_printf("dtm %#.2e", eps_pt_dtm));
   const size_t n_var_dets = system.get_n_dets();
   size_t n_batches = Config::get<size_t>("n_batches_pt_dtm", 0);
@@ -426,7 +436,7 @@ double Solver<S>::get_energy_pt_dtm(const double eps_var) {
         MathVector<double, 1> contrib;
         hc_sums.async_set(det_a, contrib);
       };
-      system.find_connected_dets(det, Util::INF, eps_pt_dtm / std::abs(coef), pt_det_handler);
+      system.find_connected_dets(det, safety_f*eps_var/std::abs(coef), eps_pt_dtm/std::abs(coef), pt_det_handler);
     });
     hc_sums.sync();
     const size_t n_pt_dets = hc_sums.get_n_keys();
@@ -436,7 +446,7 @@ double Solver<S>::get_energy_pt_dtm(const double eps_var) {
     size_t n_batches_node = n_batches;
     fgpl::broadcast(n_batches);
     if (n_batches_node > n_batches) {
-      printf("Warning: insufficient memory for node id %d.\n", Parallel::get_proc_id());
+      printf("Warning: there may insufficient memory on node id %d.\n", Parallel::get_proc_id());
     }
     if (Parallel::is_master()) {
       printf("Number of dtm batches: %zu\n", n_batches);
@@ -468,7 +478,7 @@ double Solver<S>::get_energy_pt_dtm(const double eps_var) {
           const MathVector<double, 1> contrib(hc);
           hc_sums.async_set(det_a, contrib, fgpl::Reducer<MathVector<double, 1>>::sum);
         };
-        system.find_connected_dets(det, Util::INF, eps_pt_dtm / std::abs(coef), pt_det_handler);
+        system.find_connected_dets(det, safety_f*eps_var/std::abs(coef), eps_pt_dtm/std::abs(coef), pt_det_handler);
       });
       hc_sums.sync(fgpl::Reducer<MathVector<double, 1>>::sum);
       if (Parallel::is_master()) printf("%zu%% ", (j + 1) * 20);
@@ -547,7 +557,7 @@ UncertResult Solver<S>::get_energy_pt_psto(const double eps_var, const double en
         MathVector<double, 2> contrib;
         hc_sums.async_set(det_a, contrib);
       };
-      system.find_connected_dets(det, Util::INF, eps_pt_psto / std::abs(coef), pt_det_handler);
+      system.find_connected_dets(det, eps_pt_dtm/std::abs(coef), eps_pt_psto/std::abs(coef), pt_det_handler);
     });
     hc_sums.sync();
     const size_t n_pt_dets = hc_sums.get_n_keys();
@@ -558,7 +568,7 @@ UncertResult Solver<S>::get_energy_pt_psto(const double eps_var, const double en
     size_t n_batches_node = n_batches;
     fgpl::broadcast(n_batches);
     if (n_batches_node > n_batches) {
-      printf("Warning: insufficient memory for node id %d.\n", Parallel::get_proc_id());
+      printf("Warning: there may be insufficient memory on node id %d.\n", Parallel::get_proc_id());
     }
     if (Parallel::is_master()) {
       printf("Number of psto batches: %zu\n", n_batches);
@@ -592,7 +602,7 @@ UncertResult Solver<S>::get_energy_pt_psto(const double eps_var, const double en
           if (std::abs(hc) >= eps_pt_dtm) contrib[1] = hc;
           hc_sums.async_set(det_a, contrib, fgpl::Reducer<MathVector<double, 2>>::sum);
         };
-        system.find_connected_dets(det, Util::INF, eps_pt_psto / std::abs(coef), pt_det_handler);
+        system.find_connected_dets(det, eps_pt_dtm/std::abs(coef), eps_pt_psto/std::abs(coef), pt_det_handler);
       });
       hc_sums.sync(fgpl::Reducer<MathVector<double, 2>>::sum);
       if (Parallel::is_master()) printf("%zu%% ", (j + 1) * 20);
@@ -712,7 +722,7 @@ UncertResult Solver<S>::get_energy_pt_sto(
         MathVector<double, 3> contrib;
         hc_sums.async_set(det_a, contrib);
       };
-      system.find_connected_dets(det, Util::INF, eps_pt / std::abs(coef), pt_det_handler);
+      system.find_connected_dets(det, eps_pt_psto/std::abs(coef), eps_pt/std::abs(coef), pt_det_handler);
     });
     hc_sums.sync();
     const size_t n_pt_dets = hc_sums.get_n_keys();
@@ -797,7 +807,7 @@ UncertResult Solver<S>::get_energy_pt_sto(
           }
           hc_sums.async_set(det_a, contrib, fgpl::Reducer<MathVector<double, 3>>::sum);
         };
-        system.find_connected_dets(det, Util::INF, eps_pt / std::abs(coef), pt_det_handler);
+        system.find_connected_dets(det, eps_pt_psto/std::abs(coef), eps_pt/std::abs(coef), pt_det_handler);
       });
       hc_sums.sync(fgpl::Reducer<MathVector<double, 3>>::sum);
       if (Parallel::is_master()) printf("%zu%% ", (j + 1) * 20);
