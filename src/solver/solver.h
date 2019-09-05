@@ -899,6 +899,7 @@ bool Solver<S>::load_variation_result(const std::string& filename) {
   MPI_File_get_size(file, &size);
   MPI_Status status;
   while (size > TRUNK_SIZE) {
+    // Parallel File loading and tree distribution.
     MPI_File_read_all(file, buffer, TRUNK_SIZE, MPI_CHAR, &status);
     serialized.append(buffer, TRUNK_SIZE);
     size -= TRUNK_SIZE;
