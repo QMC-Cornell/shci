@@ -17,6 +17,7 @@ constexpr double Util::SQRT2_INV;
 
 constexpr std::complex<double> Util::I;
 
+// Case insensitive strings comparison.
 bool Util::str_equals_ci(const std::string& a, const std::string& b) {
   size_t size = a.size();
   if (b.size() != size) return false;
@@ -45,6 +46,7 @@ double Util::stdev(const std::vector<double>& vec) {
   return sqrt((sq_sum - sum * sum / n) / (n - 1));
 }
 
+// Dot parallized on a node.
 double Util::dot_omp(const std::vector<double>& a, const std::vector<double>& b) {
   double sum = 0.0;
   const size_t n = a.size();
