@@ -207,9 +207,9 @@ void Solver<S>::run_all_variations() {
 template <class S>
 void Solver<S>::run_all_perturbations() {
   const auto& eps_vars = Config::get<std::vector<double>>("eps_vars");
-  bytes_per_det = N_CHUNKS * 16;
+  bytes_per_det = N_CHUNKS * 16;  // 2 * 8 * N_CHKS
 #ifdef INF_ORBS
-  bytes_per_det += 128;
+  bytes_per_det += 128;  // 4 * 32. Assume 4 avg excitations beyond bit-rep CHUNKS per Half Det.
 #endif
   for (const double eps_var : eps_vars) {
     Timer::start(Util::str_printf("eps_var=%#.2e", eps_var));
@@ -441,6 +441,7 @@ double Solver<S>::get_energy_pt_dtm(const double eps_var) {
     });
     hc_sums.sync();
     const size_t n_pt_dets = hc_sums.get_n_keys();
+    // 128 batches during estimation. 1 out of 100 var dets used. Hash table filling rate < 1 / 2.5
     n_batches =
         static_cast<size_t>(ceil(2.5 * 128 * 100 * n_pt_dets * bytes_per_entry / pt_mem_avail));
     if (n_batches == 0) n_batches = 1;
@@ -563,6 +564,7 @@ UncertResult Solver<S>::get_energy_pt_psto(const double eps_var, const double en
     hc_sums.sync();
     const size_t n_pt_dets = hc_sums.get_n_keys();
     const double mem_usage = Config::get<double>("pt_psto_mem_usage", 1.0);
+    // 128 batches during estimation. 1 out of 100 var dets used. Hash table filling rate < 1 / 2.5
     n_batches = static_cast<size_t>(
         ceil(2.5 * 128 * 100 * n_pt_dets * bytes_per_entry / (pt_mem_avail * mem_usage)));
     if (n_batches < 16) n_batches = 16;
