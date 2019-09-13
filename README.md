@@ -9,6 +9,7 @@ Make sure you have installed MPI.
 ```
 git clone --recursive https://github.com/jl2922/shci
 cd shci
+git checkout stable # optional
 make -j
 ```
 `--recursive` will download all the dependencies from Github recursively.
