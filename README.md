@@ -7,12 +7,12 @@
 ## Compilation
 Make sure you have installed MPI.
 ```
-git clone --recursive https://github.com/jl2922/shci
+git clone https://github.com/jl2922/shci
 cd shci
 git checkout stable # optional
+git submodule update --init --recursive
 make -j
 ```
-`--recursive` will download all the dependencies from Github recursively.
 
 ## Example Run
 An example carbon atom calculation inputs is provided with the code.
