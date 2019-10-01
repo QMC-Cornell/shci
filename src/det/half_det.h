@@ -25,6 +25,8 @@ class HalfDet {
 
   DiffResult diff(const HalfDet& rhs) const;
 
+  // WARNING: Not working for n_elecs > N_CHUNKS * 64
+  // count the total number of set orbitals below orbital p
   unsigned bit_till(unsigned p) const;
 
   size_t get_hash_value() const;
