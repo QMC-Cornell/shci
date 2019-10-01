@@ -6,6 +6,7 @@
 #include <cctype>
 #include <cstdio>
 #include <fstream>
+#include <stack>
 
 constexpr double Util::EPS;
 
@@ -119,6 +120,54 @@ size_t Util::rehash(const size_t a) {
 int Util::ctz(unsigned long long x) { return __builtin_ctzll(x); }
 
 int Util::popcnt(unsigned long long x) { return __builtin_popcountll(x); }
+
+void Util::setup_alias_arrays(
+    const std::vector<double>& old_probs,
+    std::vector<double>& new_probs,
+    std::vector<size_t>& aliases) {
+  //======================================================
+  // Set up alias arrays (new_probs, aliases) for sampling
+  // from a discrete distribution (old_probs).
+  // Based on Vose's alias method (O(N) complexity):
+  // http://www.keithschwarz.com/darts-dice-coins/
+  //
+  // Created: Y. Yao, Sept 2019
+  //======================================================
+  const size_t length = old_probs.size();
+  new_probs.resize(length);
+  aliases.resize(length);
+  std::vector<double> tmp_probs(length);
+  for (size_t i = 0; i < length; i++) tmp_probs[i] = old_probs[i] * length;
+  std::stack<size_t> smaller, larger;
+  for (size_t i = 0; i < length; i++) {
+    tmp_probs[i] = old_probs[i] * length;
+    if (tmp_probs[i] < 1.)
+      smaller.push(i);
+    else
+      larger.push(i);
+  }
+  while (!smaller.empty() && !larger.empty()) {
+    const size_t l = larger.top(), s = smaller.top();
+    new_probs[s] = tmp_probs[s];
+    aliases[s] = l;
+    tmp_probs[l] = tmp_probs[l] + tmp_probs[s] - 1.;
+    if (tmp_probs[l] < 1.) {
+      larger.pop();
+      smaller.top() = l;
+    } else {
+      smaller.pop();
+    }
+  }
+  while (!larger.empty()) {
+    const size_t l = larger.top();
+    larger.pop();
+    new_probs[l] = 1.;
+  }
+  while (!smaller.empty()) {
+    const size_t s = smaller.top();
+    new_probs[s] = 1.;
+  }
+}
 
 size_t Util::get_mem_info(const std::string& key) {
   std::ifstream meminfo("/proc/meminfo");
