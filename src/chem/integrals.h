@@ -5,6 +5,8 @@
 #include <vector>
 #include "../det/det.h"
 #include "hpqrs.h"
+#include "integrals_hasher.h"
+#include "point_group.h"
 #include "integrals_container.h"
 
 class Integrals {
@@ -27,7 +29,13 @@ class Integrals {
 
   Det det_hf;
 
+  IntegralsContainer integrals_1b;
+
+  IntegralsContainer integrals_2b;
+
   void load();
+
+  void set_point_group(const PointGroup& group_name);
 
   double get_1b(const unsigned p, const unsigned q) const;
 
@@ -37,6 +45,8 @@ class Integrals {
 
   static size_t combine4(const size_t a, const size_t b, const size_t c, const size_t d);
 
+  void dump_integrals(const char* filename) const;
+
   template <class B>
   void serialize(B& buf) const;
 
@@ -44,10 +54,10 @@ class Integrals {
   void parse(B& buf);
 
  private:
-  IntegralsContainer integrals_1b;
-  IntegralsContainer integrals_2b;
 
   bool explicit_orbs;
+
+  PointGroup point_group;
 
   std::vector<Hpqrs> raw_integrals;
 
