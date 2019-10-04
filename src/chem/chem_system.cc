@@ -683,11 +683,12 @@ void ChemSystem::variation_cleanup() {
 
 void ChemSystem::dump_integrals(const char* filename) {
   integrals.dump_integrals(filename);
-  //std::cout << "\nrotation matrix:\n" << rotation_matrix << std::endl;
-  std::ofstream pFile;
-  pFile.open("rotation_matrix");
-  pFile << rotation_matrix;
-  pFile.close();
+  if (Config::get<bool>("optimization/rotation_matrix", false)) {
+    std::ofstream pFile;
+    pFile.open("rotation_matrix");
+    pFile << rotation_matrix;
+    pFile.close();
+  }
 }
 
 //======================================================
