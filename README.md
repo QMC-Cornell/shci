@@ -72,6 +72,13 @@ If you are interested in working with us or sponsoring us to adapt this program 
 * `irrep_occs_up` and `irrep_occs_dn`: occupation of each irreducible representation for up and down electrons respectively, the lowest orbitals satisfying which constitute the starting determinant. Ignored if `irreps` is not given.
 
 
+### Optimization Block `optimization`
+* `natorb_iter`: number of natural orbital iterations, defaults to 1.
+* `optorb_iter`: number of iterations of full orbital optimization, defaults to 20.
+* `method`: currently supported optimization methods include `appnewton` (Newton's method with the Hessian approximated by its diagonal; default), `newton` (Newton's method with the entire Hessian calculated), `amsgrad`, and `grad_descent` (gradient descent).
+* `rotation_matrix`: whether to write out rotation matrix for each optimization iteration, defaults to false.
+* `accelerate`: whether to use overshooting in optimization, defaults to false. Specifit to `method`: `appnewton` and `newton`.
+* `parameters` block: optimization parameters specific to `method`: `amsgrad`. `eta`: defaults to 0.01; `beta1`: defaults to 0.5; `beta2`: defaults to 0.5. 
 
 ## Citations
 Any papers that use Arrow should cite the following 3 papers:
