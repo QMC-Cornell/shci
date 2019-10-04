@@ -9,10 +9,11 @@
 #include "point_group.h"
 #include "product_table.h"
 #include "sr.h"
+#include <eigen/Eigen/Dense>
 
 class ChemSystem : public BaseSystem {
  public:
-  void setup() override;
+  void setup(const bool load_integrals_from_file = true) override;
 
   void find_connected_dets(
       const Det& det,
@@ -25,7 +26,15 @@ class ChemSystem : public BaseSystem {
 
   void update_diag_helper() override;
 
-  void post_variation(const std::vector<std::vector<size_t>>& connections) override;
+  void post_variation(std::vector<std::vector<size_t>>& connections) override;
+
+  void post_variation_optimization(
+      std::vector<std::vector<size_t>>* connections_ptr,
+      const std::string& method) override;
+
+  void variation_cleanup() override;
+
+  void dump_integrals(const char* filename) override;
 
  private:
   std::vector<unsigned> orb_sym;
@@ -48,6 +57,8 @@ class ChemSystem : public BaseSystem {
   // singles queue
   std::vector<std::vector<Sr>> singles_queue;
 
+  Eigen::MatrixXd rotation_matrix;
+
   // setup sym orbs
   void setup_sym_orbs();
 
@@ -57,6 +68,8 @@ class ChemSystem : public BaseSystem {
   void setup_singles_queue();
 
   PointGroup get_point_group(const std::string& str) const;
+
+  void check_group_elements() const;
 
   double get_hci_queue_elem(const unsigned p, const unsigned q, const unsigned r, const unsigned s);
 

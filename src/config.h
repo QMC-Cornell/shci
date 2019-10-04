@@ -46,6 +46,12 @@ class Config {
     }
   }
 
+  template <class T>
+  static void set(const std::string& key, const T& value) {
+    auto node_ref = std::ref(get_instance().data);
+    node_ref.get()[key] = value;
+  }
+
  private:
   Config() {
     std::ifstream config_file("config.json");
