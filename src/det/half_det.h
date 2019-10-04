@@ -6,7 +6,7 @@
 #include <vector>
 #include "diff_result.h"
 
-// #define INF_ORBS
+//#define INF_ORBS      // Unlimited norbs, but will use bit representation if norbs <= 64*N_CHUNKS
 #define N_CHUNKS 2
 
 class HalfDet {
