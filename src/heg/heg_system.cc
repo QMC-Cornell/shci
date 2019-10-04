@@ -175,6 +175,7 @@ void HegSystem::find_connected_dets(
         const int s2 = k_points.find(k_points[p2] + k_points[q2 - qs_offset] - k_points[r]);
         if (s2 < 0) continue;
         unsigned s = s2;
+        if (same_spin && s < r) continue;
         s += qs_offset;
         if (p >= n_orbs && q >= n_orbs) {
           r += n_orbs;

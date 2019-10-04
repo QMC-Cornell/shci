@@ -36,6 +36,8 @@ class Util {
 
   static int popcnt(unsigned long long x);
 
+  static void setup_alias_arrays(const std::vector<double>& old_probs, std::vector<double>& new_probs, std::vector<size_t>& aliases);
+
   static size_t get_mem_total();
 
   static size_t get_mem_avail();

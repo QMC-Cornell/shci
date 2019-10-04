@@ -17,7 +17,8 @@ class Config {
   }
 
   static void print() { std::cout << get_instance().data.dump(2) << std::endl; }
-
+  
+  // Get value of the key. Abort with error when not specified.
   template <class T>
   static T get(const std::string& key) {
     auto node_ref = std::cref(get_instance().data);
@@ -35,6 +36,7 @@ class Config {
     }
   }
 
+  // Get value of the key. Return default value if not set.
   template <class T>
   static T get(const std::string& key, const T& default_value) {
     try {

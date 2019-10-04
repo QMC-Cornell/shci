@@ -1,0 +1,4 @@
+eps1= 5.00e-05 ndets= 24087 energy_var= -15.78124480	     5.00e-05 energy_tot -15.7812548559 +- 0.0000001043 Ha
+eps1= 2.00e-05 ndets= 40938 energy_var= -15.78125271	     2.00e-05 energy_tot -15.7812547990 +- 0.0000000196 Ha
+eps1= 1.00e-05 ndets= 58251 energy_var= -15.78125419	     1.00e-05 energy_tot -15.7812547609 +- 0.0000000102 Ha
+(0.95 Conf.) Extrapolated Energy, using quadratic fit                            -15.7812547442 +- nan
