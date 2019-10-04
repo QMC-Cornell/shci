@@ -18,7 +18,8 @@ void Optimization::generate_natorb_integrals() {
   // Determine number of point group elements used for current system
   unsigned n_group_elements = orb_sym[1];
   for (size_t i = 1; i < orb_sym.size(); i++) {
-    if (orb_sym[i] > n_group_elements) n_group_elements = orb_sym[i];
+    if (orb_sym[i] > n_group_elements)
+      n_group_elements = orb_sym[i];
   }
 
   // Diagonalize rdm in the subspace of each irrep separately
@@ -36,13 +37,14 @@ void Optimization::generate_natorb_integrals() {
   }
 
   double eigenvalues[n_orbs];
-  //MatrixXd rot = MatrixXd::Zero(n_orbs, n_orbs);  // rotation matrix
+  // MatrixXd rot = MatrixXd::Zero(n_orbs, n_orbs);  // rotation matrix
 
   for (unsigned irrep = 0; irrep < n_group_elements; irrep++) {
-    if (n_in_group[irrep] == 0) continue;
+    if (n_in_group[irrep] == 0)
+      continue;
     unsigned n = n_in_group[irrep];
 
-    MatrixXd tmp_rdm(n, n);  // rdm in the subspace of current irrep
+    MatrixXd tmp_rdm(n, n); // rdm in the subspace of current irrep
     for (unsigned i = 0; i < n; i++) {
       for (unsigned j = 0; j < n; j++) {
         tmp_rdm(i, j) = rdm_p->one_rdm_elem(inds[irrep][i], inds[irrep][j]);
@@ -61,7 +63,7 @@ void Optimization::generate_natorb_integrals() {
         rot(inds[irrep][i], inds[irrep][j]) = tmp_eigenvectors(i, n - j - 1);
       }
     }
-  }  // irrep
+  } // irrep
 
   rdm_p->clear();
 
@@ -73,11 +75,10 @@ void Optimization::generate_natorb_integrals() {
   }
   Timer::checkpoint("compute natural orbitals");
 
-  rotate_integrals(rot);
-  // dump_integrals("FCIDUMP_natorb");
+  rotate_integrals();
 }
 
-void Optimization::rotate_integrals(const MatrixXd& rot) {
+void Optimization::rotate_integrals() {
   new_integrals.resize(n_orbs);
   Integrals_array tmp_integrals(n_orbs);
 
@@ -92,8 +93,10 @@ void Optimization::rotate_integrals(const MatrixXd& rot) {
       for (unsigned k = 0; k < n_orbs + 1; k++) {
         new_integrals[i][j][k].resize(n_orbs + 1);
         tmp_integrals[i][j][k].resize(n_orbs + 1);
-        std::fill(new_integrals[i][j][k].begin(), new_integrals[i][j][k].end(), 0.);
-        std::fill(tmp_integrals[i][j][k].begin(), tmp_integrals[i][j][k].end(), 0.);
+        std::fill(new_integrals[i][j][k].begin(), new_integrals[i][j][k].end(),
+                  0.);
+        std::fill(tmp_integrals[i][j][k].begin(), tmp_integrals[i][j][k].end(),
+                  0.);
       }
     }
   }
@@ -105,10 +108,10 @@ void Optimization::rotate_integrals(const MatrixXd& rot) {
       for (unsigned r = 0; r < n_orbs; r++) {
         for (unsigned s = 0; s < n_orbs; s++) {
           tmp_integrals[p][q][r][s] = integrals_p->get_2b(p, q, r, s);
-        }  // s
-      }  // r
-    }  // q
-  }  // p
+        } // s
+      }   // r
+    }     // q
+  }       // p
 
 #pragma omp parallel for
   for (unsigned p = 0; p < n_orbs; p++) {
@@ -120,10 +123,10 @@ void Optimization::rotate_integrals(const MatrixXd& rot) {
             new_val += rot(i, p) * tmp_integrals[i][q][r][s];
           }
           new_integrals[p][q][r][s] = new_val;
-        }  // s
-      }  // r
-    }  // q
-  }  // p
+        } // s
+      }   // r
+    }     // q
+  }       // p
 
   tmp_integrals = new_integrals;
 
@@ -137,10 +140,10 @@ void Optimization::rotate_integrals(const MatrixXd& rot) {
             new_val += rot(i, q) * tmp_integrals[p][i][r][s];
           }
           new_integrals[p][q][r][s] = new_val;
-        }  // s
-      }  // r
-    }  // q
-  }  // p
+        } // s
+      }   // r
+    }     // q
+  }       // p
 
   tmp_integrals = new_integrals;
 
@@ -154,10 +157,10 @@ void Optimization::rotate_integrals(const MatrixXd& rot) {
             new_val += rot(i, r) * tmp_integrals[p][q][i][s];
           }
           new_integrals[p][q][r][s] = new_val;
-        }  // s
-      }  // r
-    }  // q
-  }  // p
+        } // s
+      }   // r
+    }     // q
+  }       // p
 
   tmp_integrals = new_integrals;
 
@@ -171,10 +174,10 @@ void Optimization::rotate_integrals(const MatrixXd& rot) {
             new_val += rot(i, s) * tmp_integrals[p][q][r][i];
           }
           new_integrals[p][q][r][s] = new_val;
-        }  // s
-      }  // r
-    }  // q
-  }  // p
+        } // s
+      }   // r
+    }     // q
+  }       // p
 
 // One-body integrals
 #pragma omp parallel for
@@ -210,13 +213,14 @@ void Optimization::rotate_integrals(const MatrixXd& rot) {
   Timer::checkpoint("rotate integrals");
 }
 
-void Optimization::dump_integrals(const char* file_name) const {
+void Optimization::dump_integrals(const char *file_name) const {
   if (Parallel::is_master()) {
-    FILE* pFile;
+    FILE *pFile;
     pFile = fopen(file_name, "w");
 
     // Header
-    fprintf(pFile, "&FCI NORB=%d, NELEC=%d, MS2=%d,\n", n_orbs, integrals_p->n_elecs, 0);
+    fprintf(pFile, "&FCI NORB=%d, NELEC=%d, MS2=%d,\n", n_orbs,
+            integrals_p->n_elecs, 0);
     fprintf(pFile, "ORBSYM=");
     for (unsigned i = 0; i < n_orbs; i++) {
       fprintf(pFile, "  %d", integrals_p->orb_sym[i]);
@@ -230,23 +234,20 @@ void Optimization::dump_integrals(const char* file_name) const {
       for (unsigned q = 0; q <= p; q++) {
         for (unsigned r = 0; r <= p; r++) {
           for (unsigned s = 0; s <= r; s++) {
-            if ((p == r) && (q < s)) continue;
+            if ((p == r) && (q < s))
+              continue;
             integral_value = new_integrals[p][q][r][s];
             // integral_value = integrals_p->get_2b(p, q, r, s);
             if (std::abs(integral_value) > 1e-9) {
               fprintf(
-                  pFile,
-                  " %19.12E %3d %3d %3d %3d\n",
-                  integral_value,
-                  integrals_p->orb_order[p] + 1,
-                  integrals_p->orb_order[q] + 1,
-                  integrals_p->orb_order[r] + 1,
-                  integrals_p->orb_order[s] + 1);
+                  pFile, " %19.12E %3d %3d %3d %3d\n", integral_value,
+                  integrals_p->orb_order[p] + 1, integrals_p->orb_order[q] + 1,
+                  integrals_p->orb_order[r] + 1, integrals_p->orb_order[s] + 1);
             }
-          }  // s
-        }  // r
-      }  // q
-    }  // p
+          } // s
+        }   // r
+      }     // q
+    }       // p
 
     // One-body integrals
     for (unsigned p = 0; p < n_orbs; p++) {
@@ -254,20 +255,16 @@ void Optimization::dump_integrals(const char* file_name) const {
         integral_value = new_integrals[p][q][n_orbs][n_orbs];
         // integral_value = integrals_p->get_1b(p, q);
         if (std::abs(integral_value) > 1e-9) {
-          fprintf(
-              pFile,
-              " %19.12E %3d %3d %3d %3d\n",
-              integral_value,
-              integrals_p->orb_order[p] + 1,
-              integrals_p->orb_order[q] + 1,
-              0,
-              0);
+          fprintf(pFile, " %19.12E %3d %3d %3d %3d\n", integral_value,
+                  integrals_p->orb_order[p] + 1, integrals_p->orb_order[q] + 1,
+                  0, 0);
         }
       }
     }
 
     // Nuclear-nuclear energy
-    fprintf(pFile, " %19.12E %3d %3d %3d %3d\n", integrals_p->energy_core, 0, 0, 0, 0);
+    fprintf(pFile, " %19.12E %3d %3d %3d %3d\n", integrals_p->energy_core, 0, 0,
+            0, 0);
 
     fclose(pFile);
   }
@@ -287,10 +284,11 @@ void Optimization::rewrite_integrals() {
       for (r = 0; r < n_orbs; r++) {
         for (s = 0; s < n_orbs; s++) {
           value = new_integrals[p][q][r][s];
-          integrals_p->integrals_2b.set(
-              Integrals::combine4(p, q, r, s), value, [&](double& a, const double& b) {
-                if (std::abs(a) < std::abs(b)) a = b;
-              });
+          integrals_p->integrals_2b.set(Integrals::combine4(p, q, r, s), value,
+                                        [&](double &a, const double &b) {
+                                          if (std::abs(a) < std::abs(b))
+                                            a = b;
+                                        });
         }
       }
     }
@@ -299,10 +297,11 @@ void Optimization::rewrite_integrals() {
   for (p = 0; p < n_orbs; p++) {
     for (q = 0; q < n_orbs; q++) {
       value = new_integrals[p][q][n_orbs][n_orbs];
-      integrals_p->integrals_1b.set(
-          Integrals::combine2(p, q), value, [&](double& a, const double& b) {
-            if (std::abs(a) < std::abs(b)) a = b;
-          });
+      integrals_p->integrals_1b.set(Integrals::combine2(p, q), value,
+                                    [&](double &a, const double &b) {
+                                      if (std::abs(a) < std::abs(b))
+                                        a = b;
+                                    });
     }
   }
 }
@@ -310,167 +309,145 @@ void Optimization::rewrite_integrals() {
 void Optimization::generate_optorb_integrals_from_newton() {
   std::vector<index_t> param_indices = parameter_indices();
   VectorXd grad = gradient(param_indices);
-  //std::cout << "\ngrad norm " << grad.norm();
-
   MatrixXd hess = hessian(param_indices);
   rdm_p->clear();
-
-  /*
-  std::cout << "\n gradient: ";
-  for (unsigned i = 0; i < param_indices.size(); i++) {
-    std::cout << grad(i) << " ";
-  }*/
-
-  // rotation matrix
-  VectorXd new_param = hess.householderQr().solve(-1 * grad);
-
-  //MatrixXd rot = MatrixXd::Zero(n_orbs, n_orbs);
-  fill_rot_matrix_with_parameters(rot, new_param, param_indices);
-  rotate_integrals(rot);
-}
-
-void Optimization::generate_optorb_integrals_from_approximate_newton() {
-  std::vector<index_t> param_indices = parameter_indices();
-  VectorXd grad = gradient(param_indices);
-  //std::cout << "\ngrad \n" << grad << "\n";
-
-  MatrixXd hess_diag = hessian_diagonal(param_indices);
-  
- /*   
-  std::cout << "\n gradient: ";
-  for (unsigned i = 0; i < param_indices.size(); i++) {
-    std::cout << grad(i) << " ";
-  }
-  std::cout << "\n hessian diagonal: ";
-  for (unsigned i = 0; i < param_indices.size(); i++) {
-    std::cout << hess_diag(i) << " ";
-  }
-  */
-
-  rdm_p->clear();
-
   size_t dim = param_indices.size();
 
-  VectorXd new_param(dim);
-  for (size_t i = 0; i < dim; i++) {
-    hess_diag(i) = (hess_diag(i) > 0 ? std::max(hess_diag(i), 1e-5) : std::min(hess_diag(i), -1e-5));
-    new_param(i) = -grad(i) / hess_diag(i);
-  }
+  // rotation matrix
+  // VectorXd new_param = hess.fullPivLu().solve(-1 * grad);
+  VectorXd new_param = hess.householderQr().solve(-1 * grad);
 
   static double eps = 0.05;
   static bool is_first_iter = true;
-//  static VectorXd history(dim);
-//  if (Config::get<bool>("optimization/accelerate", false)) {
-//	  std::cout<<"\nAccelerate optimization step by overshooting" << std::endl;
-//    if (is_first_iter) {
-//      history = new_param;
-//      //new_param *= 2;
-//      is_first_iter = false;
-//    } else {
-//      double inner_prod = history.dot(new_param);
-//      double norm = new_param.norm();
-//      double old_norm = history.norm();
-//      history = new_param;
-//  
-//      double step_size = std::max(std::min(1./(1. - inner_prod/old_norm/norm), 1/eps),1.);
-//      std::cout<<"\ninner_prod: "<<inner_prod<<" norm: "<<norm<<" old_norm: "<<old_norm<<" cos(prev_param, current_param): "<<inner_prod/old_norm/norm<<"\n";
-//      std::cout<<"cos(steepest_descent, newton): "<< -grad.dot(new_param)/grad.norm()/new_param.norm() <<"\n";
-//      if (inner_prod < 0.) {
-//        eps = std::min(std::pow(eps, .8),.5);
-//        std::cout<<"eps for Newton step enhancement changes to "<<eps<<"\n";
-//      }
-//      //new_param *= step_size;
-//    }
-//  }
   static VectorXd old_param(dim), old_update(dim);
-  VectorXd new_update(dim);
+  VectorXd new_update;
   if (Config::get<bool>("optimization/accelerate", false)) {
-    std::cout<<"\nAccelerate optimization step by overshooting" << std::endl;
+    if (Parallel::is_master())
+      printf("Accelerate optimization by overshooting.\n");
     if (is_first_iter) {
       new_update = 4 * new_param;
       old_param = new_param;
       old_update = new_update;
       is_first_iter = false;
     } else {
-      //new_update = old_param + new_param;
-      //new_update = 0.5 * (old_param + new_param);
       new_update = new_param;
       old_param = new_param;
-      //double inner_prod = old_update.dot(new_update);
-      //double new_norm = new_update.norm();
-      //double old_norm = old_update.norm();
-      //double cos = inner_prod / new_norm / old_norm; 
-      /*double cos = 0.;
-      for (size_t i = 0; i < dim; i++) {
-	if (new_update(i) * old_update(i) < 0.) {
-	  cos -= 1;
-	} else {
-	  cos += 1;
-	}
-      }
-      cos /= dim;*/
 
-      double grad_normalization=0., new_norm=0., old_norm=0., inner_prod=0.;
-      /*for (size_t i = 0; i < dim; i++) grad_normalization += 1/(0.5+std::abs(grad(i)));
-      for (size_t i = 0; i < dim; i++) {
-	inner_prod += old_update(i)*new_update(i)/(0.5+std::abs(grad(i)))/grad_normalization;
-	new_norm += new_update(i)*new_update(i)/(0.5+std::abs(grad(i)))/grad_normalization;
-	old_norm += old_update(i)*old_update(i)/(0.5+std::abs(grad(i)))/grad_normalization;
-      }
-      new_norm = std::sqrt(new_norm); old_norm = std::sqrt(old_norm);
-      double cos = inner_prod/new_norm/old_norm;*/
+      double new_norm = 0., old_norm = 0., inner_prod = 0.;
 
       for (size_t i = 0; i < dim; i++) {
-	inner_prod += old_update(i)*new_update(i)*hess_diag(i);
-	new_norm += new_update(i)*new_update(i)*hess_diag(i);
-	old_norm += old_update(i)*old_update(i)*hess_diag(i);
+        inner_prod += old_update(i) * new_update(i) * hess(i, i);
+        new_norm += new_update(i) * new_update(i) * hess(i, i);
+        old_norm += old_update(i) * old_update(i) * hess(i, i);
       }
-      new_norm = std::sqrt(new_norm); old_norm = std::sqrt(old_norm);
-      double cos = inner_prod/new_norm/old_norm;
+      new_norm = std::sqrt(new_norm);
+      old_norm = std::sqrt(old_norm);
+      double cos = inner_prod / new_norm / old_norm;
 
-      double step_size = std::max(std::min(2./(1. - cos), 1/eps), 1.);
-      //step_size = 1;
-      //std::cout<<"cos(steepest_descent, newton): "<< -grad.dot(new_param)/grad.norm()/new_param.norm() <<"\n";
+      double step_size = std::max(std::min(2. / (1. - cos), 1 / eps), 1.);
       if (inner_prod < 0.) {
-        eps = std::min(std::pow(eps, .8),.5);
-        std::cout<<"eps for Newton step enhancement changes to "<<eps<<"\n";
+        eps = std::min(std::pow(eps, .8), .5);
+        if (Parallel::is_master())
+          printf("eps for Newton step enhancement changes to %.3f.\n", eps);
       }
       new_update *= step_size;
       old_update = new_update;
-      std::cout<<"\ngrad "<<grad.norm()<<" inner_prod "<<inner_prod<<" new_norm "<<new_norm<<" old_norm "<<old_norm<<" cos(o_up, n_up) "<<cos<<" step "<<step_size<<"\n";
+      if (Parallel::is_master())
+        printf("cosine: %.5f, step size: %.5f.\n", cos, step_size);
     }
   } else {
-    new_update = new_param;
+    new_update = std::move(new_param);
   }
+  if (Parallel::is_master())
+    printf("norm of gradient: %.5f, norm of update: %.5f.\n", grad.norm(),
+           new_update.norm());
 
-  //MatrixXd rot = MatrixXd::Zero(n_orbs, n_orbs);
-  //fill_rot_matrix_with_parameters(rot, new_param, param_indices);
-  fill_rot_matrix_with_parameters(rot, new_update, param_indices);
-  rotate_integrals(rot);
+  fill_rot_matrix_with_parameters(new_update, param_indices);
+  rotate_integrals();
 }
 
+void Optimization::generate_optorb_integrals_from_approximate_newton() {
+  std::vector<index_t> param_indices = parameter_indices();
+  VectorXd grad = gradient(param_indices);
+  MatrixXd hess_diag = hessian_diagonal(param_indices);
+  rdm_p->clear();
+  size_t dim = param_indices.size();
+
+  VectorXd new_param(dim);
+  for (size_t i = 0; i < dim; i++) {
+    hess_diag(i) = (hess_diag(i) > 0 ? std::max(hess_diag(i), 1e-5)
+                                     : std::min(hess_diag(i), -1e-5));
+    new_param(i) = -grad(i) / hess_diag(i);
+  }
+
+  static double eps = 0.05;
+  static bool is_first_iter = true;
+  static VectorXd old_param(dim), old_update(dim);
+  VectorXd new_update;
+  if (Config::get<bool>("optimization/accelerate", false)) {
+    if (Parallel::is_master())
+      printf("Accelerate optimization by overshooting.\n");
+    if (is_first_iter) {
+      new_update = 4 * new_param;
+      old_param = new_param;
+      old_update = new_update;
+      is_first_iter = false;
+    } else {
+      new_update = new_param;
+      old_param = new_param;
+
+      double new_norm = 0., old_norm = 0., inner_prod = 0.;
+
+      for (size_t i = 0; i < dim; i++) {
+        inner_prod += old_update(i) * new_update(i) * hess_diag(i);
+        new_norm += new_update(i) * new_update(i) * hess_diag(i);
+        old_norm += old_update(i) * old_update(i) * hess_diag(i);
+      }
+      new_norm = std::sqrt(new_norm);
+      old_norm = std::sqrt(old_norm);
+      double cos = inner_prod / new_norm / old_norm;
+
+      double step_size = std::max(std::min(2. / (1. - cos), 1 / eps), 1.);
+      if (inner_prod < 0.) {
+        eps = std::min(std::pow(eps, .8), .5);
+        if (Parallel::is_master())
+          printf("eps for Newton step enhancement changes to %.3f.\n", eps);
+      }
+      new_update *= step_size;
+      old_update = new_update;
+      if (Parallel::is_master())
+        printf("cosine: %.5f, step size: %.5f.\n", cos, step_size);
+    }
+  } else {
+    new_update = std::move(new_param);
+  }
+  if (Parallel::is_master())
+    printf("norm of gradient: %.5f, norm of update: %.5f.\n", grad.norm(),
+           new_update.norm());
+
+  fill_rot_matrix_with_parameters(new_update, param_indices);
+  rotate_integrals();
+}
 
 void Optimization::generate_optorb_integrals_from_grad_descent() {
   std::vector<index_t> param_indices = parameter_indices();
 
   VectorXd grad = gradient(param_indices);
-  // std::cout << "\ngrad \n" << grad;
   rdm_p->clear();
 
   VectorXd new_param = -0.01 * grad;
-  //MatrixXd rot = MatrixXd::Zero(n_orbs, n_orbs);
-  fill_rot_matrix_with_parameters(rot, new_param, param_indices);
-  rotate_integrals(rot);
+  fill_rot_matrix_with_parameters(new_param, param_indices);
+  rotate_integrals();
 }
 
 void Optimization::generate_optorb_integrals_from_amsgrad() {
   std::vector<index_t> param_indices = parameter_indices();
   unsigned dim = param_indices.size();
 
-  static std::vector<std::vector<double>> history(2, std::vector<double>(dim, 0.));
+  static std::vector<std::vector<double>> history(2,
+                                                  std::vector<double>(dim, 0.));
 
   VectorXd grad = gradient(param_indices);
-  //std::cout << "\ngrad \n" << grad << "\n";
   rdm_p->clear();
 
   double eps = 1e-8;
@@ -479,8 +456,8 @@ void Optimization::generate_optorb_integrals_from_amsgrad() {
   double beta2 = Config::get<double>("optimization/parameters/beta2", 0.5);
 
   if (Parallel::is_master()) {
-    std::cout << "learning parameters: eta, beta1, beta2 = " << eta << ", " << beta1 << ", "
-              << beta2 << "\n";
+    std::cout << "learning parameters: eta, beta1, beta2 = " << eta << ", "
+              << beta1 << ", " << beta2 << "\n";
   }
 
   VectorXd new_param = VectorXd::Zero(dim);
@@ -496,10 +473,8 @@ void Optimization::generate_optorb_integrals_from_amsgrad() {
     history[1][i] = v_hat;
   }
 
-  //MatrixXd rot = MatrixXd::Zero(dim, dim);
-  fill_rot_matrix_with_parameters(rot, new_param, param_indices);
-  rotate_integrals(rot);
-
+  fill_rot_matrix_with_parameters(new_param, param_indices);
+  rotate_integrals();
 }
 
 std::vector<Optimization::index_t> Optimization::parameter_indices() const {
@@ -514,14 +489,16 @@ std::vector<Optimization::index_t> Optimization::parameter_indices() const {
     }
   }
   if (Parallel::is_master()) {
-    std::cout << "Number of optimization parameters: " << indices.size() << std::endl;
+    std::cout << "Number of optimization parameters: " << indices.size()
+              << std::endl;
   }
   return indices;
 }
 
 void Optimization::fill_rot_matrix_with_parameters(
-    MatrixXd& rot, const VectorXd& parameters, const std::vector<index_t>& parameter_indices) {
-  // fill in the rot matrix with parameters, with entry indices being parameter_indices
+    const VectorXd &parameters, const std::vector<index_t> &parameter_indices) {
+  // fill in the rot matrix with parameters, with entry indices being
+  // parameter_indices
   MatrixXd X_matrix = MatrixXd::Zero(n_orbs, n_orbs);
   for (unsigned i = 0; i < parameter_indices.size(); i++) {
     unsigned p = parameter_indices[i].first;
@@ -533,13 +510,8 @@ void Optimization::fill_rot_matrix_with_parameters(
   SelfAdjointEigenSolver<MatrixXd> es(n_orbs);
   es.compute(X_matrix * X_matrix);
   MatrixXd Tau2, W_matrix;
-  Tau2 = es.eigenvalues().transpose();  // Tau^2
+  Tau2 = es.eigenvalues().transpose(); // Tau^2
   W_matrix = es.eigenvectors();
-  /*
-  std::cout << "\neigenval:\n";
-  for (unsigned i = 0; i < n_orbs; i++) std::cout << Tau2(i) << " ";
-  std::cout << "\n";
-  */
 
   double tau, cos_tau, sinc_tau;
 #pragma omp parallel for
@@ -556,7 +528,8 @@ void Optimization::fill_rot_matrix_with_parameters(
         }
         rot(i, j) += cos_tau * W_matrix(i, k) * W_matrix(j, k);
         for (unsigned l = 0; l < n_orbs; l++) {
-          rot(i, j) += sinc_tau * W_matrix(i, k) * W_matrix(l, k) * X_matrix(l, j);
+          rot(i, j) +=
+              sinc_tau * W_matrix(i, k) * W_matrix(l, k) * X_matrix(l, j);
         }
       }
     }
@@ -564,7 +537,7 @@ void Optimization::fill_rot_matrix_with_parameters(
 }
 
 VectorXd Optimization::gradient(
-    const std::vector<std::pair<unsigned, unsigned>>& param_indices) const {
+    const std::vector<std::pair<unsigned, unsigned>> &param_indices) const {
   unsigned n_param = param_indices.size();
   VectorXd grad(n_param);
 #pragma omp parallel for
@@ -578,7 +551,7 @@ VectorXd Optimization::gradient(
 }
 
 MatrixXd Optimization::hessian(
-    const std::vector<std::pair<unsigned, unsigned>>& param_indices) const {
+    const std::vector<std::pair<unsigned, unsigned>> &param_indices) const {
   unsigned n_param = param_indices.size();
   MatrixXd hessian(n_param, n_param);
 #pragma omp parallel for
@@ -590,7 +563,8 @@ MatrixXd Optimization::hessian(
       unsigned s = param_indices[j].second;
       hessian(i, j) = hessian_part(p, q, r, s) - hessian_part(p, q, s, r) -
                       hessian_part(q, p, r, s) + hessian_part(q, p, s, r);
-      if (i != j) hessian(j, i) = hessian(i, j);
+      if (i != j)
+        hessian(j, i) = hessian(i, j);
     }
   }
   Timer::checkpoint("compute hessian");
@@ -598,7 +572,7 @@ MatrixXd Optimization::hessian(
 }
 
 VectorXd Optimization::hessian_diagonal(
-    const std::vector<std::pair<unsigned, unsigned>>& param_indices) const {
+    const std::vector<std::pair<unsigned, unsigned>> &param_indices) const {
   unsigned n_param = param_indices.size();
   VectorXd hessian_diagonal(n_param);
 #pragma omp parallel for
@@ -621,31 +595,36 @@ double Optimization::generalized_Fock(unsigned m, unsigned n) const {
   for (unsigned q = 0; q < n_orbs; q++) {
     for (unsigned r = 0; r < n_orbs; r++) {
       for (unsigned s = 0; s < n_orbs; s++) {
-        elem += rdm_p->two_rdm_elem(m, r, s, q) * integrals_p->get_2b(n, q, r, s);
+        elem +=
+            rdm_p->two_rdm_elem(m, r, s, q) * integrals_p->get_2b(n, q, r, s);
       }
     }
   }
   return elem;
 }
 
-double Optimization::Y_matrix(unsigned p, unsigned q, unsigned r, unsigned s) const {
+double Optimization::Y_matrix(unsigned p, unsigned q, unsigned r,
+                              unsigned s) const {
   // Helgaker (10.8.50)
   double elem = 0.;
   for (unsigned m = 0; m < n_orbs; m++) {
     for (unsigned n = 0; n < n_orbs; n++) {
-      elem += (rdm_p->two_rdm_elem(p, r, n, m) + rdm_p->two_rdm_elem(p, n, r, m)) *
-              integrals_p->get_2b(q, m, n, s);
+      elem +=
+          (rdm_p->two_rdm_elem(p, r, n, m) + rdm_p->two_rdm_elem(p, n, r, m)) *
+          integrals_p->get_2b(q, m, n, s);
       elem += rdm_p->two_rdm_elem(p, m, n, r) * integrals_p->get_2b(q, s, m, n);
     }
   }
   return elem;
 }
 
-double Optimization::hessian_part(unsigned p, unsigned q, unsigned r, unsigned s) const {
+double Optimization::hessian_part(unsigned p, unsigned q, unsigned r,
+                                  unsigned s) const {
   // Helgaker (10.8.53) content in [...]
   double elem = 0.;
   elem += 2 * rdm_p->one_rdm_elem(p, r) * integrals_p->get_1b(q, s);
-  if (q == s) elem -= (generalized_Fock(p, r) + generalized_Fock(r, p));
+  if (q == s)
+    elem -= (generalized_Fock(p, r) + generalized_Fock(r, p));
   elem += 2 * Y_matrix(p, q, r, s);
   return elem;
 }
