@@ -15,7 +15,6 @@
 #include <numeric>
 #include <queue>
 #include <random>
-#include <unordered_set>
 
 #include "../config.h"
 #include "../det/det.h"
@@ -195,9 +194,15 @@ void Solver<S>::optimization_run() {
 
     if (Parallel::is_master()) {
       if (i_iter == 0) {
-        std::printf("\nIter 0: HF orbitals E: %.8f ndet: %'zu\n", system.energy_var, system.dets.size());
+        std::printf(
+            "\nIter 0: HF orbitals E: %.8f ndet: %'zu\n", system.energy_var, system.dets.size());
       } else {
-        std::printf("\nIter %d: natural orbitals E: %.8f ndet: %'zu dE: %.8f\n", i_iter, system.energy_var, system.dets.size(), diff_energy_var);
+        std::printf(
+            "\nIter %d: natural orbitals E: %.8f ndet: %'zu dE: %.8f\n",
+            i_iter,
+            system.energy_var,
+            system.dets.size(),
+            diff_energy_var);
       }
     }
 
@@ -222,7 +227,8 @@ void Solver<S>::optimization_run() {
 
   while (i_iter < natorb_iter + optorb_iter) {
     if (Parallel::is_master())
-      std::cout << "\n== Iteration " << i_iter << ": optimized orbitals (" << method << ") ==" << std::endl;
+      std::cout << "\n== Iteration " << i_iter << ": optimized orbitals (" << method
+                << ") ==" << std::endl;
 
     Timer::start("setup");
     if (i_iter == 0) {
@@ -240,11 +246,23 @@ void Solver<S>::optimization_run() {
     diff_energy_var = system.energy_var - prev_energy_var;
     if (Parallel::is_master()) {
       if (i_iter == 0) {
-        std::printf("\nIter 0: HF orbitals E: %.8f ndet: %'zu\n", system.energy_var, system.dets.size());
+        std::printf(
+            "\nIter 0: HF orbitals E: %.8f ndet: %'zu\n", system.energy_var, system.dets.size());
       } else if (natorb_iter != 0 && i_iter == natorb_iter) {
-        std::printf("\nIter %d: natural orbitals E: %.8f ndet: %'zu dE: %.8f\n", i_iter, system.energy_var, system.dets.size(), diff_energy_var);
+        std::printf(
+            "\nIter %d: natural orbitals E: %.8f ndet: %'zu dE: %.8f\n",
+            i_iter,
+            system.energy_var,
+            system.dets.size(),
+            diff_energy_var);
       } else {
-        std::printf("\nIter %d: optimized orbitals (%s) E: %.8f ndet: %'zu dE: %.8f\n", i_iter, method.c_str(), system.energy_var, system.dets.size(), diff_energy_var);
+        std::printf(
+            "\nIter %d: optimized orbitals (%s) E: %.8f ndet: %'zu dE: %.8f\n",
+            i_iter,
+            method.c_str(),
+            system.energy_var,
+            system.dets.size(),
+            diff_energy_var);
       }
     }
 
@@ -265,7 +283,7 @@ void Solver<S>::optimization_run() {
     }
 
     prev_energy_var = system.energy_var;
-    
+
     system.post_variation_optimization(&connections, method);
 
     connections.clear();
@@ -900,48 +918,28 @@ UncertResult Solver<S>::get_energy_pt_sto(
   }
 
   if (Config::get<bool>("semisto_sto", true)) {
-    // Set C such that 20-50% of unique dets are deterministic
-    if (Parallel::is_master())
-      printf(
-          "Select number of deterministic var dets in range: [%zu, %zu]\n",
-          n_unique_target / 5,
-          n_unique_target / 2);
-    double C = 10.;
-    for (size_t i = 0; i < n_var_dets; i++) {
-      if (probs[i] > C / n_var_dets) n_dtm_dets++;
-    }
-
-    unsigned n_iter = 0;  // number of times adjusting C
-    while (n_iter < 3 && (n_dtm_dets < n_unique_target / 5 || n_dtm_dets > n_unique_target / 2)) {
-      n_iter++;
-      double factor = n_dtm_dets / (n_unique_target / 4.);
-      if (Parallel::is_master()) printf("Modify threshold C by factor: %f\n", factor);
-      C *= factor;
-      n_dtm_dets = 0;
-      for (size_t i = 0; i < n_var_dets; i++) {
-        if (probs[i] > C / n_var_dets) n_dtm_dets++;
+    n_dtm_dets = n_unique_target / 4;
+    // Top 25% of dets are made deterministic.
+    // Use a min heap to find the 25% quantile as threshold.
+    std::priority_queue<double, std::vector<double>, std::greater<double>> probs_heap;
+    for (size_t i = 0; i < n_dtm_dets; i++) probs_heap.push(probs[i]);
+    for (size_t i = n_dtm_dets; i < n_var_dets; i++) {
+      if (probs_heap.top() < probs[i]) {
+        probs_heap.pop();
+        probs_heap.push(probs[i]);
       }
     }
-    n_dtm_dets = 0;
-    sum_weights = 0.;
+    double C = probs_heap.top();  // C is threshold for deterministic dets
+    double sum_weights = 0.;
     for (size_t i = 0; i < n_var_dets; i++) {
-      if (probs[i] > C / n_var_dets) {
-        n_dtm_dets++;
+      if (probs[i] > C) {
         probs[i] = 0.;
         sample_dets_list.push_back(i);
       } else {
         sum_weights += probs[i];
       }
     }
-    if (Parallel::is_master()) printf("Number of deterministic var dets: %zu\n", n_dtm_dets);
-    cum_probs.resize(n_var_dets, 0.);
-    for (size_t i = 0; i < n_var_dets; i++) {
-      probs[i] /= sum_weights;
-      if (i > 0)
-        cum_probs[i] = probs[i] + cum_probs[i - 1];
-      else
-        cum_probs[i] = probs[i];
-    }
+    for (auto& prob : probs) prob /= sum_weights;
   }
 
   std::vector<double> alias_probs;
