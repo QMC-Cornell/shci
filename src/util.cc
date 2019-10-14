@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <fstream>
 #include <stack>
+#include <iostream>
 
 constexpr double Util::EPS;
 
@@ -167,6 +168,7 @@ void Util::setup_alias_arrays(
   }
   while (!smaller.empty()) {
     const size_t s = smaller.top();
+    smaller.pop();
     new_probs[s] = 1.;
   }
 }
