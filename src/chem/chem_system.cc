@@ -238,37 +238,6 @@ double ChemSystem::get_singles_queue_elem(const unsigned orb_i, const unsigned o
   return std::max(std::abs(S_min), std::abs(S_max));
 }
 
-/**
-double ChemSystem::get_singles_queue_elem_heap(const unsigned orb_i, const unsigned orb_j) const {
-  if (orb_i == orb_j) return 0.0;
-  double S = std::abs(integrals.get_1b(orb_i, orb_j));
-  using MinHeap = std::priority_queue<double, std::vector<double>, std::greater<double>>;
-  using MaxHeap = std::priority_queue<double>
-  MaxHeap min_elems;
-  MinHeap max_elems;
-  for (unsigned orb = 0; orb < n_orbs; orb++) {
-    double elem = 0;
-    const double exchange = integrals.get_2b(orb_i, orb, orb, orb_j);
-    const double direct = integrals.get_2b(orb_i, orb_j, orb, orb);
-    if (orb == orb_i or orb == orb_j)
-      elem = direct;  // opposite spin only
-    else
-      elem = 2*direct - exchange; // same spin + opposite spin
-    if (elem > max_elems.front()) {
-      max_elems.pop();
-      max_elems.push(elem);
-    }
-    if (elem < min_elems.front()) {
-      min_elems.pop();
-      min_elems.push(elem);
-    }
-  }
-  double max_sum = std::accumulate(max_elems.begin(), max_elems.end(), 0);
-  double min_sum = std::accumulate(min_elems.begin(), min_elems.end(), 0);
-  return S + std::max(std::abs(min_sum), std::abs(max_sum));
-}
-**/
-
 double ChemSystem::get_hci_queue_elem(
     const unsigned p, const unsigned q, const unsigned r, const unsigned s) {
   if (p == q || r == s || p == r || q == s || p == s || q == r) return 0.0;
