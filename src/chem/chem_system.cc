@@ -678,6 +678,7 @@ void ChemSystem::variation_cleanup() {
   coefs.shrink_to_fit();
   max_hci_queue_elem = 0.;
   hci_queue.clear();
+  singles_queue.clear();
   sym_orbs.clear();
 }
 
