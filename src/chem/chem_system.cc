@@ -9,26 +9,32 @@
 #include "../timer.h"
 #include "../util.h"
 #include "dooh_util.h"
+#include "optimization.h"
 #include "rdm.h"
+#include <eigen/Eigen/Dense>
+#include <fstream>
 
-void ChemSystem::setup() {
-  type = SystemType::Chemistry;
-  n_up = Config::get<unsigned>("n_up");
-  n_dn = Config::get<unsigned>("n_dn");
-  n_elecs = n_up + n_dn;
-  helper_size = 0;
-  Result::put("n_elecs", n_elecs);
+void ChemSystem::setup(const bool load_integrals_from_file) {
+  if (load_integrals_from_file) {
+    type = SystemType::Chemistry;
+    n_up = Config::get<unsigned>("n_up");
+    n_dn = Config::get<unsigned>("n_dn");
+    n_elecs = n_up + n_dn;
+    Result::put("n_elecs", n_elecs);
+  
+    point_group = get_point_group(Config::get<std::string>("chem/point_group"));
+    product_table.set_point_group(point_group);
+    time_sym = Config::get<bool>("time_sym", false);
+    has_double_excitation = Config::get<bool>("has_double_excitation", true);
 
-  point_group = get_point_group(Config::get<std::string>("chem/point_group"));
-  product_table.set_point_group(point_group);
-  time_sym = Config::get<bool>("time_sym", false);
-  has_double_excitation = Config::get<bool>("has_double_excitation", true);
-
-  Timer::start("load integrals");
-  integrals.load();
-  n_orbs = integrals.n_orbs;
-  orb_sym = integrals.orb_sym;
-  Timer::end();
+    Timer::start("load integrals");
+    integrals.load();
+    integrals.set_point_group(point_group);
+    n_orbs = integrals.n_orbs;
+    orb_sym = integrals.orb_sym;
+    check_group_elements();
+    Timer::end();
+  }
 
   setup_sym_orbs();
 
@@ -46,6 +52,8 @@ void ChemSystem::setup() {
   if (Parallel::is_master()) {
     printf("HF energy: " ENERGY_FORMAT "\n", energy_hf);
   }
+
+  if (rotation_matrix.size() != n_orbs * n_orbs) rotation_matrix = Eigen::MatrixXd::Identity(n_orbs, n_orbs);
 }
 
 void ChemSystem::setup_sym_orbs() {
@@ -182,39 +190,42 @@ void ChemSystem::setup_hci_queue() {
 }
 
 PointGroup ChemSystem::get_point_group(const std::string& str) const {
-  unsigned num_group_elems =
-      std::set<unsigned>(integrals.orb_sym.begin(), integrals.orb_sym.end()).size();
-
   if (Util::str_equals_ci("C1", str)) {
-    // assert(num_group_elems == 1);
     return PointGroup::C1;
   } else if (Util::str_equals_ci("C2", str)) {
-    assert(num_group_elems <= 2);
     return PointGroup::C2;
   } else if (Util::str_equals_ci("Cs", str)) {
-    assert(num_group_elems <= 2);
     return PointGroup::Cs;
   } else if (Util::str_equals_ci("Ci", str)) {
-    assert(num_group_elems <= 2);
     return PointGroup::Ci;
   } else if (Util::str_equals_ci("C2v", str)) {
-    assert(num_group_elems <= 4);
     return PointGroup::C2v;
   } else if (Util::str_equals_ci("C2h", str)) {
-    assert(num_group_elems <= 4);
     return PointGroup::C2h;
   } else if (Util::str_equals_ci("Coov", str) || Util::str_equals_ci("Civ", str)) {
     return PointGroup::Dooh;
   } else if (Util::str_equals_ci("D2", str)) {
-    assert(num_group_elems <= 4);
     return PointGroup::D2;
   } else if (Util::str_equals_ci("D2h", str)) {
-    assert(num_group_elems <= 8);
     return PointGroup::D2h;
   } else if (Util::str_equals_ci("Dooh", str) || Util::str_equals_ci("Dih", str)) {
     return PointGroup::Dooh;
   }
   throw new std::runtime_error("No point group provided");
+}
+
+void ChemSystem::check_group_elements() const {
+  unsigned num_group_elems =
+      std::set<unsigned>(integrals.orb_sym.begin(), integrals.orb_sym.end()).size();
+
+  if (point_group == PointGroup::C1) assert(num_group_elems == 1);
+  if (point_group == PointGroup::C2) assert(num_group_elems <= 2);
+  if (point_group == PointGroup::Cs) assert(num_group_elems <= 2);
+  if (point_group == PointGroup::Ci) assert(num_group_elems <= 2);
+  if (point_group == PointGroup::C2v) assert(num_group_elems <= 4);
+  if (point_group == PointGroup::C2h) assert(num_group_elems <= 4);
+  if (point_group == PointGroup::D2) assert(num_group_elems <= 4);
+  if (point_group == PointGroup::D2h) assert(num_group_elems <= 8);
 }
 
 double ChemSystem::get_singles_queue_elem(const unsigned orb_i, const unsigned orb_j) const {
@@ -547,11 +558,13 @@ double ChemSystem::get_two_body_double(const DiffResult& diff_up, const DiffResu
   return energy;
 }
 
-void ChemSystem::post_variation(const std::vector<std::vector<size_t>>& connections) {
+void ChemSystem::post_variation(std::vector<std::vector<size_t>>& connections) {
   if (Config::get<bool>("2rdm", false) || Config::get<bool>("get_2rdm_csv", false)) {
-    RDM rdm;
+    RDM rdm(&integrals);
     Timer::start("get 2rdm");
-    rdm.get_2rdm(dets, coefs, integrals, connections, Config::get<bool>("get_2rdm_csv", false));
+    rdm.get_2rdm(dets, coefs, connections);
+    connections.clear();
+    rdm.dump_2rdm(Config::get<bool>("get_2rdm_csv", false));
     Timer::end();
   }
 
@@ -566,29 +579,34 @@ void ChemSystem::post_variation(const std::vector<std::vector<size_t>>& connecti
     Result::put("s2", s2);
   }
 
+  /*
   if (Config::get<bool>("natorb", false)) {
     if (time_sym && !unpacked) {
       unpack_time_sym();
       unpacked = true;
     }
-    RDM rdm;
-    rdm.get_1rdm(dets, coefs, integrals);
+    RDM rdm(&integrals);
+    rdm.get_1rdm(dets, coefs);
     Timer::checkpoint("get 1rdm");
 
-    rdm.generate_natorb_integrals(integrals);
+    Optimization natorb_optimizer(&rdm, &integrals);
+    natorb_optimizer.generate_natorb_integrals();
+    natorb_optimizer.dump_integrals("FCIDUMP_natorb");
     Timer::checkpoint("generate natorb integrals");
 
-    exit(0);
+    std::exit(0);
   }
+  */
 
   if (Config::get<bool>("2rdm_slow", false)) {
     if (time_sym && !unpacked) {
       unpack_time_sym();
       unpacked = true;
     }
-    RDM rdm;
+    RDM rdm(&integrals);
     Timer::start("get 2rdm (slow)");
-    rdm.get_2rdm_slow(dets, coefs, integrals);
+    rdm.get_2rdm_slow(dets, coefs);
+    rdm.dump_2rdm(Config::get<bool>("get_2rdm_csv", false));
     Timer::end();
   }
 
@@ -597,10 +615,87 @@ void ChemSystem::post_variation(const std::vector<std::vector<size_t>>& connecti
       unpack_time_sym();
       unpacked = true;
     }
-    RDM rdm;
+    RDM rdm(&integrals);
     Timer::start("get_1rdm");
-    rdm.get_1rdm(dets, coefs, integrals, true);
+    rdm.get_1rdm(dets, coefs, true);
     Timer::end();
+  }
+}
+
+void ChemSystem::post_variation_optimization(
+    std::vector<std::vector<size_t>>* connections_ptr,
+    const std::string& method) {
+
+  if (method == "natorb") {  // natorb optimization
+    if (time_sym) unpack_time_sym();
+    RDM rdm(&integrals);
+    rdm.get_1rdm(dets, coefs);
+    
+    variation_cleanup();
+    Optimization natorb_optimizer(&rdm, &integrals);
+
+    Timer::start("Natorb optimization");
+    natorb_optimizer.generate_natorb_integrals();
+    Timer::end();
+
+    rotation_matrix *= natorb_optimizer.get_rotation_matrix();
+    Timer::start("rewrite integrals");
+    natorb_optimizer.rewrite_integrals();
+    Timer::end();
+
+  } else {  // optorb optimization
+    RDM rdm(&integrals);
+    rdm.get_2rdm(dets, coefs, *connections_ptr);
+
+    connections_ptr->clear();
+    rdm.get_1rdm_from_2rdm();
+
+    variation_cleanup();
+    Optimization optorb_optimizer(&rdm, &integrals);
+
+    if (Util::str_equals_ci("newton", method)) {
+      Timer::start("Newton optimization");
+      optorb_optimizer.generate_optorb_integrals_from_newton();
+    } else if (Util::str_equals_ci("grad_descent", method)) {
+      Timer::start("Gradient descent optimization");
+      optorb_optimizer.generate_optorb_integrals_from_grad_descent();
+    } else if (Util::str_equals_ci("amsgrad", method)) {
+      Timer::start("AMSGrad optimization");
+      optorb_optimizer.generate_optorb_integrals_from_amsgrad();
+    } else {
+      Timer::start("Approximate Newton optimization");
+      optorb_optimizer.generate_optorb_integrals_from_approximate_newton();
+    }
+    Timer::end();
+
+    rotation_matrix *= optorb_optimizer.get_rotation_matrix();
+    Timer::start("rewrite integrals");
+    optorb_optimizer.rewrite_integrals();
+    Timer::end();
+  }
+}
+
+void ChemSystem::variation_cleanup() {
+  energy_hf = 0.;
+  energy_var = 0.;
+  helper_size = 0;
+  dets.clear();
+  dets.shrink_to_fit();
+  coefs.clear();
+  coefs.shrink_to_fit();
+  max_hci_queue_elem = 0.;
+  hci_queue.clear();
+  singles_queue.clear();
+  sym_orbs.clear();
+}
+
+void ChemSystem::dump_integrals(const char* filename) {
+  integrals.dump_integrals(filename);
+  if (Config::get<bool>("optimization/rotation_matrix", false)) {
+    std::ofstream pFile;
+    pFile.open("rotation_matrix");
+    pFile << rotation_matrix;
+    pFile.close();
   }
 }
 

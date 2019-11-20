@@ -46,6 +46,7 @@ void Davidson::diagonalize(
   w = v[0];
   Hw = Hv[0];
   if (verbose) printf("Davidson #0: %.10f\n", lowest_eigenvalue);
+  lowest_eigenvalue_prev = lowest_eigenvalue;
 
   size_t it_real = 1;
   for (size_t it = 1; it < n_iterations_store * 2; it++) {
@@ -77,11 +78,25 @@ void Davidson::diagonalize(
       }
     }
     norm = sqrt(Util::dot_omp(v[it_circ], v[it_circ]));
+//  std::cout<<"\nnorm "<<norm<<"\n";
+
 #pragma omp parallel for
     for (size_t j = 0; j < dim; j++) {
       v[it_circ][j] /= norm;
     }
     Hv[it_circ] = matrix.mul(v[it_circ]);
+
+    if (norm<1e-12) {
+      break;
+//    for (size_t i = 0; i < it_circ + 1; i++) {
+//      double norm = Util::dot_omp(v[i], v[i]);
+//      for (size_t j = 0; j < dim; j++) v[i][j] /= norm;
+//      for (size_t k = i + 1; k < it_circ + 1; k++) {
+//        norm = Util::dot_omp(v[i], v[k]);
+//        for (size_t j = 0; j < dim; j++) v[k][j] -= norm * v[i][j];
+//      }
+//    }
+    }
 
     // Construct subspace matrix.
     for (size_t i = 0; i <= it_circ; i++) {
