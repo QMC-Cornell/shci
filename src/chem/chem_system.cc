@@ -230,21 +230,24 @@ void ChemSystem::check_group_elements() const {
 
 double ChemSystem::get_singles_queue_elem(const unsigned orb_i, const unsigned orb_j) const {
   if (orb_i == orb_j) return 0.0;
-  double S_min = integrals.get_1b(orb_i, orb_j);
-  double S_max = S_min;
-  std::vector<double> singles_queue_elems(n_orbs);
+  std::vector<double> singles_queue_elems;
+  singles_queue_elems.reserve(2*n_orbs-2);
   for (unsigned orb = 0; orb < n_orbs; orb++) {
     const double exchange = integrals.get_2b(orb_i, orb, orb, orb_j);
     const double direct = integrals.get_2b(orb_i, orb_j, orb, orb);
-    if (orb == orb_i or orb == orb_j)
-      singles_queue_elems[orb] = direct;  // opposite spin only
-    else
-      singles_queue_elems[orb] = 2*direct - exchange; // same spin + opposite spin
+    if (orb == orb_i or orb == orb_j) {
+      singles_queue_elems.push_back(direct); // opposite spin only
+    } else {
+      singles_queue_elems.push_back(direct); // opposite spin
+      singles_queue_elems.push_back(direct - exchange); //same spin
+    }
   }
   std::sort(singles_queue_elems.begin(), singles_queue_elems.end());
-  for (unsigned i = 0; i < std::min(n_elecs - 2, n_orbs); i++) {
+  double S_min = integrals.get_1b(orb_i, orb_j);
+  double S_max = S_min;
+  for (unsigned i = 0; i < std::min(n_elecs - 1, 2*n_orbs-2); i++) {
     S_min += singles_queue_elems[i];
-    S_max += singles_queue_elems[n_orbs-i-1];
+    S_max += singles_queue_elems[2*n_orbs-3-i];
   } 
   return std::max(std::abs(S_min), std::abs(S_max));
 }
