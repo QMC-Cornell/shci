@@ -48,7 +48,7 @@ double Util::stdev(const std::vector<double>& vec) {
   return sqrt((sq_sum - sum * sum / n) / (n - 1));
 }
 
-// Dot parallized on a node.
+// Dot parallelized on a node.
 double Util::dot_omp(const std::vector<double>& a, const std::vector<double>& b) {
   double sum = 0.0;
   const size_t n = a.size();
