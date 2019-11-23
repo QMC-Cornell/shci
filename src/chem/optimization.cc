@@ -213,65 +213,6 @@ void Optimization::rotate_integrals() {
   Timer::checkpoint("rotate integrals");
 }
 
-void Optimization::dump_integrals(const char *file_name) const {
-  if (Parallel::is_master()) {
-    FILE *pFile;
-    pFile = fopen(file_name, "w");
-
-    // Header
-    fprintf(pFile, "&FCI NORB=%d, NELEC=%d, MS2=%d,\n", n_orbs,
-            integrals_p->n_elecs, 0);
-    fprintf(pFile, "ORBSYM=");
-    for (unsigned i = 0; i < n_orbs; i++) {
-      fprintf(pFile, "  %d", integrals_p->orb_sym[i]);
-    }
-    fprintf(pFile, "\nISYM=1\n&END\n");
-
-    double integral_value;
-
-    // Two-body integrals
-    for (unsigned p = 0; p < n_orbs; p++) {
-      for (unsigned q = 0; q <= p; q++) {
-        for (unsigned r = 0; r <= p; r++) {
-          for (unsigned s = 0; s <= r; s++) {
-            if ((p == r) && (q < s))
-              continue;
-            integral_value = new_integrals[p][q][r][s];
-            // integral_value = integrals_p->get_2b(p, q, r, s);
-            if (std::abs(integral_value) > 1e-9) {
-              fprintf(
-                  pFile, " %19.12E %3d %3d %3d %3d\n", integral_value,
-                  integrals_p->orb_order[p] + 1, integrals_p->orb_order[q] + 1,
-                  integrals_p->orb_order[r] + 1, integrals_p->orb_order[s] + 1);
-            }
-          } // s
-        }   // r
-      }     // q
-    }       // p
-
-    // One-body integrals
-    for (unsigned p = 0; p < n_orbs; p++) {
-      for (unsigned q = 0; q <= p; q++) {
-        integral_value = new_integrals[p][q][n_orbs][n_orbs];
-        // integral_value = integrals_p->get_1b(p, q);
-        if (std::abs(integral_value) > 1e-9) {
-          fprintf(pFile, " %19.12E %3d %3d %3d %3d\n", integral_value,
-                  integrals_p->orb_order[p] + 1, integrals_p->orb_order[q] + 1,
-                  0, 0);
-        }
-      }
-    }
-
-    // Nuclear-nuclear energy
-    fprintf(pFile, " %19.12E %3d %3d %3d %3d\n", integrals_p->energy_core, 0, 0,
-            0, 0);
-
-    fclose(pFile);
-  }
-
-  Timer::checkpoint("creating new FCIDUMP");
-}
-
 void Optimization::rewrite_integrals() {
   // replace integrals with new_integrals
   integrals_p->integrals_2b.clear();

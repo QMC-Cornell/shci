@@ -56,9 +56,6 @@ private:
 
   void rotate_integrals();
 
-  void dump_integrals(const Integrals_array &new_integrals,
-                      const char *file_name) const;
-
   std::vector<index_t> parameter_indices() const;
 
   VectorXd find_overshooting_stepsize(double dim,

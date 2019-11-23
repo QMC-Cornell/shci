@@ -631,9 +631,12 @@ void ChemSystem::post_variation_optimization(
 
   if (method == "natorb") {  // natorb optimization
     if (time_sym) unpack_time_sym();
+    
+    Timer::start("create RDMs");
     RDM rdm(&integrals);
     rdm.get_1rdm(dets, coefs);
-    
+    Timer::end();
+
     variation_cleanup();
     Optimization natorb_optimizer(&rdm, &integrals);
 
@@ -647,11 +650,13 @@ void ChemSystem::post_variation_optimization(
     Timer::end();
 
   } else {  // optorb optimization
+    Timer::start("create RDMs");
+
     RDM rdm(&integrals);
     rdm.get_2rdm(dets, coefs, *connections_ptr);
-
     connections_ptr->clear();
     rdm.get_1rdm_from_2rdm();
+    Timer::end();
 
     variation_cleanup();
     Optimization optorb_optimizer(&rdm, &integrals);

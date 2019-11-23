@@ -918,8 +918,11 @@ UncertResult Solver<S>::get_energy_pt_sto(
   }
 
   if (Config::get<bool>("semisto_sto", true)) {
-    n_dtm_dets = n_unique_target / 4;
     // Top 25% of dets are made deterministic.
+    n_dtm_dets = n_unique_target / 4;
+    if (Parallel::is_master()) {
+      printf("Number of deterministic dets: %'zu\n", n_dtm_dets);
+    }
     // Use a min heap to find the 25% quantile as threshold.
     std::priority_queue<double, std::vector<double>, std::greater<double>> probs_heap;
     for (size_t i = 0; i < n_dtm_dets; i++) probs_heap.push(probs[i]);
