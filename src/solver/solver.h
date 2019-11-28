@@ -391,7 +391,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
           double eps_min = eps_var / std::abs(coef);
           if (i == 0 && var_sd) eps_min = 0.0;
           if (system.time_sym && det.up != det.dn) eps_min *= Util::SQRT2;
-          if (eps_min >= eps_tried_prev[i] * 0.999) return;
+          if (eps_min >= eps_tried_prev[i] * 1.001) return;
           Det connected_det_reg;
           const auto& connected_det_handler = [&](const Det& connected_det, const int n_excite) {
             connected_det_reg = connected_det;
@@ -468,32 +468,23 @@ void Solver<S>::run_perturbation(const double eps_var) {
   // double default_eps_pt_dtm = 2.0e-6;
   // double default_eps_pt_psto = 1.0e-7;
   // double default_eps_pt = eps_var * 1.0e-6;
-  double default_eps_pt_dtm = std::max(2.0e-6, 0.1 * eps_var);
-  double default_eps_pt_psto = std::max(1.0e-7, 1.0e-3 * eps_var);
-  double default_eps_pt = 1.0e-3 * eps_var;
-  if (system.type == SystemType::HEG) {
-    default_eps_pt_psto = default_eps_pt_dtm;
-    default_eps_pt = eps_var * 1.0e-20;
-  }
+  double eps_pt_dtm_min = 2.0e-6;
+  double eps_pt_psto_min = 1.0e-7;
+  double eps_pt_dtm_ratio = 1.0e-1;
+  double eps_pt_psto_ratio = 1.0e-2;
+  double eps_pt_ratio = 1.0e-3;
 
-  double eps_pt_dtm_ratio = Config::get<double>("eps_pt_dtm_ratio", -1);
-  if (eps_pt_dtm_ratio > 0) {
-    default_eps_pt_dtm = std::min(eps_var, eps_pt_dtm_ratio * eps_var);
-  }
+  eps_pt_dtm_ratio = Config::get<double>("eps_pt_dtm_ratio", eps_pt_dtm_ratio);
+  eps_pt_psto_ratio = Config::get<double>("eps_pt_psto_ratio", eps_pt_psto_ratio);
+  eps_pt_ratio = Config::get<double>("eps_pt_ratio", eps_pt_ratio);
 
-  double eps_pt_psto_ratio = Config::get<double>("eps_pt_psto_ratio", -1);
-  if (eps_pt_psto_ratio > 0) {
-    default_eps_pt_psto = std::min(default_eps_pt_dtm, eps_pt_psto_ratio * eps_var);
-  }
+  eps_pt_dtm = std::max(eps_pt_dtm_min, eps_pt_dtm_ratio*eps_var);
+  eps_pt_psto = std::max(eps_pt_psto_min, eps_pt_psto_ratio*eps_var);
+  eps_pt = eps_pt_ratio*eps_var; // no max here because we want eps_pt propto eps_var
 
-  double eps_pt_ratio = Config::get<double>("eps_pt_ratio", -1);
-  if (eps_pt_ratio > 0) {
-    default_eps_pt = std::min(default_eps_pt_psto, eps_pt_ratio * eps_var);
-  }
-
-  eps_pt_dtm = Config::get<double>("eps_pt_dtm", default_eps_pt_dtm);
-  eps_pt_psto = Config::get<double>("eps_pt_psto", default_eps_pt_psto);
-  eps_pt = Config::get<double>("eps_pt", default_eps_pt);
+  eps_pt_dtm = Config::get<double>("eps_pt_dtm", eps_pt_dtm);
+  eps_pt_psto = Config::get<double>("eps_pt_psto", eps_pt_psto);
+  eps_pt = Config::get<double>("eps_pt", eps_pt);
 
   if (eps_pt_psto < eps_pt) eps_pt_psto = eps_pt;
   if (eps_pt_dtm < eps_pt_psto) eps_pt_dtm = eps_pt_psto;
@@ -895,6 +886,7 @@ UncertResult Solver<S>::get_energy_pt_sto(
                       n_pt_dets_batch;
     const size_t max_unique_targets = n_var_dets / 8 + 1;
     if (n_unique_target >= max_unique_targets) n_unique_target = max_unique_targets;
+    if (Parallel::is_master()) printf("Number of unique var dets in sample target: %'zu\n", n_unique_target);
     sample_dets_sto.clear();
     sample_dets_list.clear();
     n_dets_in_sample = 0;
@@ -920,9 +912,7 @@ UncertResult Solver<S>::get_energy_pt_sto(
   if (Config::get<bool>("semisto_sto", true)) {
     // Top 25% of dets are made deterministic.
     n_dtm_dets = n_unique_target / 4;
-    if (Parallel::is_master()) {
-      printf("Number of deterministic dets: %'zu\n", n_dtm_dets);
-    }
+    if (Parallel::is_master()) printf("Number of deterministic var dets: %'zu\n", n_dtm_dets);
     // Use a min heap to find the 25% quantile as threshold.
     std::priority_queue<double, std::vector<double>, std::greater<double>> probs_heap;
     for (size_t i = 0; i < n_dtm_dets; i++) probs_heap.push(probs[i]);

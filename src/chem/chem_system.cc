@@ -297,6 +297,7 @@ void ChemSystem::find_connected_dets(
       for (const auto& connected_sr : singles_queue.at(p)) {
         auto S = connected_sr.S;
         if (S < eps_min) break;
+//      if (S >= eps_max) continue; // This line is incorrect because for single excitations we compute H_ij and have some additional rejections.
         unsigned r = connected_sr.r;
         Det connected_det(det);
         if (p_id < n_up) {
@@ -383,6 +384,9 @@ double ChemSystem::get_hamiltonian_elem_no_time_sym(
   if (n_excite == 0) {
     const double one_body_energy = get_one_body_diag(det_i);
     const double two_body_energy = get_two_body_diag(det_i);
+//  if (Parallel::is_master()) { printf("one_body_energy: " ENERGY_FORMAT "\n", one_body_energy); }
+//  if (Parallel::is_master()) { printf("two_body_energy: " ENERGY_FORMAT "\n", two_body_energy); }
+//  if (Parallel::is_master()) { printf("integrals.energy_core: " ENERGY_FORMAT "\n", integrals.energy_core); }
     return one_body_energy + two_body_energy + integrals.energy_core;
   } else if (n_excite == 1) {
     const double one_body_energy = get_one_body_single(diff_up, diff_dn);
@@ -454,7 +458,6 @@ double ChemSystem::get_two_body_diag(const Det& det) const {
   // up to up.
   if (diag_helper.has(det.up)) {
     direct_energy += diag_helper.get(det.up);
-    // printf("from cache\n");
   } else {
     for (unsigned i = 0; i < occ_orbs_up.size(); i++) {
       const unsigned orb_i = occ_orbs_up[i];
@@ -491,6 +494,8 @@ double ChemSystem::get_two_body_diag(const Det& det) const {
       direct_energy += integrals.get_2b(orb_i, orb_i, orb_j, orb_j);
     }
   }
+//if (Parallel::is_master()) { printf("direct_energy: " ENERGY_FORMAT "\n", direct_energy); }
+//if (Parallel::is_master()) { printf("exchange_energy: " ENERGY_FORMAT "\n", exchange_energy); }
   return direct_energy + exchange_energy;
 }
 
