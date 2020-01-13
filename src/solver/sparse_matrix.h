@@ -12,6 +12,8 @@ class SparseMatrix {
  public:
   double get_diag(const size_t i) const { return diag[i]; }
 
+  std::vector<double> get_diag() const { return diag; }
+
   void cache_diag();
 
   size_t count_n_elems() const;

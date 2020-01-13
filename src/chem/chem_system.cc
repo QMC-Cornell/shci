@@ -10,6 +10,7 @@
 #include "../util.h"
 #include "dooh_util.h"
 #include "optimization.h"
+#include "full_optimization.h"
 #include "rdm.h"
 #include <eigen/Eigen/Dense>
 #include <fstream>
@@ -668,6 +669,22 @@ void ChemSystem::post_variation_optimization(
   }
 }
 
+void ChemSystem::post_variation_full_optimization(
+    std::vector<std::vector<size_t>>* connections_ptr, std::vector<double>& row_sum, std::vector<double>& diag) {
+  FullOptimization full_optimizer(&integrals);
+  full_optimizer.get_1rdm(dets, coefs);
+  full_optimizer.get_2rdm(dets, coefs, *connections_ptr);
+
+  //variation_cleanup();
+  Timer::start("Full optimization");
+  full_optimizer.generate_optorb_integrals_from_newton(row_sum, diag, coefs, energy_var);
+  Timer::end();
+  variation_cleanup();
+  
+  Timer::start("rewrite integrals");
+  full_optimizer.rewrite_integrals();
+  Timer::end();
+}
 void ChemSystem::variation_cleanup() {
   energy_hf = 0.;
   energy_var = 0.;

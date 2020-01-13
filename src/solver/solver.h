@@ -241,6 +241,8 @@ void Solver<S>::optimization_run() {
 
     run_all_variations();
     connections = hamiltonian.matrix.get_connections();
+    std::vector<double> hamiltonian_row_sum = hamiltonian.matrix.mul(system.coefs);
+    std::vector<double> hamiltonian_diag = hamiltonian.matrix.get_diag();
     hamiltonian.clear();
 
     diff_energy_var = system.energy_var - prev_energy_var;
@@ -284,7 +286,11 @@ void Solver<S>::optimization_run() {
 
     prev_energy_var = system.energy_var;
 
-    system.post_variation_optimization(&connections, method);
+    if (Util::str_equals_ci("full_optimization", method)) {
+      system.post_variation_full_optimization(&connections, hamiltonian_row_sum, hamiltonian_diag);
+    } else {
+      system.post_variation_optimization(&connections, method);
+    }
 
     connections.clear();
     connections.shrink_to_fit();

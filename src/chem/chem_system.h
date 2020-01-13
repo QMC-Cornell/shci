@@ -32,6 +32,11 @@ class ChemSystem : public BaseSystem {
       std::vector<std::vector<size_t>>* connections_ptr,
       const std::string& method) override;
 
+  void post_variation_full_optimization(
+      std::vector<std::vector<size_t>>* connections_ptr, 
+      std::vector<double>& row_sum, 
+      std::vector<double>& diag);
+
   void variation_cleanup() override;
 
   void dump_integrals(const char* filename) override;
