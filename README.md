@@ -90,7 +90,7 @@ We welcome help with extending the capabilities of Arrow.  If interested, please
 * `parameters` block: optimization parameters specific to `method`: `amsgrad`. `eta`: default: 0.01; `beta1`: default: 0.5; `beta2`: default: 0.5. 
 
 ## History and Authorship
-`Arrow` implements algorithms developed in the Umrigar group at Cornell, with considerable input from Sandeep Sharma at Boulder, CO.  Arrow was conceived and implemented by Junhao Li, and greatly extended by Yuan Yao and Tyler Anderson.  Written in C++, it contains improved SHCI algorithms, first developed by Adam Holmes and extended by Matt Otten, implemented in the FORTRAN `sqmc` program.  `sqmc` was originally developed by Frank Petruzielo, Hitesh Changlani and Adam Holmes to make major improvements to the Full Configuration Interaction Quantum Monte Carlo (FCIQMC) method.  All authors, aside from Sharma, were at Cornell when they contributed.
+`Arrow` implements algorithms developed in the Umrigar group at Cornell, with considerable input from Sandeep Sharma at Boulder, CO.  Arrow was conceived and implemented by Junhao Li, and greatly extended by Yuan Yao and Tyler Anderson.  Written in C++, it contains improved versions of SHCI algorithms first developed by Adam Holmes and extended by Matt Otten, implemented in the FORTRAN `sqmc` program.  `sqmc` was originally developed by Frank Petruzielo, Hitesh Changlani and Adam Holmes to make major improvements to the Full Configuration Interaction Quantum Monte Carlo (FCIQMC) method, so it has both SHCI and FCIQMC capabilities.  All authors, aside from Sharma, were at Cornell when they contributed.
 
 ## Citations
 Any papers that use Arrow should cite the following 3 papers:
