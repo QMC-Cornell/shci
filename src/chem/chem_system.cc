@@ -280,15 +280,30 @@ double ChemSystem::get_hci_queue_elem(
   return std::abs(get_two_body_double(diff_up, diff_dn));
 }
 
-void ChemSystem::find_connected_dets(
+double ChemSystem::find_connected_dets(
     const Det& det,
     const double eps_max,
     const double eps_min,
-    const std::function<void(const Det&, const int n_excite)>& handler) const {
-  if (eps_max < eps_min) return;
+    const std::function<void(const Det&, const int n_excite)>& handler,
+    const bool second_rejection,
+    const double e_hf_1b) const {
+  if (eps_max < eps_min) return eps_min;
 
   auto occ_orbs_up = det.up.get_occupied_orbs();
   auto occ_orbs_dn = det.dn.get_occupied_orbs();
+
+  double diff_from_HF = - e_hf_1b;
+  if (second_rejection) {
+    // Find approximate energy difference of spawning det from HF det.
+    // Later the energy difference of the spawned det from the HF det requires at most 4 1-body energies.
+    // Note: Using 1-body energies as a proxy for det energies
+    for (const auto p: occ_orbs_up) diff_from_HF += integrals.get_1b(p, p);
+    for (const auto p: occ_orbs_dn) diff_from_HF += integrals.get_1b(p, p);
+  }
+
+  double second_rejection_factor = Config::get<double>("second_rejection_factor", 0.2);
+
+  double max_rejection = 0.;
 
   // Filter such that S < epsilon not allowed
   if (eps_min <= max_singles_queue_elem) {
@@ -299,6 +314,13 @@ void ChemSystem::find_connected_dets(
         if (S < eps_min) break;
 //      if (S >= eps_max) continue; // This line is incorrect because for single excitations we compute H_ij and have some additional rejections.
         unsigned r = connected_sr.r;
+        if (second_rejection) {
+          double denominator = diff_from_HF - integrals.get_1b(p, p) + integrals.get_1b(r, r);
+          if (denominator > 0. && S * S / denominator < second_rejection_factor * eps_min * eps_min) {
+            max_rejection = std::max(max_rejection, S);
+            continue;
+          }
+        }
         Det connected_det(det);
         if (p_id < n_up) {
           if (det.up.has(r)) continue;
@@ -314,8 +336,8 @@ void ChemSystem::find_connected_dets(
   }
 
   // Add double excitations.
-  if (!has_double_excitation) return;
-  if (eps_min > max_hci_queue_elem) return;
+  if (!has_double_excitation) return eps_min;
+  if (eps_min > max_hci_queue_elem) return eps_min;
   for (unsigned p_id = 0; p_id < n_elecs; p_id++) {
     for (unsigned q_id = p_id + 1; q_id < n_elecs; q_id++) {
       const unsigned p = p_id < n_up ? occ_orbs_up[p_id] : occ_orbs_dn[p_id - n_up] + n_orbs;
@@ -344,6 +366,14 @@ void ChemSystem::find_connected_dets(
           s = r + n_orbs;
           r = tmp_r;
         }
+        if (second_rejection) {
+          double denominator = diff_from_HF - integrals.get_1b(p%n_orbs, p%n_orbs) - integrals.get_1b(q%n_orbs, q%n_orbs)
+                                            + integrals.get_1b(r%n_orbs, r%n_orbs) + integrals.get_1b(s%n_orbs, s%n_orbs);
+          if (denominator > 0. && H * H / denominator < second_rejection_factor * eps_min * eps_min) {
+            max_rejection = std::max(max_rejection, H);
+            continue;
+          }
+        }
         const bool occ_r = r < n_orbs ? det.up.has(r) : det.dn.has(r - n_orbs);
         if (occ_r) continue;
         const bool occ_s = s < n_orbs ? det.up.has(s) : det.dn.has(s - n_orbs);
@@ -357,6 +387,7 @@ void ChemSystem::find_connected_dets(
       }
     }
   }
+  return std::max(max_rejection, eps_min);
 }
 
 double ChemSystem::get_hamiltonian_elem(
@@ -778,4 +809,17 @@ double ChemSystem::get_s2() const {
     printf("s_squared: %15.10f\n", s2);
   }
   return s2;
+}
+
+double ChemSystem::get_e_hf_1b() const {
+  double e_hf_1b = 0.;
+  auto occ_orbs_up = dets[0].up.get_occupied_orbs();
+  for (const auto p : occ_orbs_up) e_hf_1b += integrals.get_1b(p, p);
+  if (Config::get<bool>("time_sym", false)) {
+    e_hf_1b *= 2.;
+  } else {
+    auto occ_orbs_dn = dets[0].dn.get_occupied_orbs();
+    for (const auto p : occ_orbs_dn) e_hf_1b += integrals.get_1b(p, p);
+  }
+  return e_hf_1b;
 }

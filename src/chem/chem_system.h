@@ -15,11 +15,13 @@ class ChemSystem : public BaseSystem {
  public:
   void setup(const bool load_integrals_from_file = true) override;
 
-  void find_connected_dets(
+  double find_connected_dets(
       const Det& det,
       const double eps_max,
       const double eps_min,
-      const std::function<void(const Det&, const int n_excite)>& handler) const override;
+      const std::function<void(const Det&, const int n_excite)>& handler,
+      const bool second_rejection = false,
+      const double e_hf_1b = 0.) const override;
 
   double get_hamiltonian_elem(
       const Det& det_i, const Det& det_j, const int n_excite) const override;
@@ -35,6 +37,8 @@ class ChemSystem : public BaseSystem {
   void variation_cleanup() override;
 
   void dump_integrals(const char* filename) override;
+
+  double get_e_hf_1b() const override;
 
  private:
   std::vector<unsigned> orb_sym;

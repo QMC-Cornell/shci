@@ -281,7 +281,7 @@ void Integrals::reorder_orbs(const std::vector<double>& orb_energies) {
     const unsigned ori_id = orb_order[i];
     const double orb_energy = orb_energies[ori_id];
     if (Parallel::is_master()) {
-      printf("#%3u: E = %16.12f, sym = %2u, origin #%3u\n", i, orb_energy, orb_sym[i], ori_id);
+      printf("#%3u: E = %16.12f, E_1b = %16.12f, sym = %2u, origin #%3u\n", i, orb_energy, get_1b(ori_id, ori_id), orb_sym[i], ori_id);
     }
   }
 

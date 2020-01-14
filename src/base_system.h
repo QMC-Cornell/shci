@@ -44,11 +44,15 @@ class BaseSystem {
 
   virtual void setup(const bool){};
 
-  virtual void find_connected_dets(
+  virtual double get_e_hf_1b() const { return 0.; }
+
+  virtual double find_connected_dets(
       const Det& det,
       const double eps_max,
       const double eps_min,
-      const std::function<void(const Det&, const int n_excite)>& handler) const = 0;
+      const std::function<void(const Det&, const int n_excite)>& handler,
+      const bool second_rejection,
+      const double energy_hf_1b) const = 0;
 
   virtual double get_hamiltonian_elem(
       const Det& det_i, const Det& det_j, const int n_excite) const = 0;
