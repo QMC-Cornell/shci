@@ -503,8 +503,6 @@ void FullOptimization::get_2rdm(
   }
 
   Timer::checkpoint("computing 2RDM");
-  std::cout<<"\n";
-  for (size_t i=0; i<1000; i++) std::cout<<" "<<two_rdm[i];
 }
 
 void FullOptimization::get_2rdm_elements(
@@ -933,7 +931,6 @@ void FullOptimization::rewrite_integrals() {
   }
 }
 
-
 void FullOptimization::generate_optorb_integrals_from_newton(
 	const std::vector<double>& row_sum,
 	const std::vector<double>& diag,
@@ -943,10 +940,13 @@ void FullOptimization::generate_optorb_integrals_from_newton(
   MatrixXd hess = hessian(orb_param_indices_in_matrix);
   one_rdm.resize(0, 0);
   two_rdm.clear(); two_rdm.shrink_to_fit();
-   
+  
+  // one more contribution to hessian_co in addition to rdm elements
+#pragma omp parallel for
   for (size_t i = 0; i < n_dets_truncate; i++) {
     hessian_ci_orb.row(i) -= 2. * coefs[i] * grad.transpose();
   }
+  /*
   MatrixXd BTAinv(orb_dim, n_dets_truncate);
   for (size_t i = 0; i < n_dets_truncate; i++) {
     double Hcc_diag = -8. * coefs[i] * row_sum[i] + 2. * diag[i] + (8. * coefs[i] * coefs[i] - 2.) * E_var;
@@ -957,10 +957,19 @@ void FullOptimization::generate_optorb_integrals_from_newton(
   for (size_t i = 0; i < n_dets_truncate; i++) {
     tmp += 2. * (row_sum[i] - coefs[i] * E_var) * BTAinv.col(i);
   }
-  
+  */
+
+  VectorXd grad_c(n_dets_truncate);
+#pragma omp parallel for
+  for (size_t i = 0; i < n_dets_truncate; i++) grad_c(i) = 2. * (row_sum[i] - coefs[i] * E_var);
+  MatrixXd tmp(n_dets_truncate, orb_dim + 1);
+  tmp << hessian_ci_orb, grad_c;
+  tmp = hessian_ci_ci.householderQr().solve(tmp);
+  hess -= hessian_ci_orb.transpose() * tmp.leftCols(orb_dim);
+  grad -= hessian_ci_orb.transpose() * tmp.rightCols(1);
   // rotation matrix
-  VectorXd new_param = (hess-BTAinvB).householderQr().solve(tmp - grad);
-  //VectorXd new_param = hess.householderQr().solve(- grad);
+  //VectorXd new_param = (hess-BTAinvB).householderQr().solve(tmp - grad);
+  VectorXd new_param = hess.householderQr().solve(- grad);
 
 
   if (Parallel::is_master())
@@ -969,6 +978,31 @@ void FullOptimization::generate_optorb_integrals_from_newton(
 
   fill_rot_matrix_with_parameters(new_param, orb_param_indices_in_matrix);
   rotate_integrals();
+}
+
+void FullOptimization::get_hessian_ci_ci(const SparseMatrix& hamiltonian_matrix, 
+		const std::vector<double>& row_sum,
+		const std::vector<double>& coefs,
+		const double E_var) {
+  hessian_ci_ci = MatrixXd::Zero(n_dets_truncate, n_dets_truncate);
+#pragma omp parallel for
+  for (size_t i = 0; i < n_dets_truncate; i++) {
+    for (size_t j_id = 0; j_id < hamiltonian_matrix.rows[i].size(); j_id++) {
+      size_t j = hamiltonian_matrix.rows[i].get_index(j_id);
+      if (j >= n_dets_truncate) continue;
+      double val = hamiltonian_matrix.rows[i].get_value(j_id);
+      hessian_ci_ci(i, j) = 2. * val;
+      if (j_id != 0) hessian_ci_ci(j, i) = 2. * val;
+    }
+  }
+#pragma omp parallel for
+  for (size_t i = 0; i < n_dets_truncate; i++) { //TODO: improve with symmetry
+    hessian_ci_ci(i, i) -= 2. * E_var;
+    for (size_t j = 0; j < n_dets_truncate; j++) {
+      hessian_ci_ci(i, j) += 8. * coefs[i] * coefs[j] * E_var - 4. * coefs[i] * row_sum[j] - 4. * coefs[j] * row_sum[i];
+    }
+  }
+  Timer::checkpoint("computing hessian_ci_ci");
 }
 
 /*

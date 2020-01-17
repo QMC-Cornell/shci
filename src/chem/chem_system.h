@@ -33,7 +33,8 @@ class ChemSystem : public BaseSystem {
       const std::string& method) override;
 
   void post_variation_full_optimization(
-      std::vector<std::vector<size_t>>* connections_ptr, 
+      std::vector<std::vector<size_t>>* connections_ptr,
+      SparseMatrix hamiltonian, 
       std::vector<double>& row_sum, 
       std::vector<double>& diag);
 

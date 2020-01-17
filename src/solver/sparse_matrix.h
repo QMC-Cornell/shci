@@ -40,8 +40,9 @@ class SparseMatrix {
 
   std::vector<std::vector<size_t>> get_connections() const;
 
- private:
   std::vector<SparseVector> rows;
+ private:
+  //std::vector<SparseVector> rows;
   
   std::vector<double> diag_local;
 

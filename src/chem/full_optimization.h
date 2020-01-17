@@ -2,6 +2,7 @@
 
 #include "integrals.h"
 #include "../config.h"
+#include "../solver/sparse_matrix.h"
 #include <unordered_map>
 #include <eigen/Eigen/Dense>
 
@@ -11,7 +12,7 @@ class FullOptimization {
   // This module is designed such that for each optimization iteration
   // a new Optimization object is instantiated.
 public:
-  FullOptimization(Integrals *integrals_ptr) {
+  FullOptimization(Integrals *integrals_ptr, double n_dets) {
     integrals_p = integrals_ptr;
     n_orbs = integrals_ptr->n_orbs;
     n_up = integrals_ptr->n_up;
@@ -19,7 +20,7 @@ public:
     rot = MatrixXd::Zero(n_orbs, n_orbs);
     get_orb_param_indices_in_matrix();
     get_indices2index_hashtable();
-    n_dets_truncate = Config::get<size_t>("optimization/n_dets_truncate", 1);
+    n_dets_truncate = Config::get<size_t>("optimization/n_dets_truncate", n_dets);
     hessian_ci_orb = MatrixXd::Zero(n_dets_truncate, orb_dim);
   }
 
@@ -43,6 +44,11 @@ public:
   void rewrite_integrals();
 
   MatrixXd get_rotation_matrix() const { return rot; };
+
+  void get_hessian_ci_ci(const SparseMatrix& hamiltonian_matrix, 
+		  const std::vector<double>& row_sum, 
+		  const std::vector<double>& coefs, 
+		  const double E_var);
 
 private:
 
@@ -71,7 +77,9 @@ private:
   size_t n_dets_truncate;
   
   MatrixXd hessian_ci_orb;
-  
+
+  MatrixXd hessian_ci_ci;
+
   struct hash_pair { 
     size_t operator()(const index_t& p) const
     { 
