@@ -17,12 +17,13 @@ make -j
 
 ## Example Run
 Example inputs and outputs for carbon and chromium atoms and nitrogen molecule are in the examples directory.
-All you need are config.json and FCIDUMP.
+All you need are config.json and FCIDUMP.  Note that we run 1 MPI process per node and number of OpenMP threads/node = cores/node.
 ```
 mpirun -n 1 ../../shci
 ```
 To run other systems, you will have to obtain an integrals file, `FCIDUMP`, and modify the values in `config.json` accordingly.
 Many software packages can generate `FCIDUMP`, such as [`PySCF`](https://github.com/sunqm/pyscf) and [`Molpro`](https://www.molpro.net/).
+If running a system with > 128 orbitals, edit shci/src/det/half_det.h and change #define N_CHUNKS 2 so that N_CHUNKS * 64 >= n_orb.
 
 ## How to contribute
 
@@ -31,6 +32,8 @@ The efficiency and correctness of edge cases, or input values that differ greatl
 We welcome help with extending the capabilities of Arrow.  If interested, please contact Cyrus Umrigar <CyrusUmrigar@cornell.edu>, or a member of his research group.
 
 ## Input (config.json)
+
+Only the most important input variables are listed below.
 
 ### General
 * `n_up`, `n_dn` (required): number of up / down electrons.
