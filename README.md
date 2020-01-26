@@ -48,7 +48,7 @@ Only the most important input variables are listed below.
 * `eps_pt_dtm_ratio`: :palm_tree: ratio eps_pt_dtm/eps_var, default: eps_var / 10.
 * `eps_pt_psto_ratio`: :palm_tree: ratio eps_pt_psto/eps_var, default: eps_var / 100.
 * `eps_pt_ratio`: :palm_tree: ratio eps_pt/eps_var, default: eps_var / 1000.
-* `max_pt_iteration`: :palm_tree: maximum stochastic perturbation iterations, default: 100.
+* `max_pt_iterations`: :palm_tree: maximum stochastic perturbation iterations, default: 100.
 * `n_batches_pt_sto`: :palm_tree: number of batches for stochastic perturbation, default: 16.
 * `n_samples_pt_sto`: :palm_tree: number of samples for stochastic perturbation, default: choose based on available system memory.
 * `random_seed`: for stochastic perturbation, default: 347634253.
