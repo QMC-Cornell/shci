@@ -17,9 +17,9 @@ make -j
 
 ## Example Run
 Example inputs and outputs for carbon and chromium atoms and nitrogen molecule are in the examples directory.
-All you need are config.json and FCIDUMP.  Note that we run 1 MPI process per node and number of OpenMP threads/node = cores/node.
+All you need are config.json and FCIDUMP.  Run 1 MPI process per node and number of OpenMP threads/node = # cores/node.
 ```
-mpirun -n 1 ../../shci
+mpirun -n 1 ../../shci > out
 ```
 To run other systems, you will have to obtain an integrals file, `FCIDUMP`, and modify the values in `config.json` accordingly.
 Many software packages can generate `FCIDUMP`, such as [`PySCF`](https://github.com/sunqm/pyscf) and [`Molpro`](https://www.molpro.net/).
@@ -48,7 +48,7 @@ Only the most important input variables are listed below.
 * `eps_pt_dtm_ratio`: :palm_tree: ratio eps_pt_dtm/eps_var, default: eps_var / 10.
 * `eps_pt_psto_ratio`: :palm_tree: ratio eps_pt_psto/eps_var, default: eps_var / 100.
 * `eps_pt_ratio`: :palm_tree: ratio eps_pt/eps_var, default: eps_var / 1000.
-* `max_pt_iteration`: :palm_tree: maximum stochastic perturbation iterations, default: 100.
+* `max_pt_iterations`: :palm_tree: maximum stochastic perturbation iterations, default: 100.
 * `n_batches_pt_sto`: :palm_tree: number of batches for stochastic perturbation, default: 16.
 * `n_samples_pt_sto`: :palm_tree: number of samples for stochastic perturbation, default: choose based on available system memory.
 * `random_seed`: for stochastic perturbation, default: 347634253.
