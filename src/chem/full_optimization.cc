@@ -945,7 +945,9 @@ void FullOptimization::generate_optorb_integrals_from_newton(
 #pragma omp parallel for
   for (size_t i = 0; i < n_dets_truncate; i++) {
     hessian_ci_orb.row(i) -= 2. * coefs[i] * grad.transpose();
+    //app_hessian_ci_orb.row(i) -= 2. * coefs[i] * grad.transpose();
   }
+ 
   /*
   MatrixXd BTAinv(orb_dim, n_dets_truncate);
   for (size_t i = 0; i < n_dets_truncate; i++) {
@@ -957,20 +959,20 @@ void FullOptimization::generate_optorb_integrals_from_newton(
   for (size_t i = 0; i < n_dets_truncate; i++) {
     tmp += 2. * (row_sum[i] - coefs[i] * E_var) * BTAinv.col(i);
   }
+  // rotation matrix
+  //VectorXd new_param = (hess-BTAinvB).householderQr().solve(tmp - grad);
   */
 
   VectorXd grad_c(n_dets_truncate);
 #pragma omp parallel for
   for (size_t i = 0; i < n_dets_truncate; i++) grad_c(i) = 2. * (row_sum[i] - coefs[i] * E_var);
-  MatrixXd tmp(n_dets_truncate, orb_dim + 1);
-  tmp << hessian_ci_orb, grad_c;
-  tmp = hessian_ci_ci.householderQr().solve(tmp);
-  hess -= hessian_ci_orb.transpose() * tmp.leftCols(orb_dim);
-  grad -= hessian_ci_orb.transpose() * tmp.rightCols(1);
+  MatrixXd tmp(n_dets_truncate - 1, orb_dim + 1);
+  tmp << hessian_ci_orb.bottomRows(n_dets_truncate-1), grad_c.bottomRows(n_dets_truncate-1);
+  tmp = hessian_ci_ci.bottomRightCorner(n_dets_truncate-1, n_dets_truncate-1).householderQr().solve(tmp);
+  hess -= hessian_ci_orb.bottomRows(n_dets_truncate-1).transpose() * tmp.leftCols(orb_dim);
+  grad -= hessian_ci_orb.bottomRows(n_dets_truncate-1).transpose() * tmp.rightCols(1);
   // rotation matrix
-  //VectorXd new_param = (hess-BTAinvB).householderQr().solve(tmp - grad);
   VectorXd new_param = hess.householderQr().solve(- grad);
-
 
   if (Parallel::is_master())
     printf("norm of gradient: %.5f, norm of update: %.5f.\n", grad.norm(),
@@ -978,6 +980,97 @@ void FullOptimization::generate_optorb_integrals_from_newton(
 
   fill_rot_matrix_with_parameters(new_param, orb_param_indices_in_matrix);
   rotate_integrals();
+}
+
+void FullOptimization::get_approximate_hessian_ci_orb(const SparseMatrix& hamiltonian_matrix, 
+                                                      const double E_var,
+                                                      const std::vector<Det>& dets,
+                                                      const std::vector<double>& coefs) {
+  // Create hash table; used for looking up the coef of a det
+  std::unordered_map<Det, double, DetHasher> det2coef;
+  for (size_t i = 0; i < dets.size(); i++) {
+    det2coef[dets[i]] = coefs[i];
+  }
+
+  app_hessian_ci_orb = MatrixXd::Zero(n_dets_truncate, orb_dim);
+  
+  std::vector<unsigned int> orb_sym = integrals_p->orb_sym;
+//#pragma omp parallel for
+  for (size_t i_det = 0; i_det < dets.size(); i_det++) {
+    //Det this_det = dets[i_det];
+
+    //for (size_t j_id = 0; j_id < hamiltonian_matrix.rows[i_det].size(); j_id++) {
+    for (size_t j_id = 1; j_id < hamiltonian_matrix.rows[i_det].size(); j_id++) {
+      size_t j_det = hamiltonian_matrix.rows[i_det].get_index(j_id);
+      Det this_det = dets[j_det];
+      std::vector<unsigned> occ_up = this_det.up.get_occupied_orbs();
+      std::vector<unsigned> occ_dn = this_det.dn.get_occupied_orbs();
+      // up
+      for (const unsigned t: occ_up) {
+        for (unsigned q = t + 1; q < n_orbs; q++) {
+          if (orb_sym[t] != orb_sym[q]) continue;
+          if (this_det.up.has(q)) continue;
+          Det new_det = this_det;
+          new_det.up.unset(t); new_det.up.set(q);
+          double coef;
+          if (det2coef.count(new_det) == 1)
+            coef = det2coef[new_det];
+          else
+            continue;
+          int permfac = this_det.up.diff(new_det.up).permutation_factor;
+          app_hessian_ci_orb(i_det, indices2index.at(std::make_pair(t, q))) -= 2. * hamiltonian_matrix.rows[i_det].get_value(j_id) * coef * permfac;
+          if (j_id == 0) app_hessian_ci_orb(i_det, indices2index.at(std::make_pair(t, q))) -= - 2. * E_var * coef * permfac;
+        }
+        for (unsigned p = 0; p < t; p++) {
+          if (orb_sym[t] != orb_sym[p]) continue;
+          if (this_det.up.has(p)) continue;
+          Det new_det = this_det;
+          new_det.up.unset(t); new_det.up.set(p);
+          double coef;
+          if (det2coef.count(new_det) == 1)
+            coef = det2coef[new_det];
+          else
+            continue;
+          int permfac = this_det.up.diff(new_det.up).permutation_factor;
+          app_hessian_ci_orb(i_det, indices2index.at(std::make_pair(p, t))) += 2. * hamiltonian_matrix.rows[i_det].get_value(j_id) * coef * permfac;
+          if (j_id == 0) app_hessian_ci_orb(i_det, indices2index.at(std::make_pair(p, t))) += - 2. * E_var * coef * permfac;
+        }
+      }
+
+      // dn 
+      for (const unsigned t: occ_dn) {
+        for (unsigned q = t + 1; q < n_orbs; q++) {
+          if (orb_sym[t] != orb_sym[q]) continue;
+          if (this_det.dn.has(q)) continue;
+          Det new_det = this_det;
+          new_det.dn.unset(t); new_det.dn.set(q);
+          double coef;
+          if (det2coef.count(new_det) == 1)
+            coef = det2coef[new_det];
+          else
+            continue;
+          int permfac = this_det.dn.diff(new_det.dn).permutation_factor;
+          app_hessian_ci_orb(i_det, indices2index.at(std::make_pair(t, q))) -= 2. * hamiltonian_matrix.rows[i_det].get_value(j_id) * coef * permfac;
+          if (j_id == 0) app_hessian_ci_orb(i_det, indices2index.at(std::make_pair(t, q))) -= - 2. * E_var * coef * permfac;
+        }
+        for (unsigned p = 0; p < t; p++) {
+          if (orb_sym[t] != orb_sym[p]) continue;
+          if (this_det.dn.has(p)) continue;
+          Det new_det = this_det;
+          new_det.dn.unset(t); new_det.dn.set(p);
+          double coef;
+          if (det2coef.count(new_det) == 1)
+            coef = det2coef[new_det];
+          else
+            continue;
+          int permfac = this_det.dn.diff(new_det.dn).permutation_factor;
+          app_hessian_ci_orb(i_det, indices2index.at(std::make_pair(p, t))) += 2. * hamiltonian_matrix.rows[i_det].get_value(j_id) * coef * permfac;
+          if (j_id == 0) app_hessian_ci_orb(i_det, indices2index.at(std::make_pair(p, t))) += - 2. * E_var * coef * permfac;
+        }
+      }
+    }
+  }
+  Timer::checkpoint("computing approximate_hessian_ci_orb");
 }
 
 void FullOptimization::get_hessian_ci_ci(const SparseMatrix& hamiltonian_matrix, 
@@ -1003,6 +1096,30 @@ void FullOptimization::get_hessian_ci_ci(const SparseMatrix& hamiltonian_matrix,
     }
   }
   Timer::checkpoint("computing hessian_ci_ci");
+}
+
+void FullOptimization::get_approximate_hessian_ci_ci(const SparseMatrix& hamiltonian_matrix, 
+		const std::vector<double>& row_sum,
+		const std::vector<double>& coefs,
+		const double E_var) {
+  hessian_ci_ci = MatrixXd::Zero(n_dets_truncate, n_dets_truncate);
+  size_t N = coefs.size();
+//diagonal
+#pragma omp parallel for
+  for (size_t i = 0; i < n_dets_truncate; i++) {
+    hessian_ci_ci(i, i) += 2. * hamiltonian_matrix.rows[i].get_value(0) + (8. * coefs[i] * coefs[i] - 2.) * E_var - 8. * coefs[i] * row_sum[i];
+  }
+#pragma omp parallel for
+  for (size_t i = 0; i < N; i++) {
+    for (size_t j_id = 1; j_id < hamiltonian_matrix.rows[i].size(); j_id++) {
+      size_t j = hamiltonian_matrix.rows[i].get_index(j_id);
+      assert( j != i);
+      double val = hamiltonian_matrix.rows[i].get_value(j_id);
+      hessian_ci_ci(i, j) += 2. * val;
+      hessian_ci_ci(j, i) += 2. * val;
+    }
+  }
+  Timer::checkpoint("computing approximate hessian_ci_ci");
 }
 
 /*

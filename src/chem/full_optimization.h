@@ -50,6 +50,15 @@ public:
 		  const std::vector<double>& coefs, 
 		  const double E_var);
 
+  void get_approximate_hessian_ci_ci(const SparseMatrix& hamiltonian_matrix, 
+		  const std::vector<double>& row_sum, 
+		  const std::vector<double>& coefs, 
+		  const double E_var);
+
+  void get_approximate_hessian_ci_orb(const SparseMatrix& hamiltonian_matrix, 
+                  const double E_var,
+                  const std::vector<Det>& dets,
+                  const std::vector<double>& coefs);
 private:
 
   Integrals *integrals_p;
@@ -77,6 +86,8 @@ private:
   size_t n_dets_truncate;
   
   MatrixXd hessian_ci_orb;
+  
+  MatrixXd app_hessian_ci_orb;
 
   MatrixXd hessian_ci_ci;
 
