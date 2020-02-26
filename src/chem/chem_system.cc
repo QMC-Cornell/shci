@@ -285,23 +285,20 @@ double ChemSystem::find_connected_dets(
     const double eps_max,
     const double eps_min,
     const std::function<void(const Det&, const int n_excite)>& handler,
-    const bool second_rejection,
-    const double e_hf_1b) const {
+    const bool second_rejection) const {
   if (eps_max < eps_min) return eps_min;
 
   auto occ_orbs_up = det.up.get_occupied_orbs();
   auto occ_orbs_dn = det.dn.get_occupied_orbs();
 
-  double diff_from_HF = - e_hf_1b;
+  double diff_from_hf = - energy_hf_1b;
   if (second_rejection) {
     // Find approximate energy difference of spawning det from HF det.
     // Later the energy difference of the spawned det from the HF det requires at most 4 1-body energies.
     // Note: Using 1-body energies as a proxy for det energies
-    for (const auto p: occ_orbs_up) diff_from_HF += integrals.get_1b(p, p);
-    for (const auto p: occ_orbs_dn) diff_from_HF += integrals.get_1b(p, p);
+    for (const auto p: occ_orbs_up) diff_from_hf += integrals.get_1b(p, p);
+    for (const auto p: occ_orbs_dn) diff_from_hf += integrals.get_1b(p, p);
   }
-
-  double second_rejection_factor = Config::get<double>("second_rejection_factor", 0.2);
 
   double max_rejection = 0.;
 
@@ -315,7 +312,7 @@ double ChemSystem::find_connected_dets(
 //      if (S >= eps_max) continue; // This line is incorrect because for single excitations we compute H_ij and have some additional rejections.
         unsigned r = connected_sr.r;
         if (second_rejection) {
-          double denominator = diff_from_HF - integrals.get_1b(p, p) + integrals.get_1b(r, r);
+          double denominator = diff_from_hf - integrals.get_1b(p, p) + integrals.get_1b(r, r);
           if (denominator > 0. && S * S / denominator < second_rejection_factor * eps_min * eps_min) {
             max_rejection = std::max(max_rejection, S);
             continue;
@@ -367,7 +364,7 @@ double ChemSystem::find_connected_dets(
           r = tmp_r;
         }
         if (second_rejection) {
-          double denominator = diff_from_HF - integrals.get_1b(p%n_orbs, p%n_orbs) - integrals.get_1b(q%n_orbs, q%n_orbs)
+          double denominator = diff_from_hf - integrals.get_1b(p%n_orbs, p%n_orbs) - integrals.get_1b(q%n_orbs, q%n_orbs)
                                             + integrals.get_1b(r%n_orbs, r%n_orbs) + integrals.get_1b(s%n_orbs, s%n_orbs);
           if (denominator > 0. && H * H / denominator < second_rejection_factor * eps_min * eps_min) {
             max_rejection = std::max(max_rejection, H);

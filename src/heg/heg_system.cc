@@ -141,8 +141,7 @@ double HegSystem::find_connected_dets(
     const double eps_max,
     const double eps_min,
     const std::function<void(const Det&, const int n_excite)>& handler,
-    const bool second_rejection,
-    const double e_hf_1b) const {
+    const bool) const {
   if (eps_max < eps_min) return eps_min;
 
   const auto& occ_orbs_up = det.up.get_occupied_orbs();

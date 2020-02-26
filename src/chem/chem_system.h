@@ -20,8 +20,7 @@ class ChemSystem : public BaseSystem {
       const double eps_max,
       const double eps_min,
       const std::function<void(const Det&, const int n_excite)>& handler,
-      const bool second_rejection = false,
-      const double e_hf_1b = 0.) const override;
+      const bool second_rejection = false) const override;
 
   double get_hamiltonian_elem(
       const Det& det_i, const Det& det_j, const int n_excite) const override;

@@ -378,7 +378,8 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
   bool var_sd = Config::get<bool>("var_sd", get_pair_contrib);
 
   const bool second_rejection = Config::get<bool>("second_rejection", false);
-  double e_hf_1b = second_rejection ? system.get_e_hf_1b() : 0.;
+  system.energy_hf_1b = second_rejection ? system.get_e_hf_1b() : 0.;
+  system.second_rejection_factor = Config::get<double>("second_rejection_factor", 0.2);
 
   while (!converged) {
     eps_tried_prev.resize(n_dets, Util::INF);
@@ -410,7 +411,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
           };
           if (second_rejection) {
             double prev_max_rejection = system.find_connected_dets(
-                det, eps_tried_prev[i], eps_min, connected_det_handler, true, e_hf_1b);
+                det, eps_tried_prev[i], eps_min, connected_det_handler, true);
             eps_tried_prev[i] = 1.000000001 * prev_max_rejection;
           } else {
 	    static_cast<void>(system.find_connected_dets(det, eps_tried_prev[i], eps_min, connected_det_handler));

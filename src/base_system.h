@@ -29,11 +29,15 @@ class BaseSystem {
   bool has_double_excitation = true;
 
   double energy_hf = 0.0;
-
+  
   double energy_var = 0.0;
 
   size_t helper_size = 0;
 
+  double energy_hf_1b = 0.0; // used in second rejection
+
+  double second_rejection_factor = 0.2;
+  
   std::vector<Det> dets;
 
   std::vector<double> coefs;
@@ -51,8 +55,7 @@ class BaseSystem {
       const double eps_max,
       const double eps_min,
       const std::function<void(const Det&, const int n_excite)>& handler,
-      const bool second_rejection,
-      const double energy_hf_1b) const = 0;
+      const bool second_rejection) const = 0;
 
   virtual double get_hamiltonian_elem(
       const Det& det_i, const Det& det_j, const int n_excite) const = 0;

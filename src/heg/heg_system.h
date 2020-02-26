@@ -12,8 +12,7 @@ class HegSystem : public BaseSystem {
       const double,
       const double,
       const std::function<void(const Det&, const int)>&,
-      const bool second_rejection = false,
-      const double e_hf_1b = 0.) const override;
+      const bool second_rejection = false) const override;
 
   double get_hamiltonian_elem(const Det&, const Det&, const int) const override;
 
