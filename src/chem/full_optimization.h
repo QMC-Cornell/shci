@@ -160,4 +160,9 @@ private:
   double Y_matrix(unsigned p, unsigned q, unsigned r, unsigned s) const;
 
   double hessian_part(unsigned p, unsigned q, unsigned r, unsigned s) const;
+  
+  std::vector<size_t> get_most_important_indices(
+        const VectorXd& gradient,
+        const MatrixXd& hessian,
+        const double quantile) const;
 };

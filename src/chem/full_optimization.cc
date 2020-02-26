@@ -2,6 +2,8 @@
 
 #include "../parallel.h"
 #include "../timer.h"
+#include <queue>
+#include <algorithm>
 
 void FullOptimization::get_orb_param_indices_in_matrix() {
   // return vector of (row,col) indices of optimization parameters
@@ -931,6 +933,27 @@ void FullOptimization::rewrite_integrals() {
   }
 }
 
+std::vector<size_t> FullOptimization::get_most_important_indices(
+        const VectorXd& gradient,
+        const MatrixXd& hessian,
+        const double quantile) const {
+  std::priority_queue<std::pair<double, size_t>> q;
+  std::cout<<"\ng^2/2h ";
+  for (size_t i=0; i<orb_dim; i++) {
+    double val = std::abs(std::pow(gradient(i),2) / 2. / hessian(i,i));
+    std::cout<<val<<" ";
+    q.push(std::pair<double, size_t>(val, i));
+  }
+  size_t num_nonzero = orb_dim * quantile;
+  std::cout <<"\nnum_nonzero = "<<num_nonzero << std::endl;
+  std::vector<size_t> res;
+  for (size_t i=0; i<num_nonzero; i++) {
+    res.push_back(q.top().second);
+    q.pop();
+  }
+  return res;
+}
+
 void FullOptimization::generate_optorb_integrals_from_newton(
 	const std::vector<double>& row_sum,
 	const std::vector<double>& diag,
@@ -938,16 +961,23 @@ void FullOptimization::generate_optorb_integrals_from_newton(
 	const double E_var) {
   VectorXd grad = gradient(orb_param_indices_in_matrix);
   MatrixXd hess = hessian(orb_param_indices_in_matrix);
+  //MatrixXd hess = hessian_diagonal(orb_param_indices_in_matrix).asDiagonal();
   one_rdm.resize(0, 0);
   two_rdm.clear(); two_rdm.shrink_to_fit();
-  
+ 
   // one more contribution to hessian_co in addition to rdm elements
 #pragma omp parallel for
   for (size_t i = 0; i < n_dets_truncate; i++) {
     hessian_ci_orb.row(i) -= 2. * coefs[i] * grad.transpose();
     //app_hessian_ci_orb.row(i) -= 2. * coefs[i] * grad.transpose();
   }
- 
+
+//std::cout<<"\nHoo\n"<<hess;
+//std::cout<<"\nHco\n"<<hessian_ci_orb.topRows(20);
+//std::cout<<"\nHcc\n"<<hessian_ci_ci.topRows(20);
+//for (size_t i=0; i<n_dets_truncate/500; i++) {
+//std::cout<<"\ni="<<i*500<<"\t"<<hessian_ci_orb.row(i*500);
+//} 
   /*
   MatrixXd BTAinv(orb_dim, n_dets_truncate);
   for (size_t i = 0; i < n_dets_truncate; i++) {
@@ -963,17 +993,28 @@ void FullOptimization::generate_optorb_integrals_from_newton(
   //VectorXd new_param = (hess-BTAinvB).householderQr().solve(tmp - grad);
   */
 
+  std::vector<size_t> nonzero_indices = get_most_important_indices(grad, hess, Config::get<double>("optimization/param_proportion", 1.));
+  for (size_t i=0; i<orb_dim; i++) {
+    if (std::find(nonzero_indices.begin(), nonzero_indices.end(), i) != nonzero_indices.end()) continue;
+    grad(i) = 0.;
+    for (size_t j=0; j<n_dets_truncate; j++) {
+      hessian_ci_orb(j,i) = 0.;
+    }
+    for (size_t j=0; j<orb_dim; j++) {
+      hess(i,j) = 0.;
+      hess(j,i) = 0.;
+    }
+  }
+
   VectorXd grad_c(n_dets_truncate);
 #pragma omp parallel for
   for (size_t i = 0; i < n_dets_truncate; i++) grad_c(i) = 2. * (row_sum[i] - coefs[i] * E_var);
-  MatrixXd tmp(n_dets_truncate - 1, orb_dim + 1);
-  tmp << hessian_ci_orb.bottomRows(n_dets_truncate-1), grad_c.bottomRows(n_dets_truncate-1);
+  MatrixXd tmp = hessian_ci_orb.bottomRows(n_dets_truncate-1);
   tmp = hessian_ci_ci.bottomRightCorner(n_dets_truncate-1, n_dets_truncate-1).householderQr().solve(tmp);
-  hess -= hessian_ci_orb.bottomRows(n_dets_truncate-1).transpose() * tmp.leftCols(orb_dim);
-  grad -= hessian_ci_orb.bottomRows(n_dets_truncate-1).transpose() * tmp.rightCols(1);
+  hess -= hessian_ci_orb.bottomRows(n_dets_truncate-1).transpose() * tmp;
   // rotation matrix
-  VectorXd new_param = hess.householderQr().solve(- grad);
-
+  VectorXd new_param = hess.fullPivLu().solve(- grad);
+ 
   if (Parallel::is_master())
     printf("norm of gradient: %.5f, norm of update: %.5f.\n", grad.norm(),
            new_param.norm());
