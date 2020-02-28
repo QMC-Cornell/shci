@@ -55,10 +55,6 @@ public:
 		  const std::vector<double>& coefs, 
 		  const double E_var);
 
-  void get_approximate_hessian_ci_orb(const SparseMatrix& hamiltonian_matrix, 
-                  const double E_var,
-                  const std::vector<Det>& dets,
-                  const std::vector<double>& coefs);
 private:
 
   Integrals *integrals_p;

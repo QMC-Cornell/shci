@@ -674,7 +674,6 @@ void ChemSystem::post_variation_full_optimization(
   FullOptimization full_optimizer(&integrals, coefs.size());
   full_optimizer.get_1rdm(dets, coefs);
   full_optimizer.get_2rdm(dets, coefs, *connections_ptr);
-  //full_optimizer.get_approximate_hessian_ci_orb(hamiltonian_matrix, energy_var, dets, coefs);
 
   //variation_cleanup();
   Timer::start("Full optimization");
