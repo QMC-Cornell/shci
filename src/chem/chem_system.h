@@ -34,7 +34,7 @@ class ChemSystem : public BaseSystem {
 
   void post_variation_full_optimization(
       std::vector<std::vector<size_t>>* connections_ptr,
-      SparseMatrix hamiltonian, 
+      const SparseMatrix& hamiltonian, 
       std::vector<double>& row_sum, 
       std::vector<double>& diag);
 

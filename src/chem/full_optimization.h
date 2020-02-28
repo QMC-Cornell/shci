@@ -39,7 +39,8 @@ public:
   	const std::vector<double>& row_sum,
 	const std::vector<double>& diag,
 	const std::vector<double>& coefs,
-	const double E_var);
+	const double E_var,
+        const SparseMatrix& hamiltonian_matrix);
 
   void rewrite_integrals();
 

@@ -2,6 +2,7 @@
 
 #include "../parallel.h"
 #include "../timer.h"
+#include "cg_solver.h"
 #include <queue>
 #include <algorithm>
 
@@ -958,7 +959,8 @@ void FullOptimization::generate_optorb_integrals_from_newton(
 	const std::vector<double>& row_sum,
 	const std::vector<double>& diag,
 	const std::vector<double>& coefs,
-	const double E_var) {
+	const double E_var,
+        const SparseMatrix& hamiltonian_matrix) {
   VectorXd grad = gradient(orb_param_indices_in_matrix);
   MatrixXd hess = hessian(orb_param_indices_in_matrix);
   //MatrixXd hess = hessian_diagonal(orb_param_indices_in_matrix).asDiagonal();
@@ -984,14 +986,17 @@ void FullOptimization::generate_optorb_integrals_from_newton(
     }
   }
 
-  VectorXd grad_c(n_dets_truncate);
-#pragma omp parallel for
-  for (size_t i = 0; i < n_dets_truncate; i++) grad_c(i) = 2. * (row_sum[i] - coefs[i] * E_var);
-  MatrixXd tmp = hessian_ci_orb.bottomRows(n_dets_truncate-1);
-  tmp = hessian_ci_ci.bottomRightCorner(n_dets_truncate-1, n_dets_truncate-1).householderQr().solve(tmp);
-  hess -= hessian_ci_orb.bottomRows(n_dets_truncate-1).transpose() * tmp;
-  // rotation matrix
-  VectorXd new_param = hess.fullPivLu().solve(- grad);
+//  VectorXd grad_c(n_dets_truncate);
+//#pragma omp parallel for
+//  for (size_t i = 0; i < n_dets_truncate; i++) grad_c(i) = 2. * (row_sum[i] - coefs[i] * E_var);
+//  MatrixXd tmp = hessian_ci_orb.bottomRows(n_dets_truncate-1);
+//  tmp = hessian_ci_ci.bottomRightCorner(n_dets_truncate-1, n_dets_truncate-1).householderQr().solve(tmp);
+//  hess -= hessian_ci_orb.bottomRows(n_dets_truncate-1).transpose() * tmp;
+//  // rotation matrix
+//  VectorXd new_param = hess.fullPivLu().solve(- grad);
+ 
+  CGSolver cg(hamiltonian_matrix, hessian_ci_orb, hess, E_var, grad);
+  VectorXd new_param = cg.solve();
  
   if (Parallel::is_master())
     printf("norm of gradient: %.5f, norm of update: %.5f.\n", grad.norm(),

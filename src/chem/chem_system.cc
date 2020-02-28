@@ -670,7 +670,7 @@ void ChemSystem::post_variation_optimization(
 }
 
 void ChemSystem::post_variation_full_optimization(
-    std::vector<std::vector<size_t>>* connections_ptr, SparseMatrix hamiltonian_matrix, std::vector<double>& row_sum, std::vector<double>& diag) {
+    std::vector<std::vector<size_t>>* connections_ptr, const SparseMatrix& hamiltonian_matrix, std::vector<double>& row_sum, std::vector<double>& diag) {
   FullOptimization full_optimizer(&integrals, coefs.size());
   full_optimizer.get_1rdm(dets, coefs);
   full_optimizer.get_2rdm(dets, coefs, *connections_ptr);
@@ -679,7 +679,7 @@ void ChemSystem::post_variation_full_optimization(
   Timer::start("Full optimization");
   full_optimizer.get_hessian_ci_ci(hamiltonian_matrix, row_sum, coefs, energy_var);
   //full_optimizer.get_approximate_hessian_ci_ci(hamiltonian_matrix, row_sum, coefs, energy_var);
-  full_optimizer.generate_optorb_integrals_from_newton(row_sum, diag, coefs, energy_var);
+  full_optimizer.generate_optorb_integrals_from_newton(row_sum, diag, coefs, energy_var, hamiltonian_matrix);
   Timer::end();
   variation_cleanup();
   
