@@ -22,13 +22,6 @@ class RDM {
 
   void get_1rdm(const std::vector<Det>&, const std::vector<double>&, const bool dump_csv = false);
 
-  /*
-    size_t nonsym_combine2(const size_t, const size_t) const;  // used for generate_natorb_integrals
-    with hash tables
-
-    size_t nonsym_combine4(const size_t, const size_t, const size_t, const size_t) const;
-  */
-
   void get_2rdm_slow(const std::vector<Det>&, const std::vector<double>&);
 
   void get_2rdm(

@@ -113,15 +113,10 @@ private:
 
   void get_indices2index_hashtable();
   
-  double Hessian_ci_orb(const std::vector<Det>& dets, const std::vector<double>& coefs,
-    const size_t i_det, const size_t m, const size_t n);
-  
   void rotate_integrals();
 
   void dump_integrals(const Integrals_array &new_integrals,
                       const char *file_name) const;
-
-  //std::vector<index_t> parameter_indices() const;
 
   void get_orb_param_indices_in_matrix();
   
