@@ -981,6 +981,7 @@ void FullOptimization::generate_optorb_integrals_from_newton(
       hessian_ci_orb(j,i) = 0.;
     }
     for (size_t j=0; j<orb_dim; j++) {
+      if (j == i) continue;
       hess(i,j) = 0.;
       hess(j,i) = 0.;
     }
