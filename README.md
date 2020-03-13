@@ -14,7 +14,7 @@ git checkout stable # optional
 git submodule update --init --recursive
 make -j
 ```
-If using intel compiler, compile with 'make -f Makefile.intel -j'.
+If using intel compiler, compile with `make -f Makefile.intel -j`.
 
 ## Example Run
 Example inputs and outputs for carbon and chromium atoms and nitrogen molecule are in the examples directory.
