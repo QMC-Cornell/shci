@@ -58,7 +58,7 @@ class BaseSystem {
   virtual void post_variation(std::vector<std::vector<size_t>>&){};
 
   virtual void post_variation_optimization(
-      std::vector<std::vector<size_t>>*, const std::string&) {};
+      SparseMatrix&, const std::string&) {};
 
   virtual void dump_integrals(const char*){};
 

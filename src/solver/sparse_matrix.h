@@ -17,6 +17,8 @@ class SparseMatrix {
   void cache_diag();
 
   size_t count_n_elems() const;
+ 
+  size_t count_n_rows() const { return rows.size(); }
 
   std::vector<double> mul(const std::vector<double>& vec) const;
 
@@ -38,11 +40,12 @@ class SparseMatrix {
 
   void print_row(const size_t i) { rows[i].print(); }
 
+  void zero_out_row(size_t i) { rows[i].zero_out_vector(); };
+
   std::vector<std::vector<size_t>> get_connections() const;
 
-  std::vector<SparseVector> rows;
  private:
-  //std::vector<SparseVector> rows;
+  std::vector<SparseVector> rows;
   
   std::vector<double> diag_local;
 

@@ -7,44 +7,32 @@ public:
   CGSolver(const SparseMatrix& hamiltonian_matrix,
            const MatrixXd& hessian_ci_orb, 
            const MatrixXd& hessian_orb_orb,
-           const double E_var,
+           const double energy_var,
            const VectorXd& gradient_orb):
   Hamiltonian(hamiltonian_matrix),
   Hco(hessian_ci_orb),
   Hoo(hessian_orb_orb),
+  e_var(energy_var)
   go(gradient_orb) {
 
-  n_ci_param = hamiltonian_matrix.rows.size() - 1;
-  n_orb_param = gradient_orb.size();
-  // Hcc
-  Hcc_vals.resize(n_ci_param+1);
-
-#pragma omp parallel for
-    for (size_t i = 0; i < hamiltonian_matrix.rows.size(); i++) {
-      Hcc_vals[i].resize(hamiltonian_matrix.rows[i].size());
-      Hcc_vals[i][0] = 2. * hamiltonian_matrix.rows[i].get_value(0) - 2. * E_var;
-      for (size_t j_id = 1; j_id < hamiltonian_matrix.rows[i].size(); j_id++) {
-        double val = hamiltonian_matrix.rows[i].get_value(j_id);
-        Hcc_vals[i][j_id] = 2. * val;
-      }
-    }
-
-    std::cout<<"constructor ends"<<std::endl;
+    n_dets = hamiltonian_matrix.get_n_rows();
+    n_orb_param = gradient_orb.size();
   }
 
   VectorXd solve() const {
     std::cout<<"solve starts"<<std::endl;
-    VectorXd ans = VectorXd::Zero(n_ci_param + n_orb_param);
-    VectorXd r = VectorXd::Zero(n_ci_param + n_orb_param);
-    for (size_t i = n_ci_param; i < n_ci_param + n_orb_param; i++) {
-      ans(i) = - go(i - n_ci_param) / Hoo(i - n_ci_param, i - n_ci_param);
-      r(i) = -go(i - n_ci_param);
+    std::vector<double> res_c(n_dets);
+    std::vector<double> res_o(n_orb_param, 0.);
+    VectorXd r = VectorXd::Zero(n_dets + n_orb_param);
+    for (size_t i = 0; i < n_orb_param; i++) {
+      res_c(i) = - go(i) / Hoo(i, i);
+      r(n_dets + i) = -go(i);
     }
-    r -= mat_vec(ans);
+    r -= mat_vec(res_c, res_o);
 
-    VectorXd z = VectorXd::Zero(n_ci_param + n_orb_param);
-    for (size_t i = 0; i < n_ci_param; i++) z(i) = r(i) / Hcc_vals[i + 1][0];
-    for (size_t i = n_ci_param; i < n_ci_param + n_orb_param; i++) z(i) = r(i) / Hoo(i - n_ci_param, i - n_ci_param);
+    VectorXd z = VectorXd::Zero(n_dets + n_orb_param);
+    for (size_t i = 1; i < n_dets; i++) z(i) = r(i) / 2 / (Hamiltonian.get_diag(i) - e_var);
+    for (size_t i = 0; i < n_orb_param; i++) z(n_dets + i) = r(n_dets + i) / Hoo(i, i);
 
     VectorXd p = z;
 std::cout<<"solver initialized"<<std::endl;
@@ -69,7 +57,9 @@ std::cout<<"solver initialized"<<std::endl;
   }
 
 private:
-  size_t n_ci_param, n_orb_param;
+  size_t n_dets, n_orb_param;
+
+  double e_var;
 
   const SparseMatrix& Hamiltonian;
 
@@ -78,8 +68,6 @@ private:
   const MatrixXd& Hoo;
   
   const VectorXd& go;
-
-  std::vector<std::vector<float>> Hcc_vals;
 
   VectorXd mat_vec(const VectorXd& p) const {
     VectorXd ans = VectorXd::Zero(n_ci_param + n_orb_param);

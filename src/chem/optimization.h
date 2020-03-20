@@ -10,16 +10,18 @@ class Optimization {
   // This module is designed such that for each optimization iteration
   // a new Optimization object is instantiated.
 public:
-  Optimization(RDM *rdm_ptr, Integrals *integrals_ptr) {
-    rdm_p = rdm_ptr;
-    integrals_p = integrals_ptr;
-    n_orbs = integrals_ptr->n_orbs;
+  Optimization(Integrals& integrals_, 
+		SparseMatrix& hamiltonian_matrix_,
+		const std::vector<Det>& dets_,
+		const std::vector<double>& wf_coefs_): 
+	integrals(integrals_),
+	hamiltonian_matrix(hamiltonian_matrix_),
+        rdm(integrals),
+        dets(dets_),
+        wf_coefs(wf_coefs_)
+  {
+    n_orbs = integrals.n_orbs;
     rot = MatrixXd::Zero(n_orbs, n_orbs);
-  }
-
-  ~Optimization() {
-    rdm_p = nullptr;
-    integrals_p = nullptr;
   }
 
   void generate_natorb_integrals();
@@ -32,6 +34,8 @@ public:
 
   void generate_optorb_integrals_from_amsgrad();
 
+  void generate_optorb_integrals_from_full_optimization(const double e_var);
+
   void dump_integrals(const char *file_name) const;
 
   void rewrite_integrals();
@@ -39,9 +43,15 @@ public:
   MatrixXd get_rotation_matrix() const { return rot; };
 
 private:
-  RDM *rdm_p;
+  SparseMatrix& hamiltonian_matrix;
 
-  Integrals *integrals_p;
+  Integrals& integrals;
+
+  RDM rdm;
+
+  const std::vector<Det>& dets;
+
+  const std::vector<double>& wf_coefs;
 
   unsigned n_orbs;
 
@@ -49,6 +59,8 @@ private:
       Integrals_array;
 
   typedef std::pair<unsigned, unsigned> index_t;
+
+  MatrixXd generalized_Fock_matrix;
 
   Integrals_array new_integrals;
 
@@ -60,6 +72,12 @@ private:
                       const char *file_name) const;
 
   std::vector<index_t> parameter_indices() const;
+  
+  std::vector<index_t> get_most_important_parameter_indices(
+        const VectorXd& gradient,
+        const MatrixXd& hessian,
+	const std::vector<index_t>& parameter_indices,
+        const double parameter_proportion) const;
 
   VectorXd find_overshooting_stepsize(double dim,
                                       const VectorXd &new_param) const;
@@ -68,14 +86,16 @@ private:
       const VectorXd &parameters,
       const std::vector<index_t> &parameter_indices);
 
-  VectorXd gradient(const std::vector<std::pair<unsigned, unsigned>> &) const;
+  VectorXd gradient(const std::vector<std::pair<unsigned, unsigned>> &);
 
-  double generalized_Fock(unsigned m, unsigned n) const;
+  void get_generalized_Fock();
 
-  MatrixXd hessian(const std::vector<std::pair<unsigned, unsigned>> &) const;
+  double generalized_Fock_element(unsigned m, unsigned n) const;
+
+  MatrixXd hessian(const std::vector<std::pair<unsigned, unsigned>> &);
 
   VectorXd
-  hessian_diagonal(const std::vector<std::pair<unsigned, unsigned>> &) const;
+  hessian_diagonal(const std::vector<std::pair<unsigned, unsigned>> &);
 
   double Y_matrix(unsigned p, unsigned q, unsigned r, unsigned s) const;
 

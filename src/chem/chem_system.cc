@@ -10,7 +10,7 @@
 #include "../util.h"
 #include "dooh_util.h"
 #include "optimization.h"
-#include "full_optimization.h"
+//#include "full_optimization.h"
 #include "rdm.h"
 #include <eigen/Eigen/Dense>
 #include <fstream>
@@ -554,7 +554,7 @@ double ChemSystem::get_two_body_double(const DiffResult& diff_up, const DiffResu
 
 void ChemSystem::post_variation(std::vector<std::vector<size_t>>& connections) {
   if (Config::get<bool>("2rdm", false) || Config::get<bool>("get_2rdm_csv", false)) {
-    RDM rdm(&integrals);
+    RDM rdm(integrals);
     Timer::start("get 2rdm");
     rdm.get_2rdm(dets, coefs, connections);
     connections.clear();
@@ -573,31 +573,12 @@ void ChemSystem::post_variation(std::vector<std::vector<size_t>>& connections) {
     Result::put("s2", s2);
   }
 
-  /*
-  if (Config::get<bool>("natorb", false)) {
-    if (time_sym && !unpacked) {
-      unpack_time_sym();
-      unpacked = true;
-    }
-    RDM rdm(&integrals);
-    rdm.get_1rdm(dets, coefs);
-    Timer::checkpoint("get 1rdm");
-
-    Optimization natorb_optimizer(&rdm, &integrals);
-    natorb_optimizer.generate_natorb_integrals();
-    natorb_optimizer.dump_integrals("FCIDUMP_natorb");
-    Timer::checkpoint("generate natorb integrals");
-
-    std::exit(0);
-  }
-  */
-
   if (Config::get<bool>("2rdm_slow", false)) {
     if (time_sym && !unpacked) {
       unpack_time_sym();
       unpacked = true;
     }
-    RDM rdm(&integrals);
+    RDM rdm(integrals);
     Timer::start("get 2rdm (slow)");
     rdm.get_2rdm_slow(dets, coefs);
     rdm.dump_2rdm(Config::get<bool>("get_2rdm_csv", false));
@@ -609,28 +590,28 @@ void ChemSystem::post_variation(std::vector<std::vector<size_t>>& connections) {
       unpack_time_sym();
       unpacked = true;
     }
-    RDM rdm(&integrals);
+    RDM rdm(integrals);
     Timer::start("get_1rdm");
-    rdm.get_1rdm(dets, coefs, true);
+    rdm.get_1rdm(dets, coefs);
+    rdm.dump_1rdm();
     Timer::end();
   }
 }
 
 void ChemSystem::post_variation_optimization(
-    std::vector<std::vector<size_t>>* connections_ptr,
+    SparseMatrix& hamiltonian_matrix,
     const std::string& method) {
 
   if (method == "natorb") {  // natorb optimization
     if (time_sym) unpack_time_sym();
-    RDM rdm(&integrals);
-    rdm.get_1rdm(dets, coefs);
-    
-    variation_cleanup();
-    Optimization natorb_optimizer(&rdm, &integrals);
+    // TODO:variation_cleanup
+    Optimization natorb_optimizer(integrals, hamiltonian_matrix, dets, coefs);
 
     Timer::start("Natorb optimization");
     natorb_optimizer.generate_natorb_integrals();
     Timer::end();
+
+    variation_cleanup();
 
     rotation_matrix *= natorb_optimizer.get_rotation_matrix();
     Timer::start("rewrite integrals");
@@ -638,14 +619,7 @@ void ChemSystem::post_variation_optimization(
     Timer::end();
 
   } else {  // optorb optimization
-    RDM rdm(&integrals);
-    rdm.get_2rdm(dets, coefs, *connections_ptr);
-
-    connections_ptr->clear();
-    rdm.get_1rdm_from_2rdm();
-
-    variation_cleanup();
-    Optimization optorb_optimizer(&rdm, &integrals);
+    Optimization optorb_optimizer(integrals, hamiltonian_matrix, dets, coefs);
 
     if (Util::str_equals_ci("newton", method)) {
       Timer::start("Newton optimization");
@@ -656,36 +630,21 @@ void ChemSystem::post_variation_optimization(
     } else if (Util::str_equals_ci("amsgrad", method)) {
       Timer::start("AMSGrad optimization");
       optorb_optimizer.generate_optorb_integrals_from_amsgrad();
+    } else if (Util::str_equals_ci("full_optimization", method)) {
+      Timer::start("Full optimization");
+      optorb_optimizer.generate_optorb_integrals_from_full_optimization(energy_var);
     } else {
       Timer::start("Approximate Newton optimization");
       optorb_optimizer.generate_optorb_integrals_from_approximate_newton();
     }
     Timer::end();
-
+    
+    variation_cleanup();
     rotation_matrix *= optorb_optimizer.get_rotation_matrix();
     Timer::start("rewrite integrals");
     optorb_optimizer.rewrite_integrals();
     Timer::end();
   }
-}
-
-void ChemSystem::post_variation_full_optimization(
-    std::vector<std::vector<size_t>>* connections_ptr, const SparseMatrix& hamiltonian_matrix, std::vector<double>& row_sum, std::vector<double>& diag) {
-  FullOptimization full_optimizer(&integrals, coefs.size());
-  full_optimizer.get_1rdm(dets, coefs);
-  full_optimizer.get_2rdm(dets, coefs, *connections_ptr);
-
-  //variation_cleanup();
-  Timer::start("Full optimization");
-  //full_optimizer.get_hessian_ci_ci(hamiltonian_matrix, row_sum, coefs, energy_var);
-  //full_optimizer.get_approximate_hessian_ci_ci(hamiltonian_matrix, row_sum, coefs, energy_var);
-  full_optimizer.generate_optorb_integrals_from_newton(row_sum, diag, coefs, energy_var, hamiltonian_matrix);
-  Timer::end();
-  variation_cleanup();
-  
-  Timer::start("rewrite integrals");
-  full_optimizer.rewrite_integrals();
-  Timer::end();
 }
 
 void ChemSystem::variation_cleanup() {

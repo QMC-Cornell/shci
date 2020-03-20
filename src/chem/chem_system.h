@@ -29,14 +29,8 @@ class ChemSystem : public BaseSystem {
   void post_variation(std::vector<std::vector<size_t>>& connections) override;
 
   void post_variation_optimization(
-      std::vector<std::vector<size_t>>* connections_ptr,
+      SparseMatrix& hamiltonian_matrix,
       const std::string& method) override;
-
-  void post_variation_full_optimization(
-      std::vector<std::vector<size_t>>* connections_ptr,
-      const SparseMatrix& hamiltonian, 
-      std::vector<double>& row_sum, 
-      std::vector<double>& diag);
 
   void variation_cleanup() override;
 
