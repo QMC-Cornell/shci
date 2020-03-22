@@ -43,9 +43,9 @@ public:
   MatrixXd get_rotation_matrix() const { return rot; };
 
 private:
-  SparseMatrix& hamiltonian_matrix;
-
   Integrals& integrals;
+  
+  SparseMatrix& hamiltonian_matrix;
 
   RDM rdm;
 

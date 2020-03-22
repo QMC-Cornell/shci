@@ -9,51 +9,60 @@ public:
            const MatrixXd& hessian_orb_orb,
            const double energy_var,
            const VectorXd& gradient_orb):
+  e_var(energy_var),
   Hamiltonian(hamiltonian_matrix),
   Hco(hessian_ci_orb),
   Hoo(hessian_orb_orb),
-  e_var(energy_var)
   go(gradient_orb) {
-
-    n_dets = hamiltonian_matrix.get_n_rows();
+    n_dets = hamiltonian_matrix.count_n_rows();
     n_orb_param = gradient_orb.size();
   }
 
   VectorXd solve() const {
     std::cout<<"solve starts"<<std::endl;
-    std::vector<double> res_c(n_dets);
-    std::vector<double> res_o(n_orb_param, 0.);
-    VectorXd r = VectorXd::Zero(n_dets + n_orb_param);
+    std::vector<double> x_c(n_dets, 0.), x_o(n_orb_param, 0.);
+    std::vector<double> r_c(n_dets, 0.), r_o(n_orb_param, 0.);
+    std::vector<double> z_c(n_dets, 0.), z_o(n_orb_param, 0.);
+    std::vector<double> p_c(n_dets, 0.), p_o(n_orb_param, 0.);
     for (size_t i = 0; i < n_orb_param; i++) {
-      res_c(i) = - go(i) / Hoo(i, i);
-      r(n_dets + i) = -go(i);
+      x_o[i] = - go(i) / Hoo(i, i);
+      r_o[i] = -go(i);
     }
-    r -= mat_vec(res_c, res_o);
+    std::vector<double> product_c(n_dets, 0.), product_o(n_orb_param, 0.);
+    mat_vec(x_c, x_o, product_c, product_o);
+    for (size_t i = 0; i < n_dets; i++) r_c[i] -= product_c[i];
+    for (size_t i = 0; i < n_orb_param; i++) r_o[i] -= product_o[i];
 
-    VectorXd z = VectorXd::Zero(n_dets + n_orb_param);
-    for (size_t i = 1; i < n_dets; i++) z(i) = r(i) / 2 / (Hamiltonian.get_diag(i) - e_var);
-    for (size_t i = 0; i < n_orb_param; i++) z(n_dets + i) = r(n_dets + i) / Hoo(i, i);
+    for (size_t i = 0; i < n_dets; i++) z_c[i] = r_c[i] / 2 / (Hamiltonian.get_diag(i) - e_var);
+    for (size_t i = 0; i < n_orb_param; i++) z_o[i] = r_o[i] / Hoo(i, i);
 
-    VectorXd p = z;
+    p_c = z_c;
+    p_o = z_o;
 std::cout<<"solver initialized"<<std::endl;
 
-    while (r.norm() > 1e-6) {
-      VectorXd Ap = mat_vec(p);
-      double old_zr = z.dot(r);
-      std::cout<<"r.norm "<<r.norm()<<std::endl;
-      double alpha = old_zr / (p.dot(Ap));
-      ans += alpha * p;
-      r -= alpha * Ap;
+    double r_norm = Util::dot_omp(r_c, r_c) + Util::dot_omp(r_o, r_o);
+    double zr = Util::dot_omp(z_c, r_c) + Util::dot_omp(z_o, r_o);
+    while (r_norm > 1e-6) {
+      mat_vec(p_c, p_o, product_c, product_o);
+      std::cout<<"r.norm " << r_norm <<std::endl;
+      double alpha = zr / (Util::dot_omp(p_c, product_c) + Util::dot_omp(p_o, product_o));
+      for (size_t i = 0; i < n_dets; i++) x_c[i] += alpha * p_c[i];
+      for (size_t i = 0; i < n_orb_param; i++) x_o[i] += alpha * p_o[i];
+      for (size_t i = 0; i < n_dets; i++) r_c[i] -= alpha * product_c[i];
+      for (size_t i = 0; i < n_orb_param; i++) r_o[i] -= alpha * product_o[i];
+      r_norm = Util::dot_omp(r_c, r_c) + Util::dot_omp(r_o, r_o);
+      for (size_t i = 0; i < n_dets; i++) z_c[i] = r_c[i] / 2 / (Hamiltonian.get_diag(i) - e_var);
+      for (size_t i = 0; i < n_orb_param; i++) z_o[i] = r_o[i] / Hoo(i, i);
 
-      for (size_t i = 0; i < n_ci_param; i++) z(i) = r(i) / Hcc_vals[i + 1][0];
-      for (size_t i = n_ci_param; i < n_ci_param + n_orb_param; i++) z(i) = r(i) / Hoo(i - n_ci_param, i - n_ci_param);
-
-      double beta = z.dot(r) / old_zr;
-      p *= beta;
-      p += z;
+      double new_zr = Util::dot_omp(z_c, r_c) + Util::dot_omp(z_o, r_o);
+      double beta = new_zr / zr;
+      zr = new_zr;
+      for (size_t i = 0; i < n_dets; i++) p_c[i] = z_c[i] + beta * p_c[i];
+      for (size_t i = 0; i < n_orb_param; i++) p_o[i] = z_o[i] + beta * p_o[i];
     }
-//std::cout<<"\n"<<ans; std::exit(0);
-    return ans.tail(n_orb_param);
+    VectorXd res = VectorXd::Zero(n_orb_param);
+    for (size_t i = 0; i < n_orb_param; i++) res(i) = x_o[i];
+    return res;
   }
 
 private:
@@ -69,48 +78,41 @@ private:
   
   const VectorXd& go;
 
-  VectorXd mat_vec(const VectorXd& p) const {
-    VectorXd ans = VectorXd::Zero(n_ci_param + n_orb_param);
+  void mat_vec(const std::vector<double>& in_c,
+		   const std::vector<double>& in_o,
+                   std::vector<double>& out_c,
+                   std::vector<double>& out_o) const {
+
+    for (size_t i = 0; i < n_dets; i++) out_c[i] = 0.;
+    for (size_t i = 0; i < n_orb_param; i++) out_o[i] = 0.;
     // Hcc
-#pragma omp parallel for
-    for (size_t i = 1; i <= n_ci_param; i++) {
-      double diff_i = Hcc_vals[i][0] * p(i - 1);
-      for (size_t j_id = 1; j_id < Hamiltonian.rows[i].size(); j_id++) {
-        const size_t j = Hamiltonian.rows[i].get_index(j_id);
-        const double Hcc_ij = Hcc_vals[i][j_id];
-        diff_i += Hcc_ij * p(j - 1);
-        double diff_j = Hcc_ij * p(i - 1);
-#pragma omp atomic
-        ans(j - 1) += diff_j;
-      }
-#pragma omp atomic
-      ans(i - 1) += diff_i;
-    }
+    auto Hcc_xc = Hamiltonian.mul(in_c);
+#pragma omp parallel for 
+    for (size_t i = 0; i < n_dets; i++) out_c[i] += 2 * (Hcc_xc[i] - e_var * in_c[i]);
 
     // Hco
-#pragma omp parallel for
-    for (size_t i = 1; i <= n_ci_param; i++) {
+#pragma omp parallel for 
+    for (size_t i = 0; i < n_dets; i++) { // TODO: check col/row-major
       for (size_t j = 0; j < n_orb_param; j++) {
         const double Hco_ij = Hco(i, j);
 #pragma omp atomic
-        ans(i - 1) += Hco_ij * p(n_ci_param + j); 
+        out_c[i] += Hco_ij * in_o[j]; 
 #pragma omp atomic
-        ans(n_ci_param + j) += Hco_ij * p(i - 1);
+        out_o[j] += Hco_ij * in_c[i];
       }
     }
 
     // Hoo
 #pragma omp parallel for
-    for (size_t i = 0; i < n_orb_param; i++) {
-      double diff_i = 0;
+    for (size_t i = 0; i < n_orb_param; i++) { // TODO: upper triangle or not
+      double diff_i = 0.;
       for (size_t j = 0; j < n_orb_param; j++) {
-        diff_i += Hoo(i, j) * p(n_ci_param + j);
+        diff_i += Hoo(i, j) * in_o[j];
       }
 #pragma omp atomic
-      ans(n_ci_param + i) += diff_i;
+      out_o[i] += diff_i;
     }
     
-    return ans;
   }
 
 };

@@ -44,6 +44,7 @@ class SparseMatrix {
 
   std::vector<std::vector<size_t>> get_connections() const;
 
+  //std::vector<SparseVector> rows;
  private:
   std::vector<SparseVector> rows;
   

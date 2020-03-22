@@ -484,7 +484,7 @@ void Optimization::generate_optorb_integrals_from_full_optimization(
 	const double e_var) {
   std::vector<index_t> param_indices = parameter_indices();
   size_t n_param = param_indices.size();
-  size_t n_dets = hamiltonian_matrix.rows.size();
+  size_t n_dets = hamiltonian_matrix.count_n_rows();
   size_t mem_avail = Util::get_mem_avail();
   MatrixXd hess_ci_orb;
   double param_proportion = (mem_avail * 0.8) / (n_dets * n_param * 4);
@@ -502,6 +502,15 @@ void Optimization::generate_optorb_integrals_from_full_optimization(
   rdm.get_2rdm(dets, wf_coefs, hamiltonian_matrix.get_connections()); // TODO: change connections!
   VectorXd grad = gradient(param_indices);
   MatrixXd hess = hessian(param_indices);
+
+  hamiltonian_matrix.zero_out_row(0);  
+  for (size_t j = 0; j < n_param; j++) hess_ci_orb(0, j) = 0.;
+
+  // one more contribution to hessian_co in addition to rdm elements
+#pragma omp parallel for
+  for (size_t i = 1; i < n_dets; i++) {
+    hess_ci_orb.row(i) -= 2. * wf_coefs[i] * grad.transpose();
+  }
 
   CGSolver cg(hamiltonian_matrix, hess_ci_orb, hess, e_var, grad);
   VectorXd new_param = cg.solve();
