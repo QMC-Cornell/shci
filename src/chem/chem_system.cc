@@ -553,13 +553,17 @@ double ChemSystem::get_two_body_double(const DiffResult& diff_up, const DiffResu
 }
 
 void ChemSystem::post_variation(std::vector<std::vector<size_t>>& connections) {
+  if (Config::get<bool>("get_1rdm_csv", false)) {
+    RDM rdm(integrals);
+    rdm.get_1rdm(dets, coefs);
+    rdm.dump_1rdm();
+  }
+
   if (Config::get<bool>("2rdm", false) || Config::get<bool>("get_2rdm_csv", false)) {
     RDM rdm(integrals);
-    Timer::start("get 2rdm");
     rdm.get_2rdm(dets, coefs, connections);
     connections.clear();
     rdm.dump_2rdm(Config::get<bool>("get_2rdm_csv", false));
-    Timer::end();
   }
 
   bool unpacked = false;
@@ -579,22 +583,8 @@ void ChemSystem::post_variation(std::vector<std::vector<size_t>>& connections) {
       unpacked = true;
     }
     RDM rdm(integrals);
-    Timer::start("get 2rdm (slow)");
     rdm.get_2rdm_slow(dets, coefs);
     rdm.dump_2rdm(Config::get<bool>("get_2rdm_csv", false));
-    Timer::end();
-  }
-
-  if (Config::get<bool>("get_1rdm_csv", false)) {
-    if (time_sym && !unpacked) {
-      unpack_time_sym();
-      unpacked = true;
-    }
-    RDM rdm(integrals);
-    Timer::start("get_1rdm");
-    rdm.get_1rdm(dets, coefs);
-    rdm.dump_1rdm();
-    Timer::end();
   }
 }
 
@@ -604,46 +594,44 @@ void ChemSystem::post_variation_optimization(
 
   if (method == "natorb") {  // natorb optimization
     if (time_sym) unpack_time_sym();
-    // TODO:variation_cleanup
     Optimization natorb_optimizer(integrals, hamiltonian_matrix, dets, coefs);
 
     Timer::start("Natorb optimization");
-    natorb_optimizer.generate_natorb_integrals();
+    natorb_optimizer.get_natorb_rotation_matrix();
     Timer::end();
 
+    hamiltonian_matrix.clear();
     variation_cleanup();
 
-    rotation_matrix *= natorb_optimizer.get_rotation_matrix();
-    Timer::start("rewrite integrals");
-    natorb_optimizer.rewrite_integrals();
-    Timer::end();
+    rotation_matrix *= natorb_optimizer.rotation_matrix();
+    natorb_optimizer.rotate_and_rewrite_integrals();
 
   } else {  // optorb optimization
     Optimization optorb_optimizer(integrals, hamiltonian_matrix, dets, coefs);
 
     if (Util::str_equals_ci("newton", method)) {
       Timer::start("Newton optimization");
-      optorb_optimizer.generate_optorb_integrals_from_newton();
+      optorb_optimizer.get_optorb_rotation_matrix_from_newton();
     } else if (Util::str_equals_ci("grad_descent", method)) {
       Timer::start("Gradient descent optimization");
-      optorb_optimizer.generate_optorb_integrals_from_grad_descent();
+      optorb_optimizer.get_optorb_rotation_matrix_from_grad_descent();
     } else if (Util::str_equals_ci("amsgrad", method)) {
       Timer::start("AMSGrad optimization");
-      optorb_optimizer.generate_optorb_integrals_from_amsgrad();
+      optorb_optimizer.get_optorb_rotation_matrix_from_amsgrad();
     } else if (Util::str_equals_ci("full_optimization", method)) {
       Timer::start("Full optimization");
-      optorb_optimizer.generate_optorb_integrals_from_full_optimization(energy_var);
+      optorb_optimizer.get_optorb_rotation_matrix_from_full_optimization(energy_var);
     } else {
       Timer::start("Approximate Newton optimization");
-      optorb_optimizer.generate_optorb_integrals_from_approximate_newton();
+      optorb_optimizer.get_optorb_rotation_matrix_from_approximate_newton();
     }
     Timer::end();
-    
+   
+    hamiltonian_matrix.clear(); 
     variation_cleanup();
-    rotation_matrix *= optorb_optimizer.get_rotation_matrix();
-    Timer::start("rewrite integrals");
-    optorb_optimizer.rewrite_integrals();
-    Timer::end();
+
+    rotation_matrix *= optorb_optimizer.rotation_matrix();
+    optorb_optimizer.rotate_and_rewrite_integrals();
   }
 }
 

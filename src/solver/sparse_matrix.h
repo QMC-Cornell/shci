@@ -38,13 +38,14 @@ class SparseMatrix {
 
   void sort_row(const size_t i);
 
-  void print_row(const size_t i) { rows[i].print(); }
+  void print_row(const size_t i) const { rows[i].print(); }
+
+  const SparseVector& get_row(const size_t i) const { return rows[i]; }
 
   void zero_out_row(size_t i) { rows[i].zero_out_vector(); };
 
   std::vector<std::vector<size_t>> get_connections() const;
 
-  //std::vector<SparseVector> rows;
  private:
   std::vector<SparseVector> rows;
   

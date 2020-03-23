@@ -5,7 +5,7 @@
 #include "cg_solver.h"
 #include <queue>
 
-void Optimization::generate_natorb_integrals() {
+void Optimization::get_natorb_rotation_matrix() {
   //======================================================
   // Compute natural orbitals by diagonalizing the 1RDM.
   // Rotate integrals to natural orbital basis and generate
@@ -79,11 +79,15 @@ void Optimization::generate_natorb_integrals() {
     }
   }
   Timer::checkpoint("compute natural orbitals");
+}
 
+void Optimization::rotate_and_rewrite_integrals() {
   rotate_integrals();
+  rewrite_integrals();
 }
 
 void Optimization::rotate_integrals() {
+  Timer::start("rotate integrals");
   new_integrals.resize(n_orbs);
   Integrals_array tmp_integrals(n_orbs);
 
@@ -215,68 +219,13 @@ void Optimization::rotate_integrals() {
       new_integrals[p][q][n_orbs][n_orbs] = new_val;
     }
   }
-  Timer::checkpoint("rotate integrals");
-}
-
-void Optimization::dump_integrals(const char *file_name) const {
-  if (Parallel::is_master()) {
-    FILE *pFile;
-    pFile = fopen(file_name, "w");
-
-    // Header
-    fprintf(pFile, "&FCI NORB=%d, NELEC=%d, MS2=%d,\n", n_orbs,
-            integrals.n_elecs, 0);
-    fprintf(pFile, "ORBSYM=");
-    for (unsigned i = 0; i < n_orbs; i++) {
-      fprintf(pFile, "  %d", integrals.orb_sym[i]);
-    }
-    fprintf(pFile, "\nISYM=1\n&END\n");
-
-    double integral_value;
-
-    // Two-body integrals
-    for (unsigned p = 0; p < n_orbs; p++) {
-      for (unsigned q = 0; q <= p; q++) {
-        for (unsigned r = 0; r <= p; r++) {
-          for (unsigned s = 0; s <= r; s++) {
-            if ((p == r) && (q < s))
-              continue;
-            integral_value = new_integrals[p][q][r][s];
-            if (std::abs(integral_value) > 1e-9) {
-              fprintf(
-                  pFile, " %19.12E %3d %3d %3d %3d\n", integral_value,
-                  integrals.orb_order[p] + 1, integrals.orb_order[q] + 1,
-                  integrals.orb_order[r] + 1, integrals.orb_order[s] + 1);
-            }
-          } // s
-        }   // r
-      }     // q
-    }       // p
-
-    // One-body integrals
-    for (unsigned p = 0; p < n_orbs; p++) {
-      for (unsigned q = 0; q <= p; q++) {
-        integral_value = new_integrals[p][q][n_orbs][n_orbs];
-        if (std::abs(integral_value) > 1e-9) {
-          fprintf(pFile, " %19.12E %3d %3d %3d %3d\n", integral_value,
-                  integrals.orb_order[p] + 1, integrals.orb_order[q] + 1,
-                  0, 0);
-        }
-      }
-    }
-
-    // Nuclear-nuclear energy
-    fprintf(pFile, " %19.12E %3d %3d %3d %3d\n", integrals.energy_core, 0, 0,
-            0, 0);
-
-    fclose(pFile);
-  }
-
-  Timer::checkpoint("creating new FCIDUMP");
+  Timer::end();
 }
 
 void Optimization::rewrite_integrals() {
   // replace integrals with new_integrals
+  Timer::start("rewrite integrals");
+
   integrals.integrals_2b.clear();
   integrals.integrals_1b.clear();
 
@@ -307,9 +256,10 @@ void Optimization::rewrite_integrals() {
                                     });
     }
   }
+  Timer::end();
 }
 
-void Optimization::generate_optorb_integrals_from_newton() {
+void Optimization::get_optorb_rotation_matrix_from_newton() {
   std::vector<index_t> param_indices = parameter_indices();
   VectorXd grad = gradient(param_indices);
   MatrixXd hess = hessian(param_indices);
@@ -366,10 +316,9 @@ void Optimization::generate_optorb_integrals_from_newton() {
            new_update.norm());
 
   fill_rot_matrix_with_parameters(new_update, param_indices);
-  rotate_integrals();
 }
 
-void Optimization::generate_optorb_integrals_from_approximate_newton() {
+void Optimization::get_optorb_rotation_matrix_from_approximate_newton() {
   std::vector<index_t> param_indices = parameter_indices();
   VectorXd grad = gradient(param_indices);
   MatrixXd hess_diag = hessian_diagonal(param_indices);
@@ -429,10 +378,9 @@ void Optimization::generate_optorb_integrals_from_approximate_newton() {
            new_update.norm());
 
   fill_rot_matrix_with_parameters(new_update, param_indices);
-  rotate_integrals();
 }
 
-void Optimization::generate_optorb_integrals_from_grad_descent() {
+void Optimization::get_optorb_rotation_matrix_from_grad_descent() {
   std::vector<index_t> param_indices = parameter_indices();
 
   VectorXd grad = gradient(param_indices);
@@ -440,10 +388,9 @@ void Optimization::generate_optorb_integrals_from_grad_descent() {
 
   VectorXd new_param = -0.01 * grad;
   fill_rot_matrix_with_parameters(new_param, param_indices);
-  rotate_integrals();
 }
 
-void Optimization::generate_optorb_integrals_from_amsgrad() {
+void Optimization::get_optorb_rotation_matrix_from_amsgrad() {
   std::vector<index_t> param_indices = parameter_indices();
   unsigned dim = param_indices.size();
 
@@ -477,43 +424,44 @@ void Optimization::generate_optorb_integrals_from_amsgrad() {
   }
 
   fill_rot_matrix_with_parameters(new_param, param_indices);
-  rotate_integrals();
 }
 
-void Optimization::generate_optorb_integrals_from_full_optimization(
+void Optimization::get_optorb_rotation_matrix_from_full_optimization(
 	const double e_var) {
   std::vector<index_t> param_indices = parameter_indices();
   size_t n_param = param_indices.size();
   size_t n_dets = hamiltonian_matrix.count_n_rows();
   size_t mem_avail = Util::get_mem_avail();
-  MatrixXd hess_ci_orb;
   double param_proportion = (mem_avail * 0.8) / (n_dets * n_param * 4);
   if (param_proportion < 1.) {
     rdm.get_1rdm(dets, wf_coefs);
-    rdm.get_2rdm(dets, wf_coefs, hamiltonian_matrix.get_connections());
+    rdm.get_2rdm(dets, wf_coefs, hamiltonian_matrix);
     VectorXd grad = gradient(param_indices);
     MatrixXd hess = hessian(param_indices);
     param_indices = get_most_important_parameter_indices(grad, hess, param_indices, param_proportion);
     n_param = param_indices.size();
   }
-  hess_ci_orb.resize(n_dets, n_param);
+  MatrixXd hess_ci_orb = MatrixXd::Zero(n_dets, n_param);
   rdm.prepare_for_writing_in_hessian_ci_orb(param_indices, &hess_ci_orb);
   rdm.get_1rdm(dets, wf_coefs);
-  rdm.get_2rdm(dets, wf_coefs, hamiltonian_matrix.get_connections()); // TODO: change connections!
+  rdm.get_2rdm(dets, wf_coefs, hamiltonian_matrix);
   VectorXd grad = gradient(param_indices);
   MatrixXd hess = hessian(param_indices);
-
-  hamiltonian_matrix.zero_out_row(0);  
-  for (size_t j = 0; j < n_param; j++) hess_ci_orb(0, j) = 0.;
+  rdm.clear();
 
   // one more contribution to hessian_co in addition to rdm elements
 #pragma omp parallel for
-  for (size_t i = 1; i < n_dets; i++) {
+  for (size_t i = 0; i < n_dets; i++) {
     hess_ci_orb.row(i) -= 2. * wf_coefs[i] * grad.transpose();
   }
 
+  // n_dets-1 ci parameters; remove first one.
+  hamiltonian_matrix.zero_out_row(0);  
+  for (size_t j = 0; j < n_param; j++) hess_ci_orb(0, j) = 0.;
+
   CGSolver cg(hamiltonian_matrix, hess_ci_orb, hess, e_var, grad);
-  VectorXd new_param = cg.solve();
+  auto new_param_ = cg.solve();
+  Map<VectorXd> new_param(new_param_.data(), n_param);
 
   grad.resize(0);
   hess.resize(0, 0);
@@ -522,7 +470,6 @@ void Optimization::generate_optorb_integrals_from_full_optimization(
   hamiltonian_matrix.clear();
 
   fill_rot_matrix_with_parameters(new_param, param_indices);
-  rotate_integrals();
 }
 
 std::vector<Optimization::index_t> Optimization::parameter_indices() const {
@@ -548,18 +495,20 @@ std::vector<Optimization::index_t> Optimization::get_most_important_parameter_in
         const MatrixXd& hessian,
 	const std::vector<index_t>& parameter_indices,
         const double parameter_proportion) const {
+  // Find the parameters that have the largest g^2/H value
   std::priority_queue<std::pair<double, size_t>> q;
-  std::cout<<"\ng^2/2h ";
   for (size_t i=0; i< parameter_indices.size(); i++) {
-    double val = std::abs(std::pow(gradient(i),2) / 2. / hessian(i,i));
-    std::cout<<val<<" ";
+    double val = std::abs(std::pow(gradient(i),2) / hessian(i,i));
     q.push(std::pair<double, size_t>(val, i));
   }
   size_t n_param_new = parameter_indices.size() * parameter_proportion;
-  std::cout <<"\nn_param_new = "<<n_param_new << std::endl;
-  std::vector<index_t> new_parameter_indices;
+  if (Parallel::is_master()) {
+    std::cout << "Reduced number of optimization parameters: " << n_param_new
+              << std::endl;
+  }
+  std::vector<index_t> new_parameter_indices(n_param_new);
   for (size_t i=0; i<n_param_new; i++) {
-    new_parameter_indices.push_back(parameter_indices[q.top().second]);
+    new_parameter_indices[i] = parameter_indices[q.top().second];
     q.pop();
   }
   return new_parameter_indices;
@@ -669,7 +618,7 @@ void Optimization::get_generalized_Fock() {
   }
 }
 
-double Optimization::generalized_Fock_element(unsigned m, unsigned n) const {
+double Optimization::generalized_Fock_element(const unsigned m, const unsigned n) const {
   // Helgaker (10.8.24)
   double elem = 0.;
   for (unsigned q = 0; q < n_orbs; q++) {
@@ -686,8 +635,8 @@ double Optimization::generalized_Fock_element(unsigned m, unsigned n) const {
   return elem;
 }
 
-double Optimization::Y_matrix(unsigned p, unsigned q, unsigned r,
-                              unsigned s) const {
+double Optimization::Y_matrix(const unsigned p, const unsigned q, const unsigned r,
+                              const unsigned s) const {
   // Helgaker (10.8.50)
   double elem = 0.;
   for (unsigned m = 0; m < n_orbs; m++) {
@@ -701,8 +650,8 @@ double Optimization::Y_matrix(unsigned p, unsigned q, unsigned r,
   return elem;
 }
 
-double Optimization::hessian_part(unsigned p, unsigned q, unsigned r,
-                                  unsigned s) const {
+double Optimization::hessian_part(const unsigned p, const unsigned q, const unsigned r,
+                                  const unsigned s) const {
   // Helgaker (10.8.53) content in [...]
   double elem = 0.;
   elem += 2 * rdm.one_rdm_elem(p, r) * integrals.get_1b(q, s);

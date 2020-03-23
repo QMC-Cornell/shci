@@ -18,29 +18,27 @@ public:
 	hamiltonian_matrix(hamiltonian_matrix_),
         rdm(integrals),
         dets(dets_),
-        wf_coefs(wf_coefs_)
+        wf_coefs(wf_coefs_),
+        n_orbs(integrals_.n_orbs)
   {
-    n_orbs = integrals.n_orbs;
     rot = MatrixXd::Zero(n_orbs, n_orbs);
   }
 
-  void generate_natorb_integrals();
+  void get_natorb_rotation_matrix();
 
-  void generate_optorb_integrals_from_newton();
+  void get_optorb_rotation_matrix_from_newton();
 
-  void generate_optorb_integrals_from_approximate_newton();
+  void get_optorb_rotation_matrix_from_approximate_newton();
 
-  void generate_optorb_integrals_from_grad_descent();
+  void get_optorb_rotation_matrix_from_grad_descent();
 
-  void generate_optorb_integrals_from_amsgrad();
+  void get_optorb_rotation_matrix_from_amsgrad();
 
-  void generate_optorb_integrals_from_full_optimization(const double e_var);
+  void get_optorb_rotation_matrix_from_full_optimization(const double e_var);
 
-  void dump_integrals(const char *file_name) const;
+  void rotate_and_rewrite_integrals();
 
-  void rewrite_integrals();
-
-  MatrixXd get_rotation_matrix() const { return rot; };
+  MatrixXd rotation_matrix() const { return rot; };
 
 private:
   Integrals& integrals;
@@ -53,7 +51,7 @@ private:
 
   const std::vector<double>& wf_coefs;
 
-  unsigned n_orbs;
+  const unsigned n_orbs;
 
   typedef std::vector<std::vector<std::vector<std::vector<double>>>>
       Integrals_array;
@@ -68,8 +66,7 @@ private:
 
   void rotate_integrals();
 
-  void dump_integrals(const Integrals_array &new_integrals,
-                      const char *file_name) const;
+  void rewrite_integrals();
 
   std::vector<index_t> parameter_indices() const;
   
@@ -79,9 +76,6 @@ private:
 	const std::vector<index_t>& parameter_indices,
         const double parameter_proportion) const;
 
-  VectorXd find_overshooting_stepsize(double dim,
-                                      const VectorXd &new_param) const;
-
   void fill_rot_matrix_with_parameters(
       const VectorXd &parameters,
       const std::vector<index_t> &parameter_indices);
@@ -90,14 +84,14 @@ private:
 
   void get_generalized_Fock();
 
-  double generalized_Fock_element(unsigned m, unsigned n) const;
+  double generalized_Fock_element(const unsigned m, const unsigned n) const;
 
   MatrixXd hessian(const std::vector<std::pair<unsigned, unsigned>> &);
 
   VectorXd
   hessian_diagonal(const std::vector<std::pair<unsigned, unsigned>> &);
 
-  double Y_matrix(unsigned p, unsigned q, unsigned r, unsigned s) const;
+  double Y_matrix(const unsigned p, const  unsigned q, const unsigned r, const unsigned s) const;
 
-  double hessian_part(unsigned p, unsigned q, unsigned r, unsigned s) const;
+  double hessian_part(const unsigned p, const unsigned q, const unsigned r, const unsigned s) const;
 };
