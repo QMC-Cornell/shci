@@ -262,7 +262,7 @@ void Optimization::rewrite_integrals() {
 void Optimization::get_optorb_rotation_matrix_from_newton() {
   std::vector<index_t> param_indices = parameter_indices();
   VectorXd grad = gradient(param_indices);
-  MatrixXd hess = hessian(param_indices);
+  MatrixXdR hess = hessian(param_indices);
   rdm.clear();
   size_t dim = param_indices.size();
 
@@ -319,6 +319,8 @@ void Optimization::get_optorb_rotation_matrix_from_newton() {
 }
 
 void Optimization::get_optorb_rotation_matrix_from_approximate_newton() {
+  rdm.get_1rdm(dets, wf_coefs);
+  rdm.get_2rdm(dets, wf_coefs, hamiltonian_matrix);
   std::vector<index_t> param_indices = parameter_indices();
   VectorXd grad = gradient(param_indices);
   MatrixXd hess_diag = hessian_diagonal(param_indices);
@@ -432,27 +434,37 @@ void Optimization::get_optorb_rotation_matrix_from_full_optimization(
   size_t n_param = param_indices.size();
   size_t n_dets = hamiltonian_matrix.count_n_rows();
   size_t mem_avail = Util::get_mem_avail();
+  if (Parallel::is_master()) printf("Mem available for optimization: %.2f GB", mem_avail * 1e-9);
   double param_proportion = (mem_avail * 0.8) / (n_dets * n_param * 4);
+  VectorXd grad;
+  MatrixXdR hess;
   if (param_proportion < 1.) {
     rdm.get_1rdm(dets, wf_coefs);
     rdm.get_2rdm(dets, wf_coefs, hamiltonian_matrix);
-    VectorXd grad = gradient(param_indices);
-    MatrixXd hess = hessian(param_indices);
+    grad = gradient(param_indices);
+    hess = hessian(param_indices);
     param_indices = get_most_important_parameter_indices(grad, hess, param_indices, param_proportion);
     n_param = param_indices.size();
   }
-  MatrixXd hess_ci_orb = MatrixXd::Zero(n_dets, n_param);
+  MatrixXfR hess_ci_orb = MatrixXf::Zero(n_dets, n_param);
   rdm.prepare_for_writing_in_hessian_ci_orb(param_indices, &hess_ci_orb);
   rdm.get_1rdm(dets, wf_coefs);
   rdm.get_2rdm(dets, wf_coefs, hamiltonian_matrix);
-  VectorXd grad = gradient(param_indices);
-  MatrixXd hess = hessian(param_indices);
+  grad = gradient(param_indices);
+  hess = hessian(param_indices);
   rdm.clear();
 
   // one more contribution to hessian_co in addition to rdm elements
 #pragma omp parallel for
   for (size_t i = 0; i < n_dets; i++) {
-    hess_ci_orb.row(i) -= 2. * wf_coefs[i] * grad.transpose();
+    for (size_t j = 0; j < n_param; j++) hess_ci_orb(i,j) -= 2. * wf_coefs[i] * grad(j);
+  }
+
+  if (Config::get<bool>("time_sym", false)) {
+#pragma omp parallel for
+    for (size_t i = 0; i < n_dets; i++) {
+      if (dets[i].up != dets[i].dn) hess_ci_orb.row(i) *= Util::SQRT2_INV;
+    }
   }
 
   // n_dets-1 ci parameters; remove first one.
@@ -492,7 +504,7 @@ std::vector<Optimization::index_t> Optimization::parameter_indices() const {
 
 std::vector<Optimization::index_t> Optimization::get_most_important_parameter_indices(
         const VectorXd& gradient,
-        const MatrixXd& hessian,
+        const MatrixXdR& hessian,
 	const std::vector<index_t>& parameter_indices,
         const double parameter_proportion) const {
   // Find the parameters that have the largest g^2/H value
@@ -570,7 +582,7 @@ VectorXd Optimization::gradient(
   return grad;
 }
 
-MatrixXd Optimization::hessian(
+Optimization::MatrixXdR Optimization::hessian(
     const std::vector<std::pair<unsigned, unsigned>> &param_indices) {
   unsigned n_param = param_indices.size();
   MatrixXd hessian(n_param, n_param);

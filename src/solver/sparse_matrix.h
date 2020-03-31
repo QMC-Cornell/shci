@@ -21,7 +21,7 @@ class SparseMatrix {
   size_t count_n_rows() const { return rows.size(); }
 
   std::vector<double> mul(const std::vector<double>& vec) const;
-
+ 
   std::vector<std::complex<double>> mul(const std::vector<std::complex<double>>& vec) const;
 
   void mul(

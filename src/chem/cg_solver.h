@@ -4,8 +4,8 @@ class CGSolver {
 
 public:
   CGSolver(const SparseMatrix& hamiltonian_matrix,
-           const MatrixXd& hessian_ci_orb, 
-           const MatrixXd& hessian_orb_orb,
+           const Matrix<float, Dynamic, Dynamic, RowMajor>& hessian_ci_orb, 
+           const Matrix<double, Dynamic, Dynamic, RowMajor>& hessian_orb_orb,
            const double energy_var,
            const VectorXd& gradient_orb):
   e_var(energy_var),
@@ -18,6 +18,7 @@ public:
   }
 
   std::vector<double> solve() const {
+    Timer::start("conjugate gradient solver");
     std::vector<double> x_c(n_dets, 0.), x_o(n_orb_param, 0.);
     std::vector<double> r_c(n_dets, 0.), r_o(n_orb_param, 0.);
     std::vector<double> z_c(n_dets, 0.), z_o(n_orb_param, 0.);
@@ -44,9 +45,11 @@ public:
 
     double r_norm = std::sqrt(Util::dot_omp(r_c, r_c) + Util::dot_omp(r_o, r_o));
     double zr = Util::dot_omp(z_c, r_c) + Util::dot_omp(z_o, r_o);
+    
+    unsigned i_iter = 0;
     while (r_norm > 1e-6) {
       mat_vec(p_c, p_o, product_c, product_o);
-      if (Parallel::is_master()) printf(" residual norm: %.8f\n", r_norm);
+      if (Parallel::is_master()) printf("Iter %d: residual norm: %.8f\n", i_iter, r_norm);
       double alpha = zr / (Util::dot_omp(p_c, product_c) + Util::dot_omp(p_o, product_o));
 #pragma omp parallel for 
       for (size_t i = 0; i < n_dets; i++) x_c[i] += alpha * p_c[i];
@@ -69,23 +72,22 @@ public:
       for (size_t i = 0; i < n_dets; i++) p_c[i] = z_c[i] + beta * p_c[i];
 #pragma omp parallel for 
       for (size_t i = 0; i < n_orb_param; i++) p_o[i] = z_o[i] + beta * p_o[i];
+      i_iter++;
     }
-    //VectorXd res = VectorXd::Zero(n_orb_param);
-    //for (size_t i = 0; i < n_orb_param; i++) res(i) = x_o[i];
-    //return res;
+    Timer::end();
     return x_o;
   }
 
 private:
   size_t n_dets, n_orb_param;
 
-  double e_var;
+  const double e_var;
 
   const SparseMatrix& Hamiltonian;
 
-  const MatrixXd& Hco;
+  const Matrix<float, Dynamic, Dynamic, RowMajor>& Hco;
   
-  const MatrixXd& Hoo;
+  const Matrix<double, Dynamic, Dynamic, RowMajor>& Hoo;
   
   const VectorXd& go;
 

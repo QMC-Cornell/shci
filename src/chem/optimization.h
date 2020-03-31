@@ -58,6 +58,10 @@ private:
 
   typedef std::pair<unsigned, unsigned> index_t;
 
+  typedef Matrix<double, Dynamic, Dynamic, RowMajor> MatrixXdR;
+
+  typedef Matrix<float, Dynamic, Dynamic, RowMajor> MatrixXfR;
+
   MatrixXd generalized_Fock_matrix;
 
   Integrals_array new_integrals;
@@ -72,7 +76,7 @@ private:
   
   std::vector<index_t> get_most_important_parameter_indices(
         const VectorXd& gradient,
-        const MatrixXd& hessian,
+        const MatrixXdR& hessian,
 	const std::vector<index_t>& parameter_indices,
         const double parameter_proportion) const;
 
@@ -86,7 +90,7 @@ private:
 
   double generalized_Fock_element(const unsigned m, const unsigned n) const;
 
-  MatrixXd hessian(const std::vector<std::pair<unsigned, unsigned>> &);
+  MatrixXdR hessian(const std::vector<std::pair<unsigned, unsigned>> &);
 
   VectorXd
   hessian_diagonal(const std::vector<std::pair<unsigned, unsigned>> &);

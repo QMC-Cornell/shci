@@ -10,7 +10,6 @@
 #include "../util.h"
 #include "dooh_util.h"
 #include "optimization.h"
-//#include "full_optimization.h"
 #include "rdm.h"
 #include <eigen/Eigen/Dense>
 #include <fstream>
@@ -593,14 +592,13 @@ void ChemSystem::post_variation_optimization(
     const std::string& method) {
 
   if (method == "natorb") {  // natorb optimization
-    if (time_sym) unpack_time_sym();
+    hamiltonian_matrix.clear();
     Optimization natorb_optimizer(integrals, hamiltonian_matrix, dets, coefs);
 
     Timer::start("Natorb optimization");
     natorb_optimizer.get_natorb_rotation_matrix();
     Timer::end();
 
-    hamiltonian_matrix.clear();
     variation_cleanup();
 
     rotation_matrix *= natorb_optimizer.rotation_matrix();

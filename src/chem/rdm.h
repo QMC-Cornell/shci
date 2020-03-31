@@ -21,7 +21,7 @@ class RDM {
 
   void prepare_for_writing_in_hessian_ci_orb(
       const std::vector<index_t>& parameter_indices,
-      MatrixXd* const hessian_ci_orb_p);
+      Matrix<float, Dynamic, Dynamic, RowMajor>* const hessian_ci_orb_p);
 
   void get_1rdm(const std::vector<Det>&, const std::vector<double>&);
   
@@ -62,7 +62,7 @@ class RDM {
 
   std::vector<double> two_rdm;
 
-  MatrixXd* hessian_ci_orb_p = nullptr;
+  Matrix<float, Dynamic, Dynamic, RowMajor>* hessian_ci_orb_p = nullptr;
 
   // Hashtable: key=(row,col) indices of orbital parameters in antisymm matrix; 
   // value=index in vector orb_param_indices
@@ -75,7 +75,8 @@ class RDM {
     } 
   };
   
-  std::unordered_map<index_t, size_t, hash_pair> indices2index;
+  //std::unordered_map<index_t, size_t, hash_pair> indices2index;
+  MatrixXi indices2index;
 
   inline size_t combine4_2rdm(const unsigned p, const unsigned q, const unsigned r, const unsigned s) const;
 

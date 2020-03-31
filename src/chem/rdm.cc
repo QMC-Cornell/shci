@@ -248,27 +248,27 @@ void RDM::write_in_1rdm_and_hessian_co(const unsigned p, const unsigned q, const
   
   if (hessian_ci_orb_p) {
     for (unsigned t = p + 1; t < n_orbs; t++) {
-      if (indices2index.count(std::make_pair(p, t))==1) {
+      if (indices2index(p, t) >= 0) {
 #pragma omp atomic
-        (*hessian_ci_orb_p)(i_det, indices2index.at(std::make_pair(p, t))) += 2 * integrals.get_1b(t, q) * perm_fac * coef_j;
+        (*hessian_ci_orb_p)(i_det, indices2index(p, t)) += 2 * integrals.get_1b(t, q) * perm_fac * coef_j;
       }
     }
     for (unsigned t = 0; t < p; t++) {
-      if (indices2index.count(std::make_pair(t, p))==1) {
+      if (indices2index(t, p) >= 0) {
 #pragma omp atomic
-        (*hessian_ci_orb_p)(i_det, indices2index.at(std::make_pair(t, p))) -= 2 * integrals.get_1b(t, q) * perm_fac * coef_j;
+        (*hessian_ci_orb_p)(i_det, indices2index(t, p)) -= 2 * integrals.get_1b(t, q) * perm_fac * coef_j;
       }
     }
     for (unsigned t = 0; t < p; t++) {
-      if (indices2index.count(std::make_pair(t, p))==1) {
+      if (indices2index(t, p) >= 0) {
 #pragma omp atomic
-        (*hessian_ci_orb_p)(j_det, indices2index.at(std::make_pair(t, p))) -= 2 * integrals.get_1b(t, q) * perm_fac * coef_i;
+        (*hessian_ci_orb_p)(j_det, indices2index(t, p)) -= 2 * integrals.get_1b(t, q) * perm_fac * coef_i;
       }
     }
     for (unsigned t = p + 1; t < n_orbs; t++) {
-      if (indices2index.count(std::make_pair(p, t))==1) {
+      if (indices2index(p, t) >= 0) {
 #pragma omp atomic
-        (*hessian_ci_orb_p)(j_det, indices2index.at(std::make_pair(p, t))) += 2 * integrals.get_1b(t, q) * perm_fac * coef_i;
+        (*hessian_ci_orb_p)(j_det, indices2index(p, t)) += 2 * integrals.get_1b(t, q) * perm_fac * coef_i;
       }
     }
   }
@@ -862,27 +862,27 @@ void RDM::write_in_2rdm_and_hessian_co(const unsigned p, const unsigned q, const
     
   if (hessian_ci_orb_p) {
     for (unsigned t = p + 1; t < n_orbs; t++) {
-      if (indices2index.count(std::make_pair(p, t))==1) {
+      if (indices2index(p, t) >= 0) {
 #pragma omp atomic
-        (*hessian_ci_orb_p)(i_det, indices2index.at(std::make_pair(p, t))) += 2 * coef_j * integrals.get_2b(t, s, q, r) * perm_fac;
+        (*hessian_ci_orb_p)(i_det, indices2index(p, t)) += 2 * coef_j * integrals.get_2b(t, s, q, r) * perm_fac;
       }
     }
     for (unsigned t = 0; t < p; t++) {
-      if (indices2index.count(std::make_pair(t, p))==1) {
+      if (indices2index(t, p) >= 0) {
 #pragma omp atomic
-        (*hessian_ci_orb_p)(i_det, indices2index.at(std::make_pair(t, p))) -= 2 * coef_j * integrals.get_2b(t, s, q, r) * perm_fac;
+        (*hessian_ci_orb_p)(i_det, indices2index(t, p)) -= 2 * coef_j * integrals.get_2b(t, s, q, r) * perm_fac;
       }
     }
     for (unsigned t = 0; t < p; t++) {
-      if (indices2index.count(std::make_pair(t, p))==1) {
+      if (indices2index(t, p) >= 0) {
 #pragma omp atomic
-        (*hessian_ci_orb_p)(j_det, indices2index.at(std::make_pair(t, p))) -= 2 * coef_i * integrals.get_2b(t, s, q, r) * perm_fac;
+        (*hessian_ci_orb_p)(j_det, indices2index(t, p)) -= 2 * coef_i * integrals.get_2b(t, s, q, r) * perm_fac;
       }
     }
     for (unsigned t = p + 1; t < n_orbs; t++) {
-      if (indices2index.count(std::make_pair(p, t))==1) {
+      if (indices2index(p, t) >= 0) {
 #pragma omp atomic
-        (*hessian_ci_orb_p)(j_det, indices2index.at(std::make_pair(p, t))) += 2 * coef_i * integrals.get_2b(t, s, q, r) * perm_fac;
+        (*hessian_ci_orb_p)(j_det, indices2index(p, t)) += 2 * coef_i * integrals.get_2b(t, s, q, r) * perm_fac;
       }
     }
   }
@@ -914,10 +914,11 @@ void RDM::MPI_Allreduce_2rdm() {
 
 void RDM::prepare_for_writing_in_hessian_ci_orb(
     const std::vector<index_t>& parameter_indices,
-    MatrixXd* const hessian_ci_orb_p_) {
+    Matrix<float, Dynamic, Dynamic, RowMajor>* const hessian_ci_orb_p_) {
   hessian_ci_orb_p = hessian_ci_orb_p_;
+  indices2index = MatrixXi::Constant(n_orbs, n_orbs, -1);
   for (size_t i = 0; i < parameter_indices.size(); i++) {
-    indices2index[parameter_indices[i]] = i;
+    indices2index(parameter_indices[i].first, parameter_indices[i].second) = static_cast<int>(i);
   }
 }
 
