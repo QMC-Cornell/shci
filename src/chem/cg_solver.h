@@ -15,6 +15,15 @@ public:
   go(gradient_orb) {
     n_dets = hamiltonian_matrix.count_n_rows();
     n_orb_param = gradient_orb.size();
+
+    SelfAdjointEigenSolver<MatrixXd> es(Hoo);
+    VectorXd eigenvalues = es.eigenvalues().transpose();
+    //std::cout<<"eigenvals\n"<<eigenvalues;
+    std::cout<<"\nHoo min_eigenvalue "<<eigenvalues.minCoeff();
+    //diag_shift = eigenvalues.minCoeff() > 0. ? 0. : 1e-3;
+    //diag_shift = 1e-3;
+    //diag_shift = std::max(1e-6,-2*eigenvalues.minCoeff());
+    std::cout<<"\nHco.norm() "<<Hco.norm()<<std::endl;
   }
 
   std::vector<double> solve() const {
@@ -25,7 +34,7 @@ public:
     std::vector<double> p_c(n_dets, 0.), p_o(n_orb_param, 0.);
 #pragma omp parallel for 
     for (size_t i = 0; i < n_orb_param; i++) {
-      x_o[i] = - go(i) / Hoo(i, i);
+      x_o[i] = - go(i) / (Hoo(i, i) + diag_shift);
       r_o[i] = -go(i);
     }
     std::vector<double> product_c(n_dets, 0.), product_o(n_orb_param, 0.);
@@ -36,9 +45,9 @@ public:
     for (size_t i = 0; i < n_orb_param; i++) r_o[i] -= product_o[i];
 
 #pragma omp parallel for 
-    for (size_t i = 0; i < n_dets; i++) z_c[i] = r_c[i] / 2 / (Hamiltonian.get_diag(i) - e_var);
+    for (size_t i = 0; i < n_dets; i++) z_c[i] = r_c[i] / 2 / (Hamiltonian.get_diag(i) - e_var + diag_shift);
 #pragma omp parallel for 
-    for (size_t i = 0; i < n_orb_param; i++) z_o[i] = r_o[i] / Hoo(i, i);
+    for (size_t i = 0; i < n_orb_param; i++) z_o[i] = r_o[i] / (Hoo(i, i) + diag_shift);
 
     p_c = z_c;
     p_o = z_o;
@@ -61,9 +70,9 @@ public:
       for (size_t i = 0; i < n_orb_param; i++) r_o[i] -= alpha * product_o[i];
       r_norm = std::sqrt(Util::dot_omp(r_c, r_c) + Util::dot_omp(r_o, r_o));
 #pragma omp parallel for 
-      for (size_t i = 0; i < n_dets; i++) z_c[i] = r_c[i] / 2 / (Hamiltonian.get_diag(i) - e_var);
+      for (size_t i = 0; i < n_dets; i++) z_c[i] = r_c[i] / 2 / (Hamiltonian.get_diag(i) - e_var + diag_shift);
 #pragma omp parallel for 
-      for (size_t i = 0; i < n_orb_param; i++) z_o[i] = r_o[i] / Hoo(i, i);
+      for (size_t i = 0; i < n_orb_param; i++) z_o[i] = r_o[i] / (Hoo(i, i) + diag_shift);
 
       double new_zr = Util::dot_omp(z_c, r_c) + Util::dot_omp(z_o, r_o);
       double beta = new_zr / zr;
@@ -90,6 +99,8 @@ private:
   const Matrix<double, Dynamic, Dynamic, RowMajor>& Hoo;
   
   const VectorXd& go;
+
+  double diag_shift = 0.;
 
   void mat_vec(const std::vector<double>& in_c,
 		   const std::vector<double>& in_o,
@@ -125,6 +136,8 @@ private:
 #pragma omp atomic
       out_o[i] += diff_i;
     }
+  for (size_t i = 1; i < n_dets; i++) out_c[i] += diag_shift * in_c[i];
+  for (size_t i = 0; i < n_orb_param; i++) out_o[i] += diag_shift * in_o[i];
   }
 
 };

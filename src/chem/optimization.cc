@@ -434,16 +434,16 @@ void Optimization::get_optorb_rotation_matrix_from_full_optimization(
   size_t n_param = param_indices.size();
   size_t n_dets = hamiltonian_matrix.count_n_rows();
   size_t mem_avail = Util::get_mem_avail();
-  if (Parallel::is_master()) printf("Mem available for optimization: %.2f GB", mem_avail * 1e-9);
-  double param_proportion = (mem_avail * 0.8) / (n_dets * n_param * 4);
+  if (Parallel::is_master()) printf("Mem available for optimization: %.1f GB", mem_avail * 1e-9);
+  double param_proportion = std::min((mem_avail * 0.8) / (n_dets * n_param * 4), Config::get<double>("optimization/param_proportion", 1.01));
   VectorXd grad;
   MatrixXdR hess;
   if (param_proportion < 1.) {
     rdm.get_1rdm(dets, wf_coefs);
     rdm.get_2rdm(dets, wf_coefs, hamiltonian_matrix);
     grad = gradient(param_indices);
-    hess = hessian(param_indices);
-    param_indices = get_most_important_parameter_indices(grad, hess, param_indices, param_proportion);
+    VectorXd hess_diagonal = hessian_diagonal(param_indices);
+    param_indices = get_most_important_parameter_indices(grad, hess_diagonal, param_indices, param_proportion);
     n_param = param_indices.size();
   }
   MatrixXfR hess_ci_orb = MatrixXf::Zero(n_dets, n_param);
@@ -504,13 +504,13 @@ std::vector<Optimization::index_t> Optimization::parameter_indices() const {
 
 std::vector<Optimization::index_t> Optimization::get_most_important_parameter_indices(
         const VectorXd& gradient,
-        const MatrixXdR& hessian,
+        const VectorXd& hessian_diagonal,
 	const std::vector<index_t>& parameter_indices,
         const double parameter_proportion) const {
   // Find the parameters that have the largest g^2/H value
   std::priority_queue<std::pair<double, size_t>> q;
   for (size_t i=0; i< parameter_indices.size(); i++) {
-    double val = std::abs(std::pow(gradient(i),2) / hessian(i,i));
+    double val = std::abs(std::pow(gradient(i),2) / hessian_diagonal(i));
     q.push(std::pair<double, size_t>(val, i));
   }
   size_t n_param_new = parameter_indices.size() * parameter_proportion;
@@ -587,7 +587,7 @@ Optimization::MatrixXdR Optimization::hessian(
   unsigned n_param = param_indices.size();
   MatrixXd hessian(n_param, n_param);
   if (generalized_Fock_matrix.rows() * generalized_Fock_matrix.cols() != n_param * n_param) get_generalized_Fock();
-#pragma omp parallel for
+#pragma omp parallel for schedule(dynamic, 1)
   for (unsigned i = 0; i < n_param; i++) {
     for (unsigned j = 0; j <= i; j++) {
       unsigned p = param_indices[i].first;
@@ -622,7 +622,7 @@ VectorXd Optimization::hessian_diagonal(
 
 void Optimization::get_generalized_Fock() {
   generalized_Fock_matrix.resize(n_orbs, n_orbs);
-#pragma omp parallel  for
+#pragma omp parallel for
   for (unsigned i = 0; i < n_orbs; i++) {
     for (unsigned j = 0; j < n_orbs; j++) {
       generalized_Fock_matrix(i, j) = generalized_Fock_element(i, j);

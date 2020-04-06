@@ -27,7 +27,7 @@ void RDM::get_1rdm(
     det2ind[dets[i]] = i;
   }
 
-#pragma omp parallel for
+#pragma omp parallel for schedule(dynamic, 10)
   for (size_t i_det = 0; i_det < dets.size(); i_det++) {
     const Det& this_det = dets[i_det];
 
@@ -553,7 +553,7 @@ void RDM::get_2rdm(
   const size_t size_two_rdm = n_orbs * n_orbs * (n_orbs * n_orbs + 1) / 2;
   two_rdm.resize(size_two_rdm, 0.);
 
-#pragma omp parallel for schedule(dynamic, 5)
+#pragma omp parallel for schedule(dynamic, 10)
   for (size_t i_det = 0; i_det < connections.size(); i_det++) {
     Det this_det = dets[i_det];
     double this_coef = coefs[i_det];
@@ -580,7 +580,7 @@ void RDM::get_2rdm(
   const size_t size_two_rdm = n_orbs * n_orbs * (n_orbs * n_orbs + 1) / 2;
   two_rdm.resize(size_two_rdm, 0.);
 
-#pragma omp parallel for schedule(dynamic, 5)
+#pragma omp parallel for schedule(dynamic, 10)
   for (size_t i_det = 0; i_det < hamiltonian_matrix.count_n_rows(); i_det++) {
     Det this_det = dets[i_det];
     double this_coef = coefs[i_det];

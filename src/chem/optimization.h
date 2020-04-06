@@ -76,7 +76,7 @@ private:
   
   std::vector<index_t> get_most_important_parameter_indices(
         const VectorXd& gradient,
-        const MatrixXdR& hessian,
+        const VectorXd& hessian_diagonal,
 	const std::vector<index_t>& parameter_indices,
         const double parameter_proportion) const;
 
