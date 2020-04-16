@@ -399,6 +399,7 @@ void Integrals::save_to_cache(const std::string& filename) const {
 }
 
 void Integrals::dump_integrals(const char* filename) const {
+  Timer::start("create new FCIDUMP");
   bool is_infinity_group = (point_group == PointGroup::Dooh) || (point_group == PointGroup::Coov);
 
   if (Parallel::is_master()) {
@@ -485,5 +486,5 @@ void Integrals::dump_integrals(const char* filename) const {
     fclose(pFile);
   }
 
-  Timer::checkpoint("creating new FCIDUMP");
+  Timer::end();
 }

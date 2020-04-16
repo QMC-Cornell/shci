@@ -427,8 +427,8 @@ void RDM::get_2rdm_slow(const std::vector<Det>& dets, const std::vector<double>&
 }
 
 inline size_t RDM::combine4_2rdm(const unsigned p, const unsigned q, const unsigned r, const unsigned s) const {
-  size_t a = p * n_orbs + s;
-  size_t b = q * n_orbs + r;
+  const size_t a = p * n_orbs + s;
+  const size_t b = q * n_orbs + r;
   if (a > b) {
     return (a * (a + 1)) / 2 + b;
   } else {

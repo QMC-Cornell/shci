@@ -16,15 +16,23 @@ public:
     n_dets = hamiltonian_matrix.count_n_rows();
     n_orb_param = gradient_orb.size();
 
-    SelfAdjointEigenSolver<MatrixXd> es(Hoo);
-    VectorXd eigenvalues = es.eigenvalues().transpose();
+    //SelfAdjointEigenSolver<MatrixXd> es(Hoo);
+    //VectorXd eigenvalues = es.eigenvalues().transpose();
     //std::cout<<"eigenvals\n"<<eigenvalues;
-    std::cout<<"\nHoo min_eigenvalue "<<eigenvalues.minCoeff();
+    //std::cout<<"\nHoo min_eigenvalue "<<eigenvalues.minCoeff();
     //diag_shift = eigenvalues.minCoeff() > 0. ? 0. : 1e-3;
-    //diag_shift = 1e-3;
+    //diag_shift = 5e-5;
     //diag_shift = std::max(1e-6,-2*eigenvalues.minCoeff());
-    std::cout<<"\nHco.norm() "<<Hco.norm()<<std::endl;
+    //std::cout<<"\nHco.norm() "<<Hco.norm()<<std::endl;
+//std::cout<<"\nhamiltonian\n";
+//for (size_t i = 0; i<n_dets; i++) hamiltonian_matrix.print_row(i);
+//std::cout<<"\ne_var "<<e_var;
+//std::cout<<"\nHco\n"<<Hco;
+//std::cout<<"\nHoo\n"<<Hoo;
+//std::cout<<"\ngo\n"<<go;
   }
+
+  void set_diagonal_shift(double shift) { diag_shift = shift; }
 
   std::vector<double> solve() const {
     Timer::start("conjugate gradient solver");
@@ -45,7 +53,7 @@ public:
     for (size_t i = 0; i < n_orb_param; i++) r_o[i] -= product_o[i];
 
 #pragma omp parallel for 
-    for (size_t i = 0; i < n_dets; i++) z_c[i] = r_c[i] / 2 / (Hamiltonian.get_diag(i) - e_var + diag_shift);
+    for (size_t i = 0; i < n_dets; i++) z_c[i] = r_c[i] / (2 * (Hamiltonian.get_diag(i) - e_var) + diag_shift);
 #pragma omp parallel for 
     for (size_t i = 0; i < n_orb_param; i++) z_o[i] = r_o[i] / (Hoo(i, i) + diag_shift);
 
@@ -70,7 +78,7 @@ public:
       for (size_t i = 0; i < n_orb_param; i++) r_o[i] -= alpha * product_o[i];
       r_norm = std::sqrt(Util::dot_omp(r_c, r_c) + Util::dot_omp(r_o, r_o));
 #pragma omp parallel for 
-      for (size_t i = 0; i < n_dets; i++) z_c[i] = r_c[i] / 2 / (Hamiltonian.get_diag(i) - e_var + diag_shift);
+      for (size_t i = 0; i < n_dets; i++) z_c[i] = r_c[i] / (2 * (Hamiltonian.get_diag(i) - e_var) + diag_shift);
 #pragma omp parallel for 
       for (size_t i = 0; i < n_orb_param; i++) z_o[i] = r_o[i] / (Hoo(i, i) + diag_shift);
 
@@ -84,6 +92,12 @@ public:
       i_iter++;
     }
     Timer::end();
+mat_vec(x_c, x_o, product_c, product_o);
+for (size_t i=0;i<n_orb_param;i++) product_o[i]+=go[i];
+std::cout<<"\nresidual norm "<<Util::dot_omp(product_c, product_c)+Util::dot_omp(product_o, product_o);
+//std::cout<<"\ncg.x_c "; for (const auto val: x_c) std::cout<<val<<" ";
+std::cout<<"\ncg.x_o "; for (const auto val: x_o) std::cout<<val<<" ";
+std::cout<<"\n";
     return x_o;
   }
 
@@ -112,7 +126,8 @@ private:
     // Hcc
     auto Hcc_xc = Hamiltonian.mul(in_c);
 #pragma omp parallel for 
-    for (size_t i = 0; i < n_dets; i++) out_c[i] += 2 * (Hcc_xc[i] - e_var * in_c[i]);
+    for (size_t i = 1; i < n_dets; i++) out_c[i] += 2 * (Hcc_xc[i] - e_var * in_c[i]);
+    // start from 1 since first row of Hcc is always empty
 
     // Hco
 #pragma omp parallel for 
@@ -136,6 +151,8 @@ private:
 #pragma omp atomic
       out_o[i] += diff_i;
     }
+
+  // TODO: add diagonal shift to Hcc and Hoo blocks.
   for (size_t i = 1; i < n_dets; i++) out_c[i] += diag_shift * in_c[i];
   for (size_t i = 0; i < n_orb_param; i++) out_o[i] += diag_shift * in_o[i];
   }

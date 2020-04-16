@@ -6,6 +6,32 @@
 
 using namespace Eigen;
 
+class IntegralsArray {
+public:
+  void allocate(const unsigned n_orbs_) {
+    n_orbs = n_orbs_;
+    n_orbs_2 = n_orbs * n_orbs;
+    n_orbs_3 = n_orbs_2 * n_orbs;
+    array_2b.resize(n_orbs_3 * n_orbs);
+    array_1b.resize(n_orbs_2);
+  }
+
+  double& get_2b(const unsigned p, const unsigned q, const unsigned r, const unsigned s) {
+    const size_t ind = p * n_orbs_3 + q * n_orbs_2 + r * n_orbs + s;
+    return array_2b[ind];
+  }
+  
+  double& get_1b(const unsigned p, const unsigned q) {
+    const size_t ind = p * n_orbs + q;
+    return array_1b[ind];
+  }
+
+private:
+  size_t n_orbs, n_orbs_2, n_orbs_3;
+
+  std::vector<double> array_2b, array_1b;
+};
+
 class Optimization {
   // This module is designed such that for each optimization iteration
   // a new Optimization object is instantiated.
@@ -53,9 +79,6 @@ private:
 
   const unsigned n_orbs;
 
-  typedef std::vector<std::vector<std::vector<std::vector<double>>>>
-      Integrals_array;
-
   typedef std::pair<unsigned, unsigned> index_t;
 
   typedef Matrix<double, Dynamic, Dynamic, RowMajor> MatrixXdR;
@@ -64,7 +87,7 @@ private:
 
   MatrixXd generalized_Fock_matrix;
 
-  Integrals_array new_integrals;
+  IntegralsArray new_integrals;
 
   MatrixXd rot;
 

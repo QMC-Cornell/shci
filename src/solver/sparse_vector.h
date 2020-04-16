@@ -31,7 +31,7 @@ class SparseVector {
   void zero_out_vector() {
     indices.resize(1);
     values.resize(1);
-    values[0] = 1.;
+    values[0] = 0.;
   }
 
   std::vector<size_t> get_connections() const { return indices; }
