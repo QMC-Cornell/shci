@@ -26,6 +26,10 @@ public:
     return array_1b[ind];
   }
 
+  const double* data_2b() const { return array_2b.data(); }
+
+  const double* data_1b() const { return array_1b.data(); }
+
 private:
   size_t n_orbs, n_orbs_2, n_orbs_3;
 
@@ -59,6 +63,8 @@ public:
   void get_optorb_rotation_matrix_from_grad_descent();
 
   void get_optorb_rotation_matrix_from_amsgrad();
+
+  void generate_optorb_integrals_from_bfgs();
 
   void get_optorb_rotation_matrix_from_full_optimization(const double e_var);
 

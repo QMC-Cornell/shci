@@ -34,9 +34,9 @@ public:
 
   void set_diagonal_shift(double shift) { diag_shift = shift; }
 
-  std::vector<double> solve() const {
+  std::vector<double> solve(const std::vector<double>& wf_coefs) const {
     Timer::start("conjugate gradient solver");
-    std::vector<double> x_c(n_dets, 0.), x_o(n_orb_param, 0.);
+    std::vector<double> x_c(wf_coefs), x_o(n_orb_param, 0.);
     std::vector<double> r_c(n_dets, 0.), r_o(n_orb_param, 0.);
     std::vector<double> z_c(n_dets, 0.), z_o(n_orb_param, 0.);
     std::vector<double> p_c(n_dets, 0.), p_o(n_orb_param, 0.);

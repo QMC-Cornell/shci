@@ -616,6 +616,9 @@ void ChemSystem::post_variation_optimization(
     } else if (Util::str_equals_ci("amsgrad", method)) {
       Timer::start("AMSGrad optimization");
       optorb_optimizer.get_optorb_rotation_matrix_from_amsgrad();
+    } else if (Util::str_equals_ci("bfgs", method)) {
+      Timer::start("BFGS optimization");
+      optorb_optimizer.generate_optorb_integrals_from_bfgs();
     } else if (Util::str_equals_ci("full_optimization", method)) {
       Timer::start("Full optimization");
       optorb_optimizer.get_optorb_rotation_matrix_from_full_optimization(energy_var);

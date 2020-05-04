@@ -26,11 +26,12 @@ public:
   std::vector<double> solve(const std::vector<double>& wf_coefs) {
     Timer::start("Davidson diagonalization solver");
 
-    const double TOLERANCE = 1e-8;
+    const double TOLERANCE = 1e-6;
     const size_t n_iterations_store = 5;
-    double lowest_eigenvalue_prev = 1e100;
+    double lowest_eigenvalue_prev = 0.;
  
     std::vector<double> initial_vector_c(wf_coefs), initial_vector_o(n_orb_param, 0.);
+    for (size_t i = 0; i < n_orb_param; i++) initial_vector_o[i] = Hoo(i, i) > 1e-5 ? Hco(0, i) / Hoo(i, i) : 0.;
 
     std::vector<std::vector<double>> v_c(n_iterations_store), v_o(n_iterations_store);
     std::vector<std::vector<double>> Hv_c(n_iterations_store), Hv_o(n_iterations_store);
@@ -68,8 +69,14 @@ public:
         continue;
       }
   
+      const double diff_to_diag = lowest_eigenvalue; 
+      if (std::abs(diff_to_diag) < 1.0e-12) {
+        v_c[it_circ][0] = (Hw_c[0] - lowest_eigenvalue * w_c[0]) / -1.0e-12;
+      } else {
+        v_c[it_circ][0] = (Hw_c[0] - lowest_eigenvalue * w_c[0]) / diff_to_diag;
+      }
 #pragma omp parallel for
-      for (size_t j = 0; j < n_dets; j++) {
+      for (size_t j = 1; j < n_dets; j++) {
         const double diff_to_diag = lowest_eigenvalue - 2 * (Hamiltonian.get_diag(j) - e_var);  // diag_elems[j];
         if (std::abs(diff_to_diag) < 1.0e-12) {
           v_c[it_circ][j] = (Hw_c[j] - lowest_eigenvalue * w_c[j]) / -1.0e-12;
@@ -154,7 +161,7 @@ public:
   
       printf("Davidson #%zu: %.10f\n", it_real, lowest_eigenvalue);
       it_real++;
-      if (std::abs(lowest_eigenvalue - lowest_eigenvalue_prev) < TOLERANCE) {
+      if (std::abs(lowest_eigenvalue - lowest_eigenvalue_prev) < TOLERANCE && lowest_eigenvalue < 0. && it_real > 10) {
         converged = true;
       } else {
         lowest_eigenvalue_prev = lowest_eigenvalue;
@@ -166,8 +173,8 @@ mat_vec(w_c, w_o, Hw_c, Hw_o);
 for (size_t i=0;i<n_dets; i++) Hw_c[i] -= lowest_eigenvalue * w_c[i];
 for (size_t i=0;i<n_orb_param; i++) Hw_o[i] -= lowest_eigenvalue * w_o[i];
 std::cout<<"\nresidual norm "<<Util::dot_omp(Hw_c, Hw_c) + Util::dot_omp(Hw_o, Hw_o);
-//    std::cout<<"\n w_c ";
-//    for (const auto val: w_c) std::cout<<" "<<val/w_c[0];
+    std::cout<<"\n w_c ";
+    for (size_t i =1; i<10; i++) std::cout<<" "<<w_c[i]/w_c[0];
     std::cout<<"\n w_o ";
     for (const auto val: w_o) std::cout<<" "<<val/w_c[0];
 
