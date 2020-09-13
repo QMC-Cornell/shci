@@ -66,7 +66,7 @@ class Solver {
 
   void run_all_perturbations();
 
-  void run_perturbation(const double eps_var, const unsigned i_state);
+  void run_perturbation(const double eps_var);
 
   double get_energy_pt_dtm(const double eps_var, const unsigned i_state);
 
@@ -83,6 +83,8 @@ class Solver {
   void save_pair_contrib(const double eps_var);
 
   void print_dets_info() const;
+
+  std::string get_state_suffix(const unsigned i_state) const;
 
   std::string get_wf_filename(const double eps_var) const;
 
@@ -321,7 +323,11 @@ void Solver<S>::run_all_variations() {
 
       Timer::start("main");
       run_variation(eps_var);
-      Result::put<double>(Util::str_printf("energy_var/%#.2e", eps_var), system.energy_var[0]);
+      for (unsigned i_state = 0; i_state < system.n_states; i_state++) {
+        Result::put<double>(
+            Util::str_printf("energy_var%s/%#.2e", get_state_suffix(i_state).c_str(), eps_var),
+            system.energy_var[i_state]);
+      }
       Timer::end();
       save_variation_result(filename);
     } else {
@@ -329,7 +335,11 @@ void Solver<S>::run_all_variations() {
       var_dets.clear();
       for (const auto& det : system.dets) var_dets.set(det);
       //      hamiltonian.clear();
-      Result::put<double>(Util::str_printf("energy_var/%#.2e", eps_var), system.energy_var[0]);
+      for (unsigned i_state = 0; i_state < system.n_states; i_state++) {
+        Result::put<double>(
+            Util::str_printf("energy_var%s/%#.2e", get_state_suffix(i_state).c_str(), eps_var),
+            system.energy_var[i_state]);
+      }
     }
 
     if (Parallel::is_master() && get_pair_contrib) {
@@ -352,12 +362,10 @@ void Solver<S>::run_all_perturbations() {
 #ifdef INF_ORBS
   bytes_per_det += 128;
 #endif
-  for (unsigned i_state = 0; i_state < system.n_states; i_state++) {
-    for (const double eps_var : eps_vars) {
-      Timer::start(Util::str_printf("eps_var %#.2e", eps_var));
-      run_perturbation(eps_var, i_state);
-      Timer::end();
-    }
+  for (const double eps_var : eps_vars) {
+    Timer::start(Util::str_printf("eps_var %#.2e", eps_var));
+    run_perturbation(eps_var);
+    Timer::end();
   }
 }
 
@@ -373,7 +381,6 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
   bool dets_converged = false;
   const bool get_pair_contrib = Config::get<bool>("get_pair_contrib", false);
   bool var_sd = Config::get<bool>("var_sd", get_pair_contrib);
-  unsigned n_states = Config::get<unsigned>("n_states", 1);
 
   while (!converged) {
     eps_tried_prev.resize(n_dets, Util::INF);
@@ -385,8 +392,12 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
       for (size_t j = 0; j < 5; j++) {
         fgpl::DistRange<size_t>(j, n_dets, 5).for_each([&](const size_t i) {
           const auto& det = system.dets[i];
-          const double coef = system.coefs[0][i];
-          double eps_min = eps_var / std::abs(coef);
+          double max_coef = system.coefs[0][i];
+          for (unsigned i_state = 1; i_state < system.n_states; i_state++) {
+            const double coef = system.coefs[i_state][i];
+            if (std::abs(coef) > std::abs(max_coef)) max_coef = coef;
+          }
+          double eps_min = eps_var / std::abs(max_coef);
           if (i == 0 && var_sd) eps_min = 0.0;
           if (system.time_sym && det.up != det.dn) eps_min *= Util::SQRT2;
           if (eps_min >= eps_tried_prev[i] * 0.99) return;
@@ -413,17 +424,13 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
         dist_new_dets.for_each_serial([&](const Det& connected_det, const size_t) {
           var_dets.set(connected_det);
           system.dets.push_back(connected_det);
+	  // initialize with 1.0 first time adding dets, later with 0.0
           for (unsigned i_state = 0; i_state < system.n_states; i_state++) {
-	    if (system.coefs[i_state].size() == i_state) {
-	      system.coefs[i_state].push_back(1.0);
-	    } else {
-	      system.coefs[i_state].push_back(1e-16);
-	    }
-	  }
-	  //for (unsigned i_state = 0; i_state < system.n_states; i_state++) {
-          //  if (i_state > 0) system.coefs[i_state].push_back(0.1);
-	  //  else system.coefs[i_state].push_back(1e-16);
-	  //}
+            if (n_dets == 1 && i_state > 0)
+              system.coefs[i_state].push_back(1.0);
+            else
+              system.coefs[i_state].push_back(1e-16);
+          }
         });
         dist_new_dets.clear();
         if (Parallel::is_master()) printf("%zu%% ", (j + 1) * 20);
@@ -437,7 +444,8 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
       hamiltonian.update(system);
     }
 
-    const double davidson_target_error = until_converged ? target_error / 500000 : target_error / 50;
+    const double davidson_target_error =
+        until_converged ? target_error / 500000 : target_error / 50;
     davidson.diagonalize(
         hamiltonian.matrix, system.coefs, davidson_target_error, Parallel::is_master());
     const std::vector<double> energy_var_new = davidson.get_lowest_eigenvalues();
@@ -450,12 +458,10 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
       for (const auto& energy : energy_var_new) printf(" %.8f", energy);
       printf("\n");
     }
-    // if (std::abs(energy_var_new - energy_var_prev) < target_error * 0.001) {
-    //  converged = true;
-    //}
-    for (unsigned i = 0; i < n_states; i++) {
-      if (std::abs(energy_var_new[i] - energy_var_prev[i]) > target_error * 0.001) break;
-      if (i == n_states) converged = true;
+    for (unsigned i_state = 0; i_state < system.n_states; i_state++) {
+      if (std::abs(energy_var_new[i_state] - energy_var_prev[i_state]) > target_error * 0.001)
+        break;
+      if (i_state == system.n_states) converged = true;
     }
     if (n_dets_new < n_dets * 1.001) {
       dets_converged = true;
@@ -471,14 +477,14 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
   if (Parallel::is_master() && until_converged) {
     printf("Final iteration %zu ", var_iteration_global);
     printf("eps1= %#.2e ndets= %'zu energy=", eps_var, n_dets);
-    for (const auto& energy: system.energy_var) printf("  %.8f", energy);
+    for (const auto& energy : system.energy_var) printf("  %.8f", energy);
     printf("\n");
     print_dets_info();
   }
 }
 
 template <class S>
-void Solver<S>::run_perturbation(const double eps_var, const unsigned i_state) {
+void Solver<S>::run_perturbation(const double eps_var) {
   double default_eps_pt_dtm = 2.0e-6;
   double default_eps_pt_psto = 1.0e-7;
   double default_eps_pt = eps_var * 1.0e-6;
@@ -491,17 +497,29 @@ void Solver<S>::run_perturbation(const double eps_var, const unsigned i_state) {
   eps_pt = Config::get<double>("eps_pt", default_eps_pt);
   if (eps_pt_psto < eps_pt) eps_pt_psto = eps_pt;
   if (eps_pt_dtm < eps_pt_psto) eps_pt_dtm = eps_pt_psto;
-  // If result already exists, return.
-  const auto& value_entry = Util::str_printf("energy_total/%#.2e/%#.2e/value", eps_var, eps_pt);
-  const auto& uncert_entry = Util::str_printf("energy_total/%#.2e/%#.2e/uncert", eps_var, eps_pt);
-  UncertResult res(Result::get<double>(value_entry, 0.0));
-  if (res.value != 0.0) {
-    if (Parallel::is_master()) {
-      res.uncert = Result::get<double>(uncert_entry, 0.0);
-      printf("Total energy: %s (loaded from result file)\n", res.to_string().c_str());
+
+  // If results for all states of current eps_var already exist, return.
+  bool missing_pt = false;
+  for (unsigned i_state = 0; i_state < system.n_states; i_state++) {
+    const auto& value_entry = Util::str_printf(
+        "energy_total%s/%#.2e/%#.2e/value", get_state_suffix(i_state).c_str(), eps_var, eps_pt);
+    const auto& uncert_entry = Util::str_printf(
+        "energy_total%s/%#.2e/%#.2e/uncert", get_state_suffix(i_state).c_str(), eps_var, eps_pt);
+    UncertResult res(Result::get<double>(value_entry, 0.0));
+    if (res.value != 0.0) {
+      if (Parallel::is_master()) {
+        res.uncert = Result::get<double>(uncert_entry, 0.0);
+        printf(
+            "Total energy: %s (state %d, loaded from result file)\n",
+            res.to_string().c_str(),
+            i_state);
+      }
+    } else {
+      missing_pt = true;
     }
-    if (!Config::get<bool>("force_pt", false)) return;
   }
+
+  if (!missing_pt && !Config::get<bool>("force_pt", false)) return;
 
   // Load var wf.
   const auto& var_filename = get_wf_filename(eps_var);
@@ -513,7 +531,7 @@ void Solver<S>::run_perturbation(const double eps_var, const unsigned i_state) {
 
   // Perform multi stage PT.
   system.dets.shrink_to_fit();
-  system.coefs[i_state].shrink_to_fit();
+  for (auto& coefs : system.coefs) coefs.shrink_to_fit();
   var_dets.clear_and_shrink();
   var_dets.reserve(system.get_n_dets());
   for (const auto& det : system.dets) var_dets.set(det);
@@ -536,20 +554,26 @@ void Solver<S>::run_perturbation(const double eps_var, const unsigned i_state) {
     printf("Memory var: %.1fGB\n", mem_var * 1.0e-9);
     printf("Memory PT limit: %.1fGB\n", pt_mem_avail * 1.0e-9);
   }
-  const double energy_pt_dtm = get_energy_pt_dtm(eps_var, i_state);
-  const UncertResult energy_pt_psto = get_energy_pt_psto(eps_var, i_state, energy_pt_dtm);
-  const UncertResult energy_pt = get_energy_pt_sto(eps_var, i_state, energy_pt_psto);
-  if (Parallel::is_master()) {
-    printf("Total energy: %s Ha\n", energy_pt.to_string().c_str());
+  for (unsigned i_state = 0; i_state < system.n_states; i_state++) {
+    const auto& value_entry = Util::str_printf(
+        "energy_total%s/%#.2e/%#.2e/value", get_state_suffix(i_state).c_str(), eps_var, eps_pt);
+    const auto& uncert_entry = Util::str_printf(
+        "energy_total%s/%#.2e/%#.2e/uncert", get_state_suffix(i_state).c_str(), eps_var, eps_pt);
+    const double energy_pt_dtm = get_energy_pt_dtm(eps_var, i_state);
+    const UncertResult energy_pt_psto = get_energy_pt_psto(eps_var, i_state, energy_pt_dtm);
+    const UncertResult energy_pt = get_energy_pt_sto(eps_var, i_state, energy_pt_psto);
+    if (Parallel::is_master()) {
+      printf("Total energy: %s Ha (state %d)\n", energy_pt.to_string().c_str(), i_state);
+    }
+    Result::put(value_entry, energy_pt.value);
+    Result::put(uncert_entry, energy_pt.uncert);
   }
-  Result::put(value_entry, energy_pt.value);
-  Result::put(uncert_entry, energy_pt.uncert);
 }
 
 template <class S>
 double Solver<S>::get_energy_pt_dtm(const double eps_var, const unsigned i_state) {
   if (eps_pt_dtm >= 1.0) return system.energy_var[i_state];
-  Timer::start(Util::str_printf("dtm %#.2e", eps_pt_dtm));
+  Timer::start(Util::str_printf("dtm %#.2e (state %d)", eps_pt_dtm, i_state));
   const size_t n_var_dets = system.get_n_dets();
   size_t n_batches = Config::get<size_t>("n_batches_pt_dtm", 0);
   fgpl::DistHashMap<Det, MathVector<double, 1>, DetHasher> hc_sums;
@@ -667,7 +691,7 @@ UncertResult Solver<S>::get_energy_pt_psto(
     const double eps_var, const unsigned i_state, const double energy_pt_dtm) {
   if (eps_pt_psto >= eps_pt_dtm) return UncertResult(energy_pt_dtm, 0.0);
 
-  Timer::start(Util::str_printf("psto %#.2e", eps_pt_psto));
+  Timer::start(Util::str_printf("psto %#.2e (state %d)", eps_pt_psto, i_state));
   const size_t n_var_dets = system.get_n_dets();
   size_t n_batches = Config::get<size_t>("n_batches_pt_psto", 0);
   fgpl::DistHashMap<Det, MathVector<double, 2>, DetHasher> hc_sums;
@@ -821,7 +845,7 @@ UncertResult Solver<S>::get_energy_pt_sto(
 
   const unsigned random_seed = Config::get<unsigned>("random_seed", time(nullptr));
   srand(random_seed);
-  Timer::start(Util::str_printf("sto %#.2e", eps_pt));
+  Timer::start(Util::str_printf("sto %#.2e (state %d)", eps_pt, i_state));
 
   // Estimate best n sample.
   if (n_samples == 0) {
@@ -1034,7 +1058,9 @@ bool Solver<S>::load_variation_result(const std::string& filename) {
     printf("Loaded %'zu dets from: %s\n", system.get_n_dets(), filename.c_str());
     print_dets_info();
     printf("HF energy: " ENERGY_FORMAT "\n", system.energy_hf);
-    printf("Variational energy: " ENERGY_FORMAT "\n", system.energy_var[0]);
+    printf("Variational energy: ");
+    for (const double energy_var : system.energy_var) printf(ENERGY_FORMAT "\t", energy_var);
+    printf("\n");
   }
   return true;
 }
@@ -1139,6 +1165,7 @@ void Solver<S>::print_dets_info() const {
   }
 
   for (unsigned i_state = 0; i_state < system.n_states; i_state++) {
+    printf("State %d:\n", i_state);
     // Print excitations.
     std::unordered_map<unsigned, size_t> excitations;
     std::unordered_map<unsigned, double> weights;
@@ -1165,7 +1192,7 @@ void Solver<S>::print_dets_info() const {
       }
       printf("%-10u%12zu%16.8f\n", i, excitations[i], weights[i]);
     }
-  
+
     // Print orb occupations.
     std::vector<double> orb_occupations(system.n_orbs, 0.0);
     for (size_t i = 0; i < system.dets.size(); i++) {
@@ -1185,9 +1212,10 @@ void Solver<S>::print_dets_info() const {
     for (unsigned j = 0; j < system.n_orbs && j < 50; j++) {
       printf("%-10u%12s%16.8f\n", j, "", orb_occupations[j]);
     }
-    double sum_orb_occupation = std::accumulate(orb_occupations.begin(), orb_occupations.end(), 0.0);
+    double sum_orb_occupation =
+        std::accumulate(orb_occupations.begin(), orb_occupations.end(), 0.0);
     printf("Sum orbitals c^2: %.8f\n", sum_orb_occupation);
-  
+
     // Print most important dets.
     printf("----------------------------------------\n");
     printf("Most important dets:\n");
@@ -1218,6 +1246,14 @@ void Solver<S>::print_dets_info() const {
     }
     printf("----------------------------------------\n");
   }
+}
+
+template <class S>
+std::string Solver<S>::get_state_suffix(const unsigned i_state) const {
+  if (i_state == 0)
+    return "";
+  else
+    return "_" + std::to_string(i_state);
 }
 
 template <class S>
