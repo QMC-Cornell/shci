@@ -51,6 +51,7 @@ bool HalfDet::has(unsigned orb) const {
 
 std::vector<unsigned> HalfDet::get_occupied_orbs() const {
   std::vector<unsigned> res;
+  res.reserve(16);
   for (int chunk_id = 0; chunk_id < N_CHUNKS; chunk_id++) {
     uint64_t chunk = chunks[chunk_id];
     while (chunk != 0) {

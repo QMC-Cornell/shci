@@ -851,7 +851,7 @@ UncertResult Solver<S>::get_energy_pt_sto(
 
   //const unsigned random_seed = Config::get<unsigned>("random_seed", time(nullptr));
   const unsigned random_seed = Config::get<unsigned>("random_seed", 347634253);
-  printf("\nrandom_seed= %d\n", random_seed);
+  if (Parallel::is_master()) printf("\nrandom_seed= %d\n", random_seed);
   srand(random_seed);
 
   // Estimate best n_dets_in_sample.
