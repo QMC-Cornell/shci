@@ -7,11 +7,12 @@ class HegSystem : public BaseSystem {
  public:
   void setup(const bool load_integrals_from_file = true) override;
 
-  void find_connected_dets(
+  double find_connected_dets(
       const Det&,
       const double,
       const double,
-      const std::function<void(const Det&, const int)>&) const override;
+      const std::function<void(const Det&, const int)>&,
+      const bool second_rejection = false) const override;
 
   double get_hamiltonian_elem(const Det&, const Det&, const int) const override;
 

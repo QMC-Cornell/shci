@@ -25,13 +25,15 @@ class Result {
     dump();
   }
 
+  // Save to result.json
   static void dump() {
     if (!Parallel::is_master()) return;
     const auto& instance = get_instance();
     std::ofstream result_file("result.json");
     result_file << instance.data.dump(2) << std::endl;
   }
-
+  
+  // Get value of key. For nested, using e.g. foo/bar/xxx/xxx
   template <class T>
   static T get(const std::string& key) {
     auto node_ref = std::cref(get_instance().data);

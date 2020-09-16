@@ -6,7 +6,7 @@
 #include <vector>
 #include "diff_result.h"
 
-// #define INF_ORBS
+//#define INF_ORBS      // Unlimited norbs, but will use bit representation if norbs <= 64*N_CHUNKS
 #define N_CHUNKS 2
 
 class HalfDet {
@@ -25,6 +25,8 @@ class HalfDet {
 
   DiffResult diff(const HalfDet& rhs) const;
 
+  // WARNING: Not working for n_elecs > N_CHUNKS * 64
+  // count the total number of set orbitals below orbital p
   unsigned bit_till(unsigned p) const;
 
   size_t get_hash_value() const;

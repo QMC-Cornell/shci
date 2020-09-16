@@ -2,7 +2,7 @@
 
 class Injector {
  public:
-  // For faster parallel compilation.
+  // For faster parallel compilation and potentially easier testing.
   static void run();
 };
 

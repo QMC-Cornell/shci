@@ -63,9 +63,9 @@ void Timer::end() {
 }
 
 void Timer::print_status() const {
-  printf("%s ", start_times.back().first.c_str());
+  printf("%s", start_times.back().first.c_str());
   for (int i = start_times.size() - 2; i >= 0; i--) {
-    printf("<< %s ", start_times[i].first.c_str());
+    printf(", %s", start_times[i].first.c_str());
   }
 }
 

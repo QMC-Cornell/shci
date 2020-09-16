@@ -9,7 +9,6 @@ from scipy.optimize import curve_fit
 import statsmodels.api as sm
 import statsmodels.formula.api as smf
 import scipy.stats
-from sklearn import preprocessing
 
 # Parse arguments
 parser = argparse.ArgumentParser()
@@ -36,19 +35,20 @@ x = []
 y = []
 e = []
 energy_vars = result['energy_var']
-for eps_var, energy_var in energy_vars.iteritems():
+for eps_var, energy_var in energy_vars.items():
     if result['energy_total'].get(eps_var) is None:
         continue
     energy_totals = result['energy_total'][eps_var]
     eps_pt = 1.0
-    for eps_pt_iter, energy_total_iter in energy_totals.iteritems():
+    for eps_pt_iter, energy_total_iter in energy_totals.items():
         eps_pt_iter = float(eps_pt_iter)
         if eps_pt_iter < eps_pt:
             eps_pt = eps_pt_iter
             energy_total = energy_total_iter['value']
+            energy_uncert = energy_total_iter['uncert']
     y.append(energy_total)
     x.append(energy_var - energy_total)
-    e.append(float(eps_var))
+    e.append(energy_uncert)
 x = np.array(x)
 y = np.array(y)
 e = np.array(e)
@@ -90,7 +90,7 @@ def func(x, a, b, c):
 if args.pair_contrib:
     pair_contribs = result['pair_contrib']
     zs = ()
-    for eps_var, pair_contrib_filename in pair_contribs.iteritems():
+    for eps_var, pair_contrib_filename in pair_contribs.items():
         df = pd.read_csv(pair_contrib_filename)
         df_out = df
         zs = zs + (df['pair_contrib'].values, )
@@ -127,7 +127,7 @@ if args.pair_contrib:
             uncert = np.sqrt(pcov[0][0] + pcov[1][1] + 2 * pcov[0][1]) * zs_std * tt
         df_out['pair_contrib'].values[i] = energy
         df_out['pair_contrib_uncert'].values[i] = uncert
-    print df_out
+    print(df_out)
     df_out.to_csv('pair_contrib_extrapolate.csv', index=False)
 
 fit = sm.WLS(y, x_aug, weights).fit()
@@ -178,7 +178,7 @@ else:
     y_fit = fit.predict(x_fit_aug)
 params = {'mathtext.default': 'regular' }
 plt.rcParams.update(params)
-plt.plot(x, y, marker='o', ls='')
+plt.errorbar(x, y, yerr=e, marker='o', ls='')
 plt.plot(x_fit, y_fit, color='grey', ls='--', zorder=0.1)
 plt.xlabel('$E_{var} - E_{tot}$ (Ha)')
 plt.ylabel('$E_{tot}$ (Ha)')

@@ -45,7 +45,7 @@ void Integrals::read_fcidump() {
   std::string line;
   enum class State { NONE, ORBSYM, END };
   State state = State::NONE;
-  //std::vector<int> orb_syms_raw;
+  std::vector<int> orb_syms_raw;
   while (!fcidump.eof()) {
     std::getline(fcidump, line);
     const auto& words_begin = std::sregex_iterator(line.begin(), line.end(), words);
@@ -281,7 +281,7 @@ void Integrals::reorder_orbs(const std::vector<double>& orb_energies) {
     const unsigned ori_id = orb_order[i];
     const double orb_energy = orb_energies[ori_id];
     if (Parallel::is_master()) {
-      printf("#%3u: E = %16.12f, sym = %2u, origin #%3u\n", i, orb_energy, orb_sym[i], ori_id);
+      printf("#%3u: E = %16.12f, E_1b = %16.12f, sym = %2u, origin #%3u\n", i, orb_energy, get_1b(ori_id, ori_id), orb_sym[i], ori_id);
     }
   }
 
@@ -399,6 +399,9 @@ void Integrals::save_to_cache(const std::string& filename) const {
 }
 
 void Integrals::dump_integrals(const char* filename) const {
+  Timer::start("create new FCIDUMP");
+  bool is_infinity_group = (point_group == PointGroup::Dooh) || (point_group == PointGroup::Coov);
+
   if (Parallel::is_master()) {
     FILE* pFile;
     pFile = fopen(filename, "w");
@@ -407,16 +410,16 @@ void Integrals::dump_integrals(const char* filename) const {
     fprintf(pFile, " &FCI NORB=%d, NELEC=%d, MS2=%d,\n", n_orbs, n_elecs, 0);
     fprintf(pFile, "ORBSYM=");
     for (unsigned i = 0; i < n_orbs; i++) {
-      //fprintf(pFile, "  %d", orb_sym[orb_order_inv[i]]);
-      fprintf(pFile, "  %d", orb_syms_raw[i]); // same syms as original FCIDUMP
+      fprintf(pFile, "  %d", orb_sym[orb_order_inv[i]]);
     }
+    if (is_infinity_group) fprintf(pFile, "\ninfinity group");
     fprintf(pFile, "\nISYM=1\n&END\n");
 
     double integral_value;
     unsigned p, q, r, s;
 
     // Two-body integrals
-    if ((point_group == PointGroup::Dooh) || (point_group == PointGroup::Coov)) { // 4-fold symmetry
+    if (is_infinity_group) { // 4-fold symmetry
       for (p = 0; p < n_orbs; p++) {
         for (q = 0; q <= p; q++) {
           for (r = 0; r <= p; r++) {
@@ -483,5 +486,5 @@ void Integrals::dump_integrals(const char* filename) const {
     fclose(pFile);
   }
 
-  Timer::checkpoint("creating new FCIDUMP");
+  Timer::end();
 }
