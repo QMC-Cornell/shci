@@ -61,8 +61,6 @@ class Integrals {
 
   std::vector<Hpqrs> raw_integrals;
 
-  std::vector<int> orb_syms_raw;
-
   void read_fcidump();
 
   std::vector<unsigned> get_adams_syms(const std::vector<int>& orb_syms_raw) const;
@@ -80,14 +78,12 @@ class Integrals {
 
 template <class B>
 void Integrals::serialize(B& buf) const {
-  buf << energy_core << n_orbs << n_elecs << n_up << n_dn << orb_sym << orb_order << orb_order_inv
-      << det_hf;
+  buf << energy_core << n_orbs << n_elecs << n_up << n_dn << orb_sym << orb_order << orb_order_inv << det_hf;
   buf << integrals_1b << integrals_2b;
 }
 
 template <class B>
 void Integrals::parse(B& buf) {
-  buf >> energy_core >> n_orbs >> n_elecs >> n_up >> n_dn >> orb_sym >> orb_order >>
-      orb_order_inv >> det_hf;
+  buf >> energy_core >> n_orbs >> n_elecs >> n_up >> n_dn >> orb_sym >> orb_order >> orb_order_inv >> det_hf;
   buf >> integrals_1b >> integrals_2b;
 }

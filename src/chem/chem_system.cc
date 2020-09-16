@@ -11,6 +11,8 @@
 #include "dooh_util.h"
 #include "optimization.h"
 #include "rdm.h"
+#include <eigen/Eigen/Dense>
+#include <fstream>
 
 void ChemSystem::setup(const bool load_integrals_from_file) {
   if (load_integrals_from_file) { // during optimization, no need to reload
@@ -56,6 +58,8 @@ void ChemSystem::setup(const bool load_integrals_from_file) {
   if (Parallel::is_master()) {
     printf("HF energy: " ENERGY_FORMAT "\n", energy_hf);
   }
+
+  if (rotation_matrix.size() != n_orbs * n_orbs) rotation_matrix = Eigen::MatrixXd::Identity(n_orbs, n_orbs);
 }
 
 void ChemSystem::setup_sym_orbs() {
@@ -232,16 +236,26 @@ void ChemSystem::check_group_elements() const {
 
 double ChemSystem::get_singles_queue_elem(const unsigned orb_i, const unsigned orb_j) const {
   if (orb_i == orb_j) return 0.0;
-  double S = std::abs(integrals.get_1b(orb_i, orb_j));
+  std::vector<double> singles_queue_elems;
+  singles_queue_elems.reserve(2*n_orbs-2);
   for (unsigned orb = 0; orb < n_orbs; orb++) {
     const double exchange = integrals.get_2b(orb_i, orb, orb, orb_j);
     const double direct = integrals.get_2b(orb_i, orb_j, orb, orb);
-    if (orb == orb_i or orb == orb_j)
-      S += std::abs(direct);  // opposite spin only
-    else
-      S += std::abs(direct - exchange) + std::abs(direct);  // same spin + opposite spin
+    if (orb == orb_i or orb == orb_j) {
+      singles_queue_elems.push_back(direct); // opposite spin only
+    } else {
+      singles_queue_elems.push_back(direct); // opposite spin
+      singles_queue_elems.push_back(direct - exchange); //same spin
+    }
   }
-  return S;
+  std::sort(singles_queue_elems.begin(), singles_queue_elems.end());
+  double S_min = integrals.get_1b(orb_i, orb_j);
+  double S_max = S_min;
+  for (unsigned i = 0; i < std::min(n_elecs - 1, 2*n_orbs-2); i++) {
+    S_min += singles_queue_elems[i];
+    S_max += singles_queue_elems[2*n_orbs-3-i];
+  } 
+  return std::max(std::abs(S_min), std::abs(S_max));
 }
 
 double ChemSystem::get_hci_queue_elem(
@@ -272,15 +286,27 @@ double ChemSystem::get_hci_queue_elem(
   return std::abs(get_two_body_double(diff_up, diff_dn));
 }
 
-void ChemSystem::find_connected_dets(
+double ChemSystem::find_connected_dets(
     const Det& det,
     const double eps_max,
     const double eps_min,
-    const std::function<void(const Det&, const int n_excite)>& handler) const {
-  if (eps_max < eps_min) return;
+    const std::function<void(const Det&, const int n_excite)>& handler,
+    const bool second_rejection) const {
+  if (eps_max < eps_min) return eps_min;
 
   auto occ_orbs_up = det.up.get_occupied_orbs();
   auto occ_orbs_dn = det.dn.get_occupied_orbs();
+
+  double diff_from_hf = - energy_hf_1b;
+  if (second_rejection) {
+    // Find approximate energy difference of spawning det from HF det.
+    // Later the energy difference of the spawned det from the HF det requires at most 4 1-body energies.
+    // Note: Using 1-body energies as a proxy for det energies
+    for (const auto p: occ_orbs_up) diff_from_hf += integrals.get_1b(p, p);
+    for (const auto p: occ_orbs_dn) diff_from_hf += integrals.get_1b(p, p);
+  }
+
+  double max_rejection = 0.;
 
   // Filter such that S < epsilon not allowed
   if (eps_min <= max_singles_queue_elem) {
@@ -289,7 +315,15 @@ void ChemSystem::find_connected_dets(
       for (const auto& connected_sr : singles_queue.at(p)) {
         auto S = connected_sr.S;
         if (S < eps_min) break;
+//      if (S >= eps_max) continue; // This line is incorrect because for single excitations we compute H_ij and have some additional rejections.
         unsigned r = connected_sr.r;
+        if (second_rejection) {
+          double denominator = diff_from_hf - integrals.get_1b(p, p) + integrals.get_1b(r, r);
+          if (denominator > 0. && S * S / denominator < second_rejection_factor * eps_min * eps_min) {
+            max_rejection = std::max(max_rejection, S);
+            continue;
+          }
+        }
         Det connected_det(det);
         if (p_id < n_up) {
           if (det.up.has(r)) continue;
@@ -305,8 +339,8 @@ void ChemSystem::find_connected_dets(
   }
 
   // Add double excitations.
-  if (!has_double_excitation) return;
-  if (eps_min > max_hci_queue_elem) return;
+  if (!has_double_excitation) return eps_min;
+  if (eps_min > max_hci_queue_elem) return eps_min;
   for (unsigned p_id = 0; p_id < n_elecs; p_id++) {
     for (unsigned q_id = p_id + 1; q_id < n_elecs; q_id++) {
       const unsigned p = p_id < n_up ? occ_orbs_up[p_id] : occ_orbs_dn[p_id - n_up] + n_orbs;
@@ -335,6 +369,14 @@ void ChemSystem::find_connected_dets(
           s = r + n_orbs;
           r = tmp_r;
         }
+        if (second_rejection) {
+          double denominator = diff_from_hf - integrals.get_1b(p%n_orbs, p%n_orbs) - integrals.get_1b(q%n_orbs, q%n_orbs)
+                                            + integrals.get_1b(r%n_orbs, r%n_orbs) + integrals.get_1b(s%n_orbs, s%n_orbs);
+          if (denominator > 0. && H * H / denominator < second_rejection_factor * eps_min * eps_min) {
+            max_rejection = std::max(max_rejection, H);
+            continue;
+          }
+        }
         const bool occ_r = r < n_orbs ? det.up.has(r) : det.dn.has(r - n_orbs);
         if (occ_r) continue;
         const bool occ_s = s < n_orbs ? det.up.has(s) : det.dn.has(s - n_orbs);
@@ -348,6 +390,7 @@ void ChemSystem::find_connected_dets(
       }
     }
   }
+  return std::max(max_rejection, eps_min);
 }
 
 double ChemSystem::get_hamiltonian_elem(
@@ -375,6 +418,9 @@ double ChemSystem::get_hamiltonian_elem_no_time_sym(
   if (n_excite == 0) {
     const double one_body_energy = get_one_body_diag(det_i);
     const double two_body_energy = get_two_body_diag(det_i);
+//  if (Parallel::is_master()) { printf("one_body_energy: " ENERGY_FORMAT "\n", one_body_energy); }
+//  if (Parallel::is_master()) { printf("two_body_energy: " ENERGY_FORMAT "\n", two_body_energy); }
+//  if (Parallel::is_master()) { printf("integrals.energy_core: " ENERGY_FORMAT "\n", integrals.energy_core); }
     return one_body_energy + two_body_energy + integrals.energy_core;
   } else if (n_excite == 1) {
     const double one_body_energy = get_one_body_single(diff_up, diff_dn);
@@ -446,7 +492,6 @@ double ChemSystem::get_two_body_diag(const Det& det) const {
   // up to up.
   if (diag_helper.has(det.up)) {
     direct_energy += diag_helper.get(det.up);
-    // printf("from cache\n");
   } else {
     for (unsigned i = 0; i < occ_orbs_up.size(); i++) {
       const unsigned orb_i = occ_orbs_up[i];
@@ -483,6 +528,8 @@ double ChemSystem::get_two_body_diag(const Det& det) const {
       direct_energy += integrals.get_2b(orb_i, orb_i, orb_j, orb_j);
     }
   }
+//if (Parallel::is_master()) { printf("direct_energy: " ENERGY_FORMAT "\n", direct_energy); }
+//if (Parallel::is_master()) { printf("exchange_energy: " ENERGY_FORMAT "\n", exchange_energy); }
   return direct_energy + exchange_energy;
 }
 
@@ -623,9 +670,10 @@ void ChemSystem::post_variation_optimization(
 
   if (method == "natorb") {  // natorb optimization
     if (time_sym) unpack_time_sym();
+    
     RDM rdm(&integrals);
     rdm.get_1rdm(dets, coefs[0]);
-    
+
     variation_cleanup();
     Optimization natorb_optimizer(&rdm, &integrals);
 
@@ -633,10 +681,14 @@ void ChemSystem::post_variation_optimization(
     natorb_optimizer.generate_natorb_integrals();
     Timer::end();
 
+    rotation_matrix *= natorb_optimizer.get_rotation_matrix();
+    Timer::start("rewrite integrals");
     natorb_optimizer.rewrite_integrals();
-    Timer::checkpoint("rewrite integrals");
+    Timer::end();
 
   } else {  // optorb optimization
+    Timer::start("create RDMs");
+
     RDM rdm(&integrals);
     rdm.get_2rdm(dets, coefs[0], *connections_ptr);
 
@@ -661,8 +713,10 @@ void ChemSystem::post_variation_optimization(
     }
     Timer::end();
 
+    rotation_matrix *= optorb_optimizer.get_rotation_matrix();
+    Timer::start("rewrite integrals");
     optorb_optimizer.rewrite_integrals();
-    Timer::checkpoint("rewrite integrals");
+    Timer::end();
   }
 }
 
@@ -678,11 +732,18 @@ void ChemSystem::variation_cleanup() {
   }
   max_hci_queue_elem = 0.;
   hci_queue.clear();
+  singles_queue.clear();
   sym_orbs.clear();
 }
 
 void ChemSystem::dump_integrals(const char* filename) {
   integrals.dump_integrals(filename);
+  if (Config::get<bool>("optimization/rotation_matrix", false)) {
+    std::ofstream pFile;
+    pFile.open("rotation_matrix");
+    pFile << rotation_matrix;
+    pFile.close();
+  }
 }
 
 //======================================================
@@ -751,4 +812,17 @@ double ChemSystem::get_s2(std::vector<double> state_coefs) const {
     printf("s_squared: %15.10f\n", s2);
   }
   return s2;
+}
+
+double ChemSystem::get_e_hf_1b() const {
+  double e_hf_1b = 0.;
+  auto occ_orbs_up = dets[0].up.get_occupied_orbs();
+  for (const auto p : occ_orbs_up) e_hf_1b += integrals.get_1b(p, p);
+  if (Config::get<bool>("time_sym", false)) {
+    e_hf_1b *= 2.;
+  } else {
+    auto occ_orbs_dn = dets[0].dn.get_occupied_orbs();
+    for (const auto p : occ_orbs_dn) e_hf_1b += integrals.get_1b(p, p);
+  }
+  return e_hf_1b;
 }

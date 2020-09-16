@@ -27,7 +27,8 @@ int main(int, char* argv[]) {
   if (Parallel::is_master()) print_info(argv[0]);
 
   Result::init();
-
+  
+  // Run the main routine. (Direct Injection pattern)
   Injector::run();
 
   MPI_Finalize();

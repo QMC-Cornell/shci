@@ -1,0 +1,5 @@
+If you
+grep 'Final it.*eps' out7
+you will see the convergence of the orbital optimization.
+Typically, not only does the energy go down, but so also does the number of determinants
+and the number of connections per determinant, though it does not in this example.

@@ -141,18 +141,19 @@ void HegSystem::setup_hf() {
   }
 }
 
-void HegSystem::find_connected_dets(
+double HegSystem::find_connected_dets(
     const Det& det,
     const double eps_max,
     const double eps_min,
-    const std::function<void(const Det&, const int n_excite)>& handler) const {
-  if (eps_max < eps_min) return;
+    const std::function<void(const Det&, const int n_excite)>& handler,
+    const bool) const {
+  if (eps_max < eps_min) return eps_min;
 
   const auto& occ_orbs_up = det.up.get_occupied_orbs();
   const auto& occ_orbs_dn = det.dn.get_occupied_orbs();
 
   // Add double excitations.
-  if (eps_min > max_abs_H) return;
+  if (eps_min > max_abs_H) return eps_min;
   for (unsigned p_id = 0; p_id < n_elecs; p_id++) {
     for (unsigned q_id = p_id + 1; q_id < n_elecs; q_id++) {
       const unsigned p = p_id < n_up ? occ_orbs_up[p_id] : occ_orbs_dn[p_id - n_up] + n_orbs;
@@ -180,6 +181,7 @@ void HegSystem::find_connected_dets(
         const int s2 = k_points.find(k_points[p2] + k_points[q2 - qs_offset] - k_points[r]);
         if (s2 < 0) continue;
         unsigned s = s2;
+        if (same_spin && s < r) continue;
         s += qs_offset;
         if (p >= n_orbs && q >= n_orbs) {
           r += n_orbs;
@@ -203,6 +205,7 @@ void HegSystem::find_connected_dets(
       }
     }
   }
+  return eps_min;
 }
 
 double HegSystem::get_hamiltonian_elem(
