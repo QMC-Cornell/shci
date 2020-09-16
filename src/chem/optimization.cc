@@ -4,7 +4,6 @@
 #include "../timer.h"
 #include "cg_solver.h"
 #include "davidson_solver.h"
-#include "davidsonshift_solver.h"
 #include "lanczos_solver.h"
 #include <queue>
 
