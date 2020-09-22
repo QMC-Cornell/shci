@@ -11,53 +11,57 @@
 
 #define ENERGY_FORMAT "%.10f Ha"
 
-namespace Util {
+class Util {
+ public:
   template <class... Args>
-   std::string str_printf(const std::string& format, Args... args);
+  static std::string str_printf(const std::string& format, Args... args);
 
-   bool str_equals_ci(const std::string& a, const std::string& b);
+  static bool str_equals_ci(const std::string& a, const std::string& b);
 
-   double avg(const std::vector<double>& vec);
+  static double avg(const std::vector<double>& vec);
 
-   double stdev(const std::vector<double>& vec);
+  static double stdev(const std::vector<double>& vec);
 
-   double dot_omp(const std::vector<double>& a, const std::vector<double>& b);
-
-   std::complex<double> dot_omp(
+  static double dot_omp(const std::vector<double>& a, const std::vector<double>& b);
+ 
+  static std::complex<double> dot_omp(
       const std::vector<double>& a, const std::vector<std::complex<double>>& b);
 
-   std::complex<double> dot_omp(
+  static std::complex<double> dot_omp(
       const std::vector<std::complex<double>>& a, const std::vector<std::complex<double>>& b);
 
-   size_t rehash(const size_t a);
+  static size_t rehash(const size_t a);
 
-   int ctz(unsigned long long x);
+  static int ctz(unsigned long long x);
 
-   int popcnt(unsigned long long x);
+  static int popcnt(unsigned long long x);
 
-   void setup_alias_arrays(const std::vector<double>& old_probs, std::vector<double>& new_probs, std::vector<size_t>& aliases);
+  static void setup_alias_arrays(const std::vector<double>& old_probs, std::vector<double>& new_probs, std::vector<size_t>& aliases);
 
-   size_t get_mem_total();
+  static size_t get_mem_total();
 
-   size_t get_mem_avail();
+  static size_t get_mem_avail();
 
   template <class T>
-   void free(T& t);
+  static void free(T& t);
 
   template <class T1, class T2>
-   void sort_by_first(std::vector<T1>& v1, std::vector<T2>& v2);
+  static void sort_by_first(std::vector<T1>& v1, std::vector<T2>& v2);
 
-  constexpr  double EPS = 1.0e-12;
+  constexpr static double EPS = 1.0e-12;
 
-  constexpr  double INF = 1.0e100;
+  constexpr static double INF = 1.0e100;
 
-  constexpr  double PI = 3.14159265358979323846;
+  constexpr static double PI = 3.14159265358979323846;
 
-  constexpr  std::complex<double> I = std::complex<double>(0, 1);
+  constexpr static std::complex<double> I = std::complex<double>(0, 1);
 
-  constexpr  double SQRT2 = 1.4142135623730951;
+  constexpr static double SQRT2 = 1.4142135623730951;
 
-  constexpr  double SQRT2_INV = 0.7071067811865475;
+  constexpr static double SQRT2_INV = 0.7071067811865475;
+
+ private:
+  static size_t get_mem_info(const std::string& key);
 };
 
 template <typename... Args>

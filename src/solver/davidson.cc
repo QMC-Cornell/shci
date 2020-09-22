@@ -123,7 +123,10 @@ void Davidson::diagonalize(
       }
     }
     double norm = sqrt(Util::dot_omp(v[it_circ], v[it_circ]));
-    if (norm<1e-12) break;
+    if (norm<1e-12) {
+      converged = true;
+      break;
+    }
 
 #pragma omp parallel for
     for (size_t j = 0; j < dim; j++) {

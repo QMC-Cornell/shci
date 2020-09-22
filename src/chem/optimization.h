@@ -6,75 +6,125 @@
 
 using namespace Eigen;
 
+class IntegralsArray {
+public:
+  void allocate(const unsigned n_orbs_) {
+    n_orbs = n_orbs_;
+    n_orbs_2 = n_orbs * n_orbs;
+    n_orbs_3 = n_orbs_2 * n_orbs;
+    array_2b.resize(n_orbs_3 * n_orbs);
+    array_1b.resize(n_orbs_2);
+  }
+
+  double& get_2b(const unsigned p, const unsigned q, const unsigned r, const unsigned s) {
+    const size_t ind = p * n_orbs_3 + q * n_orbs_2 + r * n_orbs + s;
+    return array_2b[ind];
+  }
+  
+  double& get_1b(const unsigned p, const unsigned q) {
+    const size_t ind = p * n_orbs + q;
+    return array_1b[ind];
+  }
+
+  const double* data_2b() const { return array_2b.data(); }
+
+  const double* data_1b() const { return array_1b.data(); }
+
+private:
+  size_t n_orbs, n_orbs_2, n_orbs_3;
+
+  std::vector<double> array_2b, array_1b;
+};
+
 class Optimization {
   // This module is designed such that for each optimization iteration
   // a new Optimization object is instantiated.
 public:
-  Optimization(RDM *rdm_ptr, Integrals *integrals_ptr) {
-    rdm_p = rdm_ptr;
-    integrals_p = integrals_ptr;
-    n_orbs = integrals_ptr->n_orbs;
+  Optimization(Integrals& integrals_, 
+		SparseMatrix& hamiltonian_matrix_,
+		const std::vector<Det>& dets_,
+		const std::vector<double>& wf_coefs_): 
+	integrals(integrals_),
+	hamiltonian_matrix(hamiltonian_matrix_),
+        rdm(integrals),
+        dets(dets_),
+        wf_coefs(wf_coefs_),
+        n_orbs(integrals_.n_orbs)
+  {
     rot = MatrixXd::Zero(n_orbs, n_orbs);
   }
 
-  ~Optimization() {
-    rdm_p = nullptr;
-    integrals_p = nullptr;
-  }
+  void get_natorb_rotation_matrix();
 
-  void generate_natorb_integrals();
+  void get_optorb_rotation_matrix_from_newton();
 
-  void generate_optorb_integrals_from_newton();
+  void get_optorb_rotation_matrix_from_approximate_newton();
 
-  void generate_optorb_integrals_from_approximate_newton();
+  void get_optorb_rotation_matrix_from_grad_descent();
 
-  void generate_optorb_integrals_from_grad_descent();
+  void get_optorb_rotation_matrix_from_amsgrad();
 
-  void generate_optorb_integrals_from_amsgrad();
+  void generate_optorb_integrals_from_bfgs();
 
-  void dump_integrals(const char *file_name) const;
+  void get_optorb_rotation_matrix_from_full_optimization(const double e_var);
 
-  void rewrite_integrals();
+  void rotate_and_rewrite_integrals();
 
-  MatrixXd get_rotation_matrix() const { return rot; };
+  MatrixXd rotation_matrix() const { return rot; };
 
 private:
-  RDM *rdm_p;
+  Integrals& integrals;
+  
+  SparseMatrix& hamiltonian_matrix;
 
-  Integrals *integrals_p;
+  RDM rdm;
 
-  unsigned n_orbs;
+  const std::vector<Det>& dets;
 
-  typedef std::vector<std::vector<std::vector<std::vector<double>>>>
-      Integrals_array;
+  const std::vector<double>& wf_coefs;
+
+  const unsigned n_orbs;
 
   typedef std::pair<unsigned, unsigned> index_t;
 
-  Integrals_array new_integrals;
+  typedef Matrix<double, Dynamic, Dynamic, RowMajor> MatrixXdR;
+
+  typedef Matrix<float, Dynamic, Dynamic, RowMajor> MatrixXfR;
+
+  MatrixXd generalized_Fock_matrix;
+
+  IntegralsArray new_integrals;
 
   MatrixXd rot;
 
   void rotate_integrals();
 
-  std::vector<index_t> parameter_indices() const;
+  void rewrite_integrals();
 
-  VectorXd find_overshooting_stepsize(double dim,
-                                      const VectorXd &new_param) const;
+  std::vector<index_t> parameter_indices() const;
+  
+  std::vector<index_t> get_most_important_parameter_indices(
+        const VectorXd& gradient,
+        const VectorXd& hessian_diagonal,
+	const std::vector<index_t>& parameter_indices,
+        const double parameter_proportion) const;
 
   void fill_rot_matrix_with_parameters(
       const VectorXd &parameters,
       const std::vector<index_t> &parameter_indices);
 
-  VectorXd gradient(const std::vector<std::pair<unsigned, unsigned>> &) const;
+  VectorXd gradient(const std::vector<std::pair<unsigned, unsigned>> &);
 
-  double generalized_Fock(unsigned m, unsigned n) const;
+  void get_generalized_Fock();
 
-  MatrixXd hessian(const std::vector<std::pair<unsigned, unsigned>> &) const;
+  double generalized_Fock_element(const unsigned m, const unsigned n) const;
+
+  MatrixXdR hessian(const std::vector<std::pair<unsigned, unsigned>> &);
 
   VectorXd
-  hessian_diagonal(const std::vector<std::pair<unsigned, unsigned>> &) const;
+  hessian_diagonal(const std::vector<std::pair<unsigned, unsigned>> &);
 
-  double Y_matrix(unsigned p, unsigned q, unsigned r, unsigned s) const;
+  double Y_matrix(const unsigned p, const  unsigned q, const unsigned r, const unsigned s) const;
 
-  double hessian_part(unsigned p, unsigned q, unsigned r, unsigned s) const;
+  double hessian_part(const unsigned p, const unsigned q, const unsigned r, const unsigned s) const;
 };

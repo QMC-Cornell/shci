@@ -8,31 +8,162 @@
 #include "../timer.h"
 #include "../util.h"
 
+
 void RDM::get_1rdm(
-    const std::vector<Det>& dets, const std::vector<double>& coefs, const bool dump_csv) {
+    const std::vector<Det>& dets, const std::vector<double>& coefs) {
   //=====================================================
   // Create 1RDM using the variational wavefunction
   //
   // Created: Y. Yao, June 2018
   //=====================================================
-  bool time_sym = Config::get<bool>("time_sym", false);
-
-  std::vector<unsigned int> orb_sym = integrals_p->orb_sym;
+  Timer::start("get 1rdm");
+  const std::vector<unsigned>& orb_sym = integrals.orb_sym;
 
   one_rdm = MatrixXd::Zero(n_orbs, n_orbs);
 
-  // Create hash table; used for looking up the coef of a det
-  std::unordered_map<Det, double, DetHasher> det2coef;
+  // Create hash table; used for looking up the index of a det
+  std::unordered_map<Det, size_t, DetHasher> det2ind;
   for (size_t i = 0; i < dets.size(); i++) {
-    det2coef[dets[i]] = coefs[i];
+    det2ind[dets[i]] = i;
+  }
+
+#pragma omp parallel for schedule(dynamic, 10)
+  for (size_t i_det = 0; i_det < dets.size(); i_det++) {
+    const Det& this_det = dets[i_det];
+
+    const std::vector<unsigned> occ_up = this_det.up.get_occupied_orbs();
+    const std::vector<unsigned> occ_dn = this_det.dn.get_occupied_orbs();
+
+    // up electrons
+    for (unsigned i_elec = 0; i_elec < n_up; i_elec++) {
+      unsigned p = occ_up[i_elec];
+      for (unsigned r = 0; r < n_orbs; r++) {
+        if (orb_sym[p] != orb_sym[r]) continue;
+        if (p != r && this_det.up.has(r)) continue;
+
+        Det new_det = this_det;
+        new_det.up.unset(p);
+        new_det.up.set(r);
+
+	double this_coef = coefs[i_det];
+        double connected_coef;
+	size_t connected_ind;
+        if (!time_sym) {
+          if (det2ind.count(new_det) == 1) {
+	    connected_ind = det2ind[new_det];
+            connected_coef = coefs[connected_ind];
+          } else
+            continue;
+	} else {
+	  Det new_det_proxy = new_det;
+	  if (new_det.up > new_det.dn)
+	    new_det_proxy.reverse_spin();
+	  if (det2ind.count(new_det_proxy) == 1) {
+	    connected_ind = det2ind[new_det_proxy];
+	    connected_coef = coefs[connected_ind];
+	  } else
+	    continue; 
+	  if (this_det.up != this_det.dn) this_coef *= Util::SQRT2_INV;
+	  if (new_det.up != new_det.dn) connected_coef *= Util::SQRT2_INV;
+	}
+        
+        write_in_1rdm_and_hessian_co(p, r, this_det.up.diff(new_det.up).permutation_factor,
+		       i_det, this_coef, connected_ind, connected_coef);
+      }  // r
+    }  // i_elec
+
+    if (time_sym && this_det.up != this_det.dn) {
+      Det this_det_reversed = this_det;
+      this_det_reversed.reverse_spin();
+
+      const auto& occ_up_reversed = occ_dn;
+
+      for (unsigned i_elec = 0; i_elec < n_up; i_elec++) {
+        unsigned p = occ_up_reversed[i_elec];
+        for (unsigned r = 0; r < n_orbs; r++) {
+          if (orb_sym[p] != orb_sym[r]) continue;
+          if (p != r && this_det_reversed.up.has(r)) continue;
+  
+          Det new_det = this_det_reversed;
+          new_det.up.unset(p);
+          new_det.up.set(r);
+  
+          double connected_coef;
+	  size_t connected_ind;
+	  Det new_det_proxy = new_det;
+  	  if (new_det.up > new_det.dn)
+  	    new_det_proxy.reverse_spin();
+  	  if (det2ind.count(new_det_proxy) == 1) {
+	    connected_ind = det2ind[new_det_proxy];
+  	    connected_coef = coefs[connected_ind];
+  	  } else
+  	    continue; 
+  	  if (new_det.up != new_det.dn) connected_coef *= Util::SQRT2_INV;
+          
+	  double this_coef = coefs[i_det] * Util::SQRT2_INV;
+          write_in_1rdm_and_hessian_co(p, r, this_det_reversed.up.diff(new_det.up).permutation_factor,
+  		       i_det, this_coef, connected_ind, connected_coef);
+        }  // r
+      }  // i_elec
+
+    }
+
+    // dn electrons
+    if (!time_sym) {  // If time_sym, then the up excitations will equal to the dn excitations
+      for (unsigned i_elec = 0; i_elec < n_dn; i_elec++) {
+        unsigned p = occ_dn[i_elec];
+        for (unsigned r = 0; r < n_orbs; r++) {
+          if (orb_sym[p] != orb_sym[r]) continue;
+          if (p != r && this_det.dn.has(r)) continue;
+
+          Det new_det = this_det;
+          new_det.dn.unset(p);
+          new_det.dn.set(r);
+
+          double coef;
+          if (det2ind.count(new_det) == 1)
+            coef = coefs[det2ind[new_det]];
+          else
+            continue;
+
+          write_in_1rdm_and_hessian_co(p, r, this_det.dn.diff(new_det.dn).permutation_factor, 
+			  i_det, coefs[i_det],  det2ind[new_det], coef);
+        }  // r
+      }  // i_elec
+    }
+  }  // i_det
+
+  if (time_sym) { // dn electrons part
+    one_rdm *= 2.;
+    if (hessian_ci_orb_p) {// Important: this assumes 1rdm construction precedes 2rdm
+      (*hessian_ci_orb_p) *= 2.;
+    }
+  }
+  Timer::end();
+}
+
+void RDM::get_1rdm_unpacked(
+    const std::vector<Det>& dets, const std::vector<double>& coefs) {
+  //=====================================================
+  // Create 1RDM using the variational wavefunction
+  // This version assumes time_sym unpacked dets
+  //=====================================================
+  const std::vector<unsigned int>& orb_sym = integrals.orb_sym;
+
+  one_rdm = MatrixXd::Zero(n_orbs, n_orbs);
+
+  // Create hash table; used for looking up the index of a det
+  std::unordered_map<Det, size_t, DetHasher> det2ind;
+  for (size_t i = 0; i < dets.size(); i++) {
+    det2ind[dets[i]] = i;
   }
 
 #pragma omp parallel for
   for (size_t i_det = 0; i_det < dets.size(); i_det++) {
-    Det this_det = dets[i_det];
+    const Det& this_det = dets[i_det];
 
-    std::vector<unsigned> occ_up = this_det.up.get_occupied_orbs();
-    std::vector<unsigned> occ_dn = this_det.dn.get_occupied_orbs();
+    const std::vector<unsigned> occ_up = this_det.up.get_occupied_orbs();
+    const std::vector<unsigned> occ_dn = this_det.dn.get_occupied_orbs();
 
     // up electrons
     for (unsigned i_elec = 0; i_elec < n_up; i_elec++) {
@@ -46,13 +177,13 @@ void RDM::get_1rdm(
         new_det.up.set(r);
 
         double coef;
-        if (det2coef.count(new_det) == 1)
-          coef = det2coef[new_det];
+        if (det2ind.count(new_det) == 1)
+          coef = coefs[det2ind[new_det]];
         else
           continue;
-
-#pragma omp atomic
-        one_rdm(p, r) += this_det.up.diff(new_det.up).permutation_factor * coef * coefs[i_det];
+          
+        write_in_1rdm_and_hessian_co(p, r, this_det.up.diff(new_det.up).permutation_factor,
+		       i_det, coefs[i_det], det2ind[new_det], coef);
       }  // r
     }  // i_elec
 
@@ -69,296 +200,79 @@ void RDM::get_1rdm(
           new_det.dn.set(r);
 
           double coef;
-          if (det2coef.count(new_det) == 1)
-            coef = det2coef[new_det];
+          if (det2ind.count(new_det) == 1)
+            coef = coefs[det2ind[new_det]];
           else
             continue;
 
-#pragma omp atomic
-          one_rdm(p, r) += this_det.dn.diff(new_det.dn).permutation_factor * coef * coefs[i_det];
+          write_in_1rdm_and_hessian_co(p, r, this_det.dn.diff(new_det.dn).permutation_factor, 
+			  i_det, coefs[i_det],  det2ind[new_det], coef);
         }  // r
       }  // i_elec
     }
   }  // i_det
 
-  if (time_sym) one_rdm *= 2.;
-
-  if (Parallel::is_master()) {
-    if (dump_csv) {
-      FILE* pFile;
-      pFile = fopen("1rdm.csv", "w");
-      fprintf(pFile, "p,r,1rdm\n");
-      for (unsigned p = 0; p < n_orbs; p++) {
-        for (unsigned r = p; r < n_orbs; r++) {
-          const double rdm_pr = one_rdm(p, r);
-          if (std::abs(rdm_pr) < 1e-9) continue;
-          fprintf(
-              pFile,
-              "%d,%d,%#.15g\n",
-              integrals_p->orb_order[p],
-              integrals_p->orb_order[r],
-              rdm_pr);
-        }
-      }
-      fclose(pFile);
-    }
+  if (time_sym) {
+    one_rdm *= 2.;
+    (*hessian_ci_orb_p) *= 2.; // Important: this assumes 1rdm construction precedes 2rdm
   }
   Timer::checkpoint("computing 1RDM");
 }
 
-/*
-void RDM::generate_natorb_integrals(const Integrals& integrals) const {
-//======================================================
-// Compute natural orbitals by diagonalizing the 1RDM.
-// Rotate integrals to natural orbital basis and generate
-// new FCIDUMP file.
-// The original 1RDM (rdm) is left untouched.
-// This version stores the integrals in a hashtable
-//
-// Created: Y. Yao, June 2018
-//======================================================
-  unsigned n_orbs = integrals.n_orbs;
-  std::vector<unsigned int> orb_sym = integrals.orb_sym;
-
-  // Determine number of point gourp elements used for current system
-  unsigned n_group_elements = orb_sym[1];
-  for (size_t i = 1; i < orb_sym.size(); i++) {
-    if (orb_sym[i] > n_group_elements) n_group_elements = orb_sym[i];
-  }
-
-  // Diagonalize rdm in the subspace of each irrep separately
-  std::vector<std::vector<unsigned>> inds(n_group_elements);
-  std::vector<unsigned> n_in_group(n_group_elements);
-
-  for (unsigned irrep = 0; irrep < n_group_elements; irrep++) {
-    n_in_group[irrep] = 0;
-    for (unsigned i=0; i<n_orbs; i++) {
-      if (orb_sym[i]==irrep+1) {
-        n_in_group[irrep] = n_in_group[irrep] + 1;
-        inds[irrep].push_back(i);
+void RDM::dump_1rdm() const {
+  if (Parallel::is_master()) {
+    FILE* pFile;
+    pFile = fopen("1rdm.csv", "w");
+    fprintf(pFile, "p,r,1rdm\n");
+    for (unsigned p = 0; p < n_orbs; p++) {
+      for (unsigned r = p; r < n_orbs; r++) {
+        const double rdm_pr = one_rdm(p, r);
+        if (std::abs(rdm_pr) < 1e-9) continue;
+        fprintf(
+            pFile,
+            "%d,%d,%#.15g\n",
+            integrals.orb_order[p],
+            integrals.orb_order[r],
+            rdm_pr);
       }
     }
+    fclose(pFile);
   }
-
-  double eigenvalues[n_orbs];
-  MatrixXd rot = MatrixXd::Zero(n_orbs,n_orbs); // rotation matrix
-
-  for (unsigned irrep=0; irrep<n_group_elements; irrep++) {
-    if (n_in_group[irrep] == 0) continue;
-    unsigned n = n_in_group[irrep];
-
-    MatrixXd tmp_rdm(n,n); // rdm in the subspace of current irrep
-    for (unsigned i=0; i<n; i++) {
-      for (unsigned j=0; j<n; j++) {
-        tmp_rdm(i,j) = one_rdm(inds[irrep][i],inds[irrep][j]);
-      }
-    }
-
-    SelfAdjointEigenSolver<MatrixXd> es(tmp_rdm);
-    MatrixXd tmp_eigenvalues, tmp_eigenvectors;
-    tmp_eigenvalues = es.eigenvalues().transpose();
-    tmp_eigenvectors = es.eigenvectors();
-
-    // columns of rot (rotation matrix) = eigenvectors of rdm
-    for (unsigned i=0; i<n; i++) {
-      eigenvalues[inds[irrep][i]] = tmp_eigenvalues(n-i-1);
-      for (unsigned j=0; j<n; j++) {
-        rot(inds[irrep][i],inds[irrep][j]) = tmp_eigenvectors(i,n-j-1);
-      }
-    }
-  } // irrep
-
-  std::cout<< "Occupation numbers:\n";
-  for (unsigned i=0; i<n_orbs;i++) std::cout<< eigenvalues[i] <<"\n";
-
-  std::cout<<"Done computing natural orbitals. Computing new integrals."<<"\n";
-
-  // Rotate orbitals and generate new integrals
-
-  // Two-body integrals
-  fgpl::HashMap<size_t, double, IntegralsHasher> new_integrals_2b, tmp_integrals_2b;
-
-#pragma omp parallel for
-  for (unsigned p=0; p<n_orbs; p++) {
-    for (unsigned q=0; q<n_orbs; q++) {
-      for (unsigned r=0; r<n_orbs; r++) {
-        for (unsigned s=0; s<n_orbs; s++) {
-          double val_pqrs = integrals.get_2b(p,q,r,s);
-          if (val_pqrs != 0.) tmp_integrals_2b.set(nonsym_combine4(p,q,r,s), val_pqrs);
-//if (Parallel::is_master()) std::cout<<p<<" "<<q<<" "<<r<<" "<<s<<"\n";
-        } // s
-      } // r
-    } // q
-//std::cout<<p<<"\n";
-  } // p
-std::cout<<"BBB\n";
-//#pragma omp parallel for
-  for (unsigned p=0; p<n_orbs; p++) {
-    for (unsigned q=0; q<n_orbs; q++) {
-      for (unsigned r=0; r<n_orbs; r++) {
-        for (unsigned s=0; s<n_orbs; s++) {
-          double new_val = 0.;
-          for (unsigned i=0; i<n_orbs; i++) {
-            new_val += rot(i,p)*tmp_integrals_2b.get(nonsym_combine4(i,q,r,s),0.);
-          }
-          if (new_val != 0.) new_integrals_2b.set(nonsym_combine4(p,q,r,s), new_val);
-        } // s
-      } // r
-    } // q
-  } // p
-
-  tmp_integrals_2b.clear();
-  tmp_integrals_2b = new_integrals_2b;
-std::cout<<"CCC\n";
-//#pragma omp parallel for
-  for (unsigned p=0; p<n_orbs; p++) {
-    for (unsigned q=0; q<n_orbs; q++) {
-      for (unsigned r=0; r<n_orbs; r++) {
-        for (unsigned s=0; s<n_orbs; s++) {
-          double new_val = 0.;
-          for (unsigned i=0; i<n_orbs; i++) {
-            new_val += rot(i,q)*tmp_integrals_2b.get(nonsym_combine4(p,i,r,s),0.);
-          }
-          if (new_val != 0.) new_integrals_2b.set(nonsym_combine4(p,q,r,s), new_val);
-        } // s
-      } // r
-    } // q
-  } // p
-
-  tmp_integrals_2b.clear();
-  tmp_integrals_2b = new_integrals_2b;
-std::cout<<"DDD\n";
-#pragma omp parallel for
-  for (unsigned p=0; p<n_orbs; p++) {
-    for (unsigned q=0; q<n_orbs; q++) {
-      for (unsigned r=0; r<n_orbs; r++) {
-        for (unsigned s=0; s<n_orbs; s++) {
-          double new_val = 0.;
-          for (unsigned i=0; i<n_orbs; i++) {
-            new_val += rot(i,r)*tmp_integrals_2b.get(nonsym_combine4(p,q,i,s),0.);
-          }
-          if (new_val != 0.) new_integrals_2b.set(nonsym_combine4(p,q,r,s), new_val);
-        } // s
-      } // r
-    } // q
-  } // p
-
-  tmp_integrals_2b.clear();
-  tmp_integrals_2b = new_integrals_2b;
-std::cout<<"EEE\n";
-#pragma omp parallel for
-  for (unsigned p=0; p<n_orbs; p++) {
-    for (unsigned q=0; q<n_orbs; q++) {
-      for (unsigned r=0; r<n_orbs; r++) {
-        for (unsigned s=0; s<n_orbs; s++) {
-          double new_val = 0.;
-          for (unsigned i=0; i<n_orbs; i++) {
-            new_val += rot(i,s)*tmp_integrals_2b.get(nonsym_combine4(p,q,r,i),0.);
-          }
-          if (new_val != 0.) new_integrals_2b.set(nonsym_combine4(p,q,r,s), new_val);
-        } // s
-      } // r
-    } // q
-  } // p
-
-  tmp_integrals_2b.clear();
-
-  // One-body integrals
-  fgpl::HashMap<size_t, double, IntegralsHasher> new_integrals_1b, tmp_integrals_1b;
-
-#pragma omp parallel for
-  for (unsigned p=0; p<n_orbs; p++) {
-    for (unsigned q=0; q<n_orbs; q++) {
-      double val_pq = integrals.get_1b(p,q);
-      if (val_pq != 0.) tmp_integrals_1b.set(nonsym_combine2(p,q), val_pq);
-    }
-  }
-
-#pragma omp parallel for
-  for (unsigned p=0; p<n_orbs; p++) {
-    for (unsigned q=0; q<n_orbs; q++) {
-      double new_val = 0.;
-      for (unsigned i=0; i<n_orbs; i++) {
-        new_val += rot(i,p)*tmp_integrals_1b.get(nonsym_combine2(i,q),0.);
-      }
-      if (new_val != 0.) new_integrals_1b.set(nonsym_combine2(p,q), new_val);
-    }
-  }
-
-
-  tmp_integrals_1b.clear();
-  tmp_integrals_1b = new_integrals_1b;
-
-#pragma omp parallel for
-  for (unsigned p=0; p<n_orbs; p++) {
-    for (unsigned q=0; q<n_orbs; q++) {
-      double new_val = 0.;
-      for (unsigned i=0; i<n_orbs; i++) {
-        new_val += rot(i,q)*tmp_integrals_1b.get(nonsym_combine2(p,i),0.);
-      }
-      if (new_val != 0.) new_integrals_1b.set(nonsym_combine2(p,q), new_val);
-    }
-  }
-
-
-  std::cout<< "Done computing new integrals. Dumping new integrals into file \n";
-
-
-  FILE * pFile;
-  pFile = fopen ("FCIDUMP_natorb","w");
-
-  // Header
-  fprintf(pFile, "&FCI NORB=%d, NELEC=%d, MS2=%d,\n", n_orbs, integrals.n_elecs, 0);
-  fprintf(pFile, "ORBSYM=");
-  for (unsigned i=0; i<n_orbs; i++) {
-    fprintf(pFile, "  %d", orb_sym[integrals.orb_order_inv[i]]);
-  }
-  fprintf(pFile, "\nISYM=1\n&END\n");
-
-  // Two-body integrals
-  for (unsigned p=0; p<n_orbs; p++) {
-    for (unsigned q=0; q<=p; q++) {
-      for (unsigned r=0; r<=p; r++) {
-        for (unsigned s=0; s<=r; s++) {
-          if ((p==r) && (q<s)) continue;
-          double val_pqrs = new_integrals_2b.get(nonsym_combine4(p,q,r,s),0.);
-          if (std::abs(val_pqrs) > 1e-8) {
-            fprintf(pFile, " %19.12E %3d %3d %3d %3d\n", val_pqrs, integrals.orb_order[p]+1,
-integrals.orb_order[q]+1, integrals.orb_order[r]+1, integrals.orb_order[s]+1);
-          }
-        } // s
-      } // r
-    } // q
-  } // p
-
-  // One-body integrals
-  for (unsigned p=0; p<n_orbs; p++) {
-    for (unsigned q=0; q<=p; q++) {
-      double val_pq = new_integrals_1b.get(nonsym_combine2(p,q),0.);
-      if (std::abs(val_pq) > 1e-8) {
-        fprintf(pFile, " %19.12E %3d %3d %3d %3d\n", val_pq, integrals.orb_order[p]+1,
-integrals.orb_order[q]+1, 0, 0);
-      }
-    }
-  }
-
-  // Nuclear-nuclear energy
-  fprintf(pFile, " %19.12E %3d %3d %3d %3d\n", integrals.energy_core, 0,0,0,0);
-
-  fclose (pFile);
-
-  std::cout<< "Done creating new FCIDUMP\n";
 }
 
-
-size_t RDM::nonsym_combine2(const size_t a, const size_t b) const {
-  return a*n_orbs + b;
+void RDM::write_in_1rdm_and_hessian_co(const unsigned p, const unsigned q, const int perm_fac, 
+		const size_t i_det, const double coef_i, const size_t j_det, const double coef_j) {
+  // <psi_(i_det) | c^dagger_p c_q | psi_(j_det)>
+#pragma omp atomic
+  one_rdm(p, q) += perm_fac * coef_i * coef_j;
+  
+  if (hessian_ci_orb_p) {
+    for (unsigned t = p + 1; t < n_orbs; t++) {
+      if (indices2index(p, t) >= 0) {
+#pragma omp atomic
+        (*hessian_ci_orb_p)(i_det, indices2index(p, t)) += 2 * integrals.get_1b(t, q) * perm_fac * coef_j;
+      }
+    }
+    for (unsigned t = 0; t < p; t++) {
+      if (indices2index(t, p) >= 0) {
+#pragma omp atomic
+        (*hessian_ci_orb_p)(i_det, indices2index(t, p)) -= 2 * integrals.get_1b(t, q) * perm_fac * coef_j;
+      }
+    }
+    for (unsigned t = 0; t < p; t++) {
+      if (indices2index(t, p) >= 0) {
+#pragma omp atomic
+        (*hessian_ci_orb_p)(j_det, indices2index(t, p)) -= 2 * integrals.get_1b(t, q) * perm_fac * coef_i;
+      }
+    }
+    for (unsigned t = p + 1; t < n_orbs; t++) {
+      if (indices2index(p, t) >= 0) {
+#pragma omp atomic
+        (*hessian_ci_orb_p)(j_det, indices2index(p, t)) += 2 * integrals.get_1b(t, q) * perm_fac * coef_i;
+      }
+    }
+  }
 }
-
-size_t RDM::nonsym_combine4(const size_t a, const size_t b, const size_t c, const size_t d) const {
-  return nonsym_combine2(nonsym_combine2(nonsym_combine2(a,b),c),d);
-}
-*/
 
 void RDM::get_2rdm_slow(const std::vector<Det>& dets, const std::vector<double>& coefs) {
   //=====================================================
@@ -380,9 +294,7 @@ void RDM::get_2rdm_slow(const std::vector<Det>& dets, const std::vector<double>&
   //
   // Created: Y. Yao, June 2018
   //=====================================================
-
-  std::vector<unsigned int> orb_sym = integrals_p->orb_sym;
-
+  Timer::start("get 2rdm slow");
   two_rdm.resize((n_orbs * n_orbs * (n_orbs * n_orbs + 1) / 2), 0.);
 
   // Create hash table; used for looking up the coef of a det
@@ -393,11 +305,11 @@ void RDM::get_2rdm_slow(const std::vector<Det>& dets, const std::vector<double>&
 
 #pragma omp parallel for
   for (size_t i_det = 0; i_det < dets.size(); i_det++) {
-    Det this_det = dets[i_det];
-    double this_coef = coefs[i_det];
+    const Det& this_det = dets[i_det];
+    const double this_coef = coefs[i_det];
 
-    std::vector<unsigned> occ_up = this_det.up.get_occupied_orbs();
-    std::vector<unsigned> occ_dn = this_det.dn.get_occupied_orbs();
+    const std::vector<unsigned> occ_up = this_det.up.get_occupied_orbs();
+    const std::vector<unsigned> occ_dn = this_det.dn.get_occupied_orbs();
 
     // (1) p: up, q: up, r: up, s: up
     for (unsigned i_elec = 0; i_elec < n_up; i_elec++) {
@@ -511,12 +423,12 @@ void RDM::get_2rdm_slow(const std::vector<Det>& dets, const std::vector<double>&
 
   }  // i_det
 
-  Timer::checkpoint("computing 2RDM (slow)");
+  Timer::end();
 }
 
-inline size_t RDM::combine4_2rdm(size_t p, size_t q, size_t r, size_t s) const {
-  size_t a = p * n_orbs + s;
-  size_t b = q * n_orbs + r;
+inline size_t RDM::combine4_2rdm(const unsigned p, const unsigned q, const unsigned r, const unsigned s) const {
+  const size_t a = p * n_orbs + s;
+  const size_t b = q * n_orbs + r;
   if (a > b) {
     return (a * (a + 1)) / 2 + b;
   } else {
@@ -524,7 +436,7 @@ inline size_t RDM::combine4_2rdm(size_t p, size_t q, size_t r, size_t s) const {
   }
 }
 
-int RDM::permfac_ccaa(HalfDet halfket, unsigned p, unsigned q, unsigned r, unsigned s) const {
+int RDM::permfac_ccaa(HalfDet halfket, const unsigned p, const unsigned q, const unsigned r, const unsigned s) const {
   // Calculate the permutation factor of
   // c^dag_p c^dag_q c_r c_s |halfket>
 
@@ -553,8 +465,8 @@ int RDM::permfac_ccaa(HalfDet halfket, unsigned p, unsigned q, unsigned r, unsig
 }
 
 void RDM::dump_2rdm(const bool dump_csv) const {
-  auto orb_order = integrals_p->orb_order;
-  auto orb_order_inv = integrals_p->orb_order_inv;
+  auto orb_order = integrals.orb_order;
+  auto orb_order_inv = integrals.orb_order_inv;
 
   if (Parallel::is_master()) {
     std::cout << "writing out 2RDM\n";
@@ -586,7 +498,7 @@ void RDM::dump_2rdm(const bool dump_csv) const {
       FILE* pFile;
       pFile = fopen("spatialRDM.txt", "w");
 
-      fprintf(pFile, "%zd\n", n_orbs);
+      fprintf(pFile, "%d\n", n_orbs);
 
       for (unsigned p = 0; p < n_orbs; p++) {
         for (unsigned q = 0; q < n_orbs; q++) {
@@ -637,12 +549,11 @@ void RDM::get_2rdm(
   // Created: Y. Yao, August 2018
   // Modified: Y. Yao, October 2018: MPI compatibility
   //=====================================================
-  bool time_sym = Config::get<bool>("time_sym", false);
-
-  size_t size_two_rdm = n_orbs * n_orbs * (n_orbs * n_orbs + 1) / 2;
+  Timer::start("get 2rdm");
+  const size_t size_two_rdm = n_orbs * n_orbs * (n_orbs * n_orbs + 1) / 2;
   two_rdm.resize(size_two_rdm, 0.);
 
-#pragma omp parallel for schedule(dynamic, 5)
+#pragma omp parallel for schedule(dynamic, 10)
   for (size_t i_det = 0; i_det < connections.size(); i_det++) {
     Det this_det = dets[i_det];
     double this_coef = coefs[i_det];
@@ -651,77 +562,91 @@ void RDM::get_2rdm(
       size_t connected_ind = connections[i_det][j_det];
       Det connected_det = dets[connected_ind];
       double connected_coef = coefs[connected_ind];
+      get_2rdm_pair(connected_det, connected_coef, connected_ind, this_det, this_coef, i_det);
+    }
+  }
+      
+  MPI_Allreduce_2rdm();
+  Timer::end();
+}
 
-      if (!time_sym)
-        get_2rdm_elements(connected_det, connected_coef, this_det, this_coef);
-      else {
-        if (this_det.up == this_det.dn) {
-          if (connected_det.up == connected_det.dn) {
-            get_2rdm_elements(connected_det, connected_coef, this_det, this_coef);
-          } else {
-            Det connected_det_rev = connected_det;
-            connected_det_rev.reverse_spin();
-            double connected_coef_new = connected_coef * Util::SQRT2_INV;
 
-            get_2rdm_elements(connected_det, connected_coef_new, this_det, this_coef);
-            get_2rdm_elements(connected_det_rev, connected_coef_new, this_det, this_coef);
-          }
-        } else {
-          if (connected_det.up == connected_det.dn) {
-            Det this_det_rev = this_det;
-            this_det_rev.reverse_spin();
-            double this_coef_new = this_coef * Util::SQRT2_INV;
+void RDM::get_2rdm(
+    const std::vector<Det>& dets,
+    const std::vector<double>& coefs,
+    const SparseMatrix& hamiltonian_matrix) {
+  // This overloaded version takes SparseMatrix as connections type.
+  Timer::start("get 2rdm");
+  const size_t size_two_rdm = n_orbs * n_orbs * (n_orbs * n_orbs + 1) / 2;
+  two_rdm.resize(size_two_rdm, 0.);
 
-            get_2rdm_elements(connected_det, connected_coef, this_det, this_coef_new);
-            get_2rdm_elements(connected_det, connected_coef, this_det_rev, this_coef_new);
-          } else {
-            Det connected_det_rev = connected_det;
-            connected_det_rev.reverse_spin();
-            double connected_coef_new = connected_coef * Util::SQRT2_INV;
-            Det this_det_rev = this_det;
-            this_det_rev.reverse_spin();
-            double this_coef_new = this_coef * Util::SQRT2_INV;
+#pragma omp parallel for schedule(dynamic, 10)
+  for (size_t i_det = 0; i_det < hamiltonian_matrix.count_n_rows(); i_det++) {
+    Det this_det = dets[i_det];
+    double this_coef = coefs[i_det];
+    auto hamiltonian_row = hamiltonian_matrix.get_row(i_det);
+    
+    for (size_t j_det = 0; j_det < hamiltonian_row.size(); j_det++) {
+      size_t connected_ind = hamiltonian_row.get_index(j_det);
+      Det connected_det = dets[connected_ind];
+      double connected_coef = coefs[connected_ind];
+      get_2rdm_pair(connected_det, connected_coef, connected_ind, this_det, this_coef, i_det);
+    }
+  }
+      
+  MPI_Allreduce_2rdm();
+  Timer::end();
+}
 
-            get_2rdm_elements(connected_det, connected_coef_new, this_det, this_coef_new);
-            if (j_det != 0)
-              get_2rdm_elements(connected_det, connected_coef_new, this_det_rev, this_coef_new);
-            get_2rdm_elements(connected_det_rev, connected_coef_new, this_det, this_coef_new);
-            get_2rdm_elements(connected_det_rev, connected_coef_new, this_det_rev, this_coef_new);
-          }
-        }
+inline void RDM::get_2rdm_pair(const Det& connected_det, const double connected_coef, 
+       const size_t connected_ind, const Det& this_det, const double this_coef, const size_t this_ind) {
+  if (!time_sym)
+    get_2rdm_elements(connected_det, connected_coef, connected_ind, this_det, this_coef, this_ind);
+  else {
+    if (this_det.up == this_det.dn) {
+      if (connected_det.up == connected_det.dn) {
+        get_2rdm_elements(connected_det, connected_coef, connected_ind, this_det, this_coef, this_ind);
+      } else {
+        Det connected_det_rev = connected_det;
+        connected_det_rev.reverse_spin();
+        double connected_coef_new = connected_coef * Util::SQRT2_INV;
+  
+        get_2rdm_elements(connected_det, connected_coef_new, connected_ind, this_det, this_coef, this_ind);
+        get_2rdm_elements(connected_det_rev, connected_coef_new, connected_ind, this_det, this_coef, this_ind);
+      }
+    } else {
+      if (connected_det.up == connected_det.dn) {
+        Det this_det_rev = this_det;
+        this_det_rev.reverse_spin();
+        double this_coef_new = this_coef * Util::SQRT2_INV;
+  
+        get_2rdm_elements(connected_det, connected_coef, connected_ind, this_det, this_coef_new, this_ind);
+        get_2rdm_elements(connected_det, connected_coef, connected_ind, this_det_rev, this_coef_new, this_ind);
+      } else {
+        Det connected_det_rev = connected_det;
+        connected_det_rev.reverse_spin();
+        double connected_coef_new = connected_coef * Util::SQRT2_INV;
+        Det this_det_rev = this_det;
+        this_det_rev.reverse_spin();
+        double this_coef_new = this_coef * Util::SQRT2_INV;
+  
+        get_2rdm_elements(connected_det, connected_coef_new, connected_ind, this_det, this_coef_new, this_ind);
+        if (this_ind != connected_ind)
+          get_2rdm_elements(connected_det, connected_coef_new, connected_ind, this_det_rev, this_coef_new, this_ind);
+        get_2rdm_elements(connected_det_rev, connected_coef_new, connected_ind, this_det, this_coef_new, this_ind);
+        get_2rdm_elements(connected_det_rev, connected_coef_new, connected_ind, this_det_rev, this_coef_new, this_ind);
       }
     }
   }
-
-  if (Parallel::get_n_procs() > 1) {
-    std::vector<double> global_two_rdm(size_two_rdm);
-
-    double* src_ptr = two_rdm.data();
-    double* dest_ptr = global_two_rdm.data();
-
-    const size_t CHUNK_SIZE = 1 << 27;
-    unsigned n_elems_left = size_two_rdm;
-
-    while (n_elems_left > CHUNK_SIZE) {
-      //MPI_Reduce(src_ptr, dest_ptr, CHUNK_SIZE, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-      MPI_Allreduce(src_ptr, dest_ptr, CHUNK_SIZE, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-      n_elems_left -= CHUNK_SIZE;
-      src_ptr += CHUNK_SIZE;
-      dest_ptr += CHUNK_SIZE;
-    }
-    //MPI_Reduce(src_ptr, dest_ptr, n_elems_left, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-    MPI_Allreduce(src_ptr, dest_ptr, n_elems_left, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-    two_rdm = global_two_rdm;
-  }
-
-  Timer::checkpoint("computing 2RDM");
 }
 
 void RDM::get_2rdm_elements(
     const Det& connected_det,
-    const double& connected_coef,
+    const double connected_coef,
+    const size_t j_det,
     const Det& this_det,
-    const double& this_coef) {
+    const double this_coef,
+    const size_t i_det) {
   //=====================================================
   // Fill in 2RDM for a given pair of dets. When the two dets
   // are not idential also do the pair in reverse order since
@@ -749,12 +674,11 @@ void RDM::get_2rdm_elements(
         for (unsigned j_elec = i_elec + 1; j_elec < n_up; j_elec++) {
           unsigned s = occ_up[i_elec];
           unsigned r = occ_up[j_elec];
-          double element = this_coef * connected_coef;
 
-          write_in_2rdm(s, r, r, s, element);
-          write_in_2rdm(s, r, s, r, -element);
-          write_in_2rdm(r, s, s, r, element);
-          write_in_2rdm(r, s, r, s, -element);
+          write_in_2rdm_and_hessian_co(s, r, r, s, 1., i_det, this_coef, j_det, connected_coef);
+          write_in_2rdm_and_hessian_co(s, r, s, r, -1., i_det, this_coef, j_det, connected_coef);
+          write_in_2rdm_and_hessian_co(r, s, s, r, 1., i_det, this_coef, j_det, connected_coef);
+          write_in_2rdm_and_hessian_co(r, s, r, s, -1., i_det, this_coef, j_det, connected_coef);
         }
       }
 
@@ -763,12 +687,11 @@ void RDM::get_2rdm_elements(
         for (unsigned j_elec = i_elec + 1; j_elec < n_dn; j_elec++) {
           unsigned s = occ_dn[i_elec];
           unsigned r = occ_dn[j_elec];
-          double element = this_coef * connected_coef;
 
-          write_in_2rdm(s, r, r, s, element);
-          write_in_2rdm(s, r, s, r, -element);
-          write_in_2rdm(r, s, s, r, element);
-          write_in_2rdm(r, s, r, s, -element);
+          write_in_2rdm_and_hessian_co(s, r, r, s, 1., i_det, this_coef, j_det, connected_coef);
+          write_in_2rdm_and_hessian_co(s, r, s, r, -1., i_det, this_coef, j_det, connected_coef);
+          write_in_2rdm_and_hessian_co(r, s, s, r, 1., i_det, this_coef, j_det, connected_coef);
+          write_in_2rdm_and_hessian_co(r, s, r, s, -1., i_det, this_coef, j_det, connected_coef);
         }
       }
 
@@ -777,10 +700,9 @@ void RDM::get_2rdm_elements(
         for (unsigned j_elec = 0; j_elec < n_dn; j_elec++) {
           unsigned s = occ_up[i_elec];
           unsigned r = occ_dn[j_elec];
-          double element = this_coef * connected_coef;
 
-          write_in_2rdm(s, r, r, s, element);
-          write_in_2rdm(r, s, s, r, element);
+          write_in_2rdm_and_hessian_co(s, r, r, s, 1., i_det, this_coef, j_det, connected_coef);
+          write_in_2rdm_and_hessian_co(r, s, s, r, 1., i_det, this_coef, j_det, connected_coef);
         }
       }
 
@@ -792,36 +714,34 @@ void RDM::get_2rdm_elements(
       for (unsigned i_elec = 0; i_elec < n_dn; i_elec++) {
         unsigned p = occ_dn[i_elec];
         if ((p != b1) && (p != b2)) {
-          double element = this_coef * connected_coef * permfac_ccaa(this_det.dn, p, b2, b1, p);
+          double perm_fac = permfac_ccaa(this_det.dn, p, b2, b1, p);
 
-          write_in_2rdm(p, b2, b1, p, element);
-          write_in_2rdm(b2, p, b1, p, -element);
-          write_in_2rdm(p, b2, p, b1, -element);
-          write_in_2rdm(b2, p, p, b1, element);
+          write_in_2rdm_and_hessian_co(p, b2, b1, p, perm_fac, i_det, this_coef, j_det, connected_coef);
+          write_in_2rdm_and_hessian_co(b2, p, b1, p, -perm_fac,i_det, this_coef, j_det, connected_coef);
+          write_in_2rdm_and_hessian_co(p, b2, p, b1, -perm_fac,i_det, this_coef, j_det, connected_coef);
+          write_in_2rdm_and_hessian_co(b2, p, p, b1, perm_fac, i_det, this_coef, j_det, connected_coef);
 
-          element = this_coef * connected_coef * permfac_ccaa(connected_det.dn, p, b1, b2, p);
+          perm_fac = permfac_ccaa(connected_det.dn, p, b1, b2, p);
 
-          write_in_2rdm(p, b1, b2, p, element);
-          write_in_2rdm(b1, p, b2, p, -element);
-          write_in_2rdm(p, b1, p, b2, -element);
-          write_in_2rdm(b1, p, p, b2, element);
+          write_in_2rdm_and_hessian_co(p, b1, b2, p, perm_fac,i_det, this_coef, j_det, connected_coef);
+          write_in_2rdm_and_hessian_co(b1, p, b2, p, -perm_fac,i_det, this_coef, j_det, connected_coef);
+          write_in_2rdm_and_hessian_co(p, b1, p, b2, -perm_fac,i_det, this_coef, j_det, connected_coef);
+          write_in_2rdm_and_hessian_co(b1, p, p, b2, perm_fac, i_det, this_coef, j_det, connected_coef);
         }
       }
 
       // (3) (4)
       for (unsigned i_elec = 0; i_elec < n_up; i_elec++) {
         unsigned p = occ_up[i_elec];
-        double element =
-            this_coef * connected_coef * connected_det.dn.diff(this_det.dn).permutation_factor;
+        double perm_fac = connected_det.dn.diff(this_det.dn).permutation_factor;
 
-        write_in_2rdm(p, b2, b1, p, element);
-        write_in_2rdm(b2, p, p, b1, element);
+        write_in_2rdm_and_hessian_co(p, b2, b1, p, perm_fac, i_det, this_coef, j_det, connected_coef);
+        write_in_2rdm_and_hessian_co(b2, p, p, b1, perm_fac,i_det, this_coef, j_det, connected_coef);
 
-        element =
-            this_coef * connected_coef * this_det.dn.diff(connected_det.dn).permutation_factor;
+        perm_fac = this_det.dn.diff(connected_det.dn).permutation_factor;
 
-        write_in_2rdm(p, b1, b2, p, element);
-        write_in_2rdm(b1, p, p, b2, element);
+        write_in_2rdm_and_hessian_co(p, b1, b2, p, perm_fac,i_det, this_coef, j_det, connected_coef);
+        write_in_2rdm_and_hessian_co(b1, p, p, b2, perm_fac,i_det, this_coef, j_det, connected_coef);
       }
 
     } else if (connected_det.dn.diff(this_det.dn).n_diffs == 2) {  // 2 beta excitations apart
@@ -830,20 +750,19 @@ void RDM::get_2rdm_elements(
       unsigned b3 = connected_det.dn.diff(this_det.dn).left_only[0];  // to
       unsigned b4 = connected_det.dn.diff(this_det.dn).left_only[1];
 
-      double element =
-          this_coef * connected_coef * connected_det.dn.diff(this_det.dn).permutation_factor;
+      double perm_fac = connected_det.dn.diff(this_det.dn).permutation_factor;
 
-      write_in_2rdm(b3, b4, b2, b1, element);
-      write_in_2rdm(b3, b4, b1, b2, -element);
-      write_in_2rdm(b4, b3, b2, b1, -element);
-      write_in_2rdm(b4, b3, b1, b2, element);
+      write_in_2rdm_and_hessian_co(b3, b4, b2, b1, perm_fac, i_det, this_coef, j_det, connected_coef);
+      write_in_2rdm_and_hessian_co(b3, b4, b1, b2, -perm_fac,i_det, this_coef, j_det, connected_coef);
+      write_in_2rdm_and_hessian_co(b4, b3, b2, b1, -perm_fac,i_det, this_coef, j_det, connected_coef);
+      write_in_2rdm_and_hessian_co(b4, b3, b1, b2, perm_fac, i_det, this_coef, j_det, connected_coef);
 
-      element = this_coef * connected_coef * this_det.dn.diff(connected_det.dn).permutation_factor;
+      perm_fac = this_det.dn.diff(connected_det.dn).permutation_factor;
 
-      write_in_2rdm(b1, b2, b4, b3, element);
-      write_in_2rdm(b1, b2, b3, b4, -element);
-      write_in_2rdm(b2, b1, b4, b3, -element);
-      write_in_2rdm(b2, b1, b3, b4, element);
+      write_in_2rdm_and_hessian_co(b1, b2, b4, b3, perm_fac, i_det, this_coef, j_det, connected_coef);
+      write_in_2rdm_and_hessian_co(b1, b2, b3, b4, -perm_fac,i_det, this_coef, j_det, connected_coef);
+      write_in_2rdm_and_hessian_co(b2, b1, b4, b3, -perm_fac,i_det, this_coef, j_det, connected_coef);
+      write_in_2rdm_and_hessian_co(b2, b1, b3, b4, perm_fac, i_det, this_coef, j_det, connected_coef);
     }
 
     // 1 alpha excitation apart
@@ -856,19 +775,19 @@ void RDM::get_2rdm_elements(
       for (unsigned i_elec = 0; i_elec < n_up; i_elec++) {
         unsigned p = occ_up[i_elec];
         if ((p != a1) && (p != a2)) {
-          double element = this_coef * connected_coef * permfac_ccaa(this_det.up, p, a2, a1, p);
+          double perm_fac = permfac_ccaa(this_det.up, p, a2, a1, p);
 
-          write_in_2rdm(p, a2, a1, p, element);
-          write_in_2rdm(p, a2, p, a1, -element);
-          write_in_2rdm(a2, p, a1, p, -element);
-          write_in_2rdm(a2, p, p, a1, element);
+          write_in_2rdm_and_hessian_co(p, a2, a1, p, perm_fac,i_det, this_coef, j_det, connected_coef);  
+          write_in_2rdm_and_hessian_co(p, a2, p, a1, -perm_fac,i_det, this_coef, j_det, connected_coef);
+          write_in_2rdm_and_hessian_co(a2, p, a1, p, -perm_fac,i_det, this_coef, j_det, connected_coef);
+          write_in_2rdm_and_hessian_co(a2, p, p, a1, perm_fac, i_det, this_coef, j_det, connected_coef);
 
-          element = this_coef * connected_coef * permfac_ccaa(connected_det.up, p, a1, a2, p);
+          perm_fac = permfac_ccaa(connected_det.up, p, a1, a2, p);
 
-          write_in_2rdm(p, a1, a2, p, element);
-          write_in_2rdm(p, a1, p, a2, -element);
-          write_in_2rdm(a1, p, a2, p, -element);
-          write_in_2rdm(a1, p, p, a2, element);
+          write_in_2rdm_and_hessian_co(p, a1, a2, p, perm_fac, i_det, this_coef, j_det, connected_coef);
+          write_in_2rdm_and_hessian_co(p, a1, p, a2, -perm_fac,i_det, this_coef, j_det, connected_coef);
+          write_in_2rdm_and_hessian_co(a1, p, a2, p, -perm_fac,i_det, this_coef, j_det, connected_coef);
+          write_in_2rdm_and_hessian_co(a1, p, p, a2, perm_fac, i_det, this_coef, j_det, connected_coef);
         }
       }
 
@@ -876,17 +795,15 @@ void RDM::get_2rdm_elements(
       for (unsigned i_elec = 0; i_elec < n_dn; i_elec++) {
         unsigned p = occ_dn[i_elec];
 
-        double element =
-            this_coef * connected_coef * connected_det.up.diff(this_det.up).permutation_factor;
+        double perm_fac = connected_det.up.diff(this_det.up).permutation_factor;
 
-        write_in_2rdm(a2, p, p, a1, element);
-        write_in_2rdm(p, a2, a1, p, element);
+        write_in_2rdm_and_hessian_co(a2, p, p, a1, perm_fac, i_det, this_coef, j_det, connected_coef);
+        write_in_2rdm_and_hessian_co(p, a2, a1, p, perm_fac, i_det, this_coef, j_det, connected_coef);
 
-        element =
-            this_coef * connected_coef * this_det.up.diff(connected_det.up).permutation_factor;
+        perm_fac = this_det.up.diff(connected_det.up).permutation_factor;
 
-        write_in_2rdm(a1, p, p, a2, element);
-        write_in_2rdm(p, a1, a2, p, element);
+        write_in_2rdm_and_hessian_co(a1, p, p, a2, perm_fac, i_det, this_coef, j_det, connected_coef);
+        write_in_2rdm_and_hessian_co(p, a1, a2, p, perm_fac, i_det, this_coef, j_det, connected_coef);
       }
 
     } else if (connected_det.dn.diff(this_det.dn).n_diffs == 1) {  // 1 beta excitation apart
@@ -895,18 +812,17 @@ void RDM::get_2rdm_elements(
       unsigned b1 = connected_det.dn.diff(this_det.dn).right_only[0];  // dn from
       unsigned b2 = connected_det.dn.diff(this_det.dn).left_only[0];  // dn to
 
-      double element = this_coef * connected_coef *
-                       connected_det.up.diff(this_det.up).permutation_factor *
+      double perm_fac = connected_det.up.diff(this_det.up).permutation_factor *
                        connected_det.dn.diff(this_det.dn).permutation_factor;
 
-      write_in_2rdm(a2, b2, b1, a1, element);
-      write_in_2rdm(b2, a2, a1, b1, element);
+      write_in_2rdm_and_hessian_co(a2, b2, b1, a1, perm_fac, i_det, this_coef, j_det, connected_coef);
+      write_in_2rdm_and_hessian_co(b2, a2, a1, b1, perm_fac, i_det, this_coef, j_det, connected_coef);
 
-      element = this_coef * connected_coef * this_det.up.diff(connected_det.up).permutation_factor *
+      perm_fac = this_det.up.diff(connected_det.up).permutation_factor *
                 this_det.dn.diff(connected_det.dn).permutation_factor;
 
-      write_in_2rdm(a1, b1, b2, a2, element);
-      write_in_2rdm(b1, a1, a2, b2, element);
+      write_in_2rdm_and_hessian_co(a1, b1, b2, a2, perm_fac, i_det, this_coef, j_det, connected_coef);
+      write_in_2rdm_and_hessian_co(b1, a1, a2, b2, perm_fac, i_det, this_coef, j_det, connected_coef);
     }
 
     // 2 alpha excitations apart
@@ -917,41 +833,103 @@ void RDM::get_2rdm_elements(
       unsigned a3 = connected_det.up.diff(this_det.up).left_only[0];  // to
       unsigned a4 = connected_det.up.diff(this_det.up).left_only[1];
 
-      double element =
-          this_coef * connected_coef * connected_det.up.diff(this_det.up).permutation_factor;
+      double perm_fac = connected_det.up.diff(this_det.up).permutation_factor;
 
-      write_in_2rdm(a3, a4, a2, a1, element);
-      write_in_2rdm(a3, a4, a1, a2, -element);
-      write_in_2rdm(a4, a3, a2, a1, -element);
-      write_in_2rdm(a4, a3, a1, a2, element);
+      write_in_2rdm_and_hessian_co(a3, a4, a2, a1, perm_fac, i_det, this_coef, j_det, connected_coef);
+      write_in_2rdm_and_hessian_co(a3, a4, a1, a2, -perm_fac,i_det, this_coef, j_det, connected_coef);
+      write_in_2rdm_and_hessian_co(a4, a3, a2, a1, -perm_fac,i_det, this_coef, j_det, connected_coef);
+      write_in_2rdm_and_hessian_co(a4, a3, a1, a2, perm_fac, i_det, this_coef, j_det, connected_coef);
 
-      element = this_coef * connected_coef * this_det.up.diff(connected_det.up).permutation_factor;
+      perm_fac = this_det.up.diff(connected_det.up).permutation_factor;
 
-      write_in_2rdm(a1, a2, a4, a3, element);
-      write_in_2rdm(a1, a2, a3, a4, -element);
-      write_in_2rdm(a2, a1, a4, a3, -element);
-      write_in_2rdm(a2, a1, a3, a4, element);
+      write_in_2rdm_and_hessian_co(a1, a2, a4, a3, perm_fac, i_det, this_coef, j_det, connected_coef);
+      write_in_2rdm_and_hessian_co(a1, a2, a3, a4, -perm_fac,i_det, this_coef, j_det, connected_coef);
+      write_in_2rdm_and_hessian_co(a2, a1, a4, a3, -perm_fac,i_det, this_coef, j_det, connected_coef);
+      write_in_2rdm_and_hessian_co(a2, a1, a3, a4, perm_fac, i_det, this_coef, j_det, connected_coef);
     }
   }
 }
 
-void RDM::write_in_2rdm(size_t p, size_t q, size_t r, size_t s, double value) {
+void RDM::write_in_2rdm_and_hessian_co(const unsigned p, const unsigned q, const unsigned r, const unsigned s, const int perm_fac,
+		const size_t i_det, const double coef_i, const size_t j_det, const double coef_j) {
+  // <psi_{i_det}| c^+_p c^+_q c_r c_s | psi_{j_det}>
   // By symmetry (p,s)<->(q,r) only half of the 2RDM needs storing.
   size_t a = p * n_orbs + s;
   size_t b = q * n_orbs + r;
   if (a >= b)
 #pragma omp atomic
-    two_rdm[(a * (a + 1)) / 2 + b] += value;
+    two_rdm[(a * (a + 1)) / 2 + b] += perm_fac * coef_i * coef_j;
+    
+  if (hessian_ci_orb_p) {
+    for (unsigned t = p + 1; t < n_orbs; t++) {
+      if (indices2index(p, t) >= 0) {
+#pragma omp atomic
+        (*hessian_ci_orb_p)(i_det, indices2index(p, t)) += 2 * coef_j * integrals.get_2b(t, s, q, r) * perm_fac;
+      }
+    }
+    for (unsigned t = 0; t < p; t++) {
+      if (indices2index(t, p) >= 0) {
+#pragma omp atomic
+        (*hessian_ci_orb_p)(i_det, indices2index(t, p)) -= 2 * coef_j * integrals.get_2b(t, s, q, r) * perm_fac;
+      }
+    }
+    for (unsigned t = 0; t < p; t++) {
+      if (indices2index(t, p) >= 0) {
+#pragma omp atomic
+        (*hessian_ci_orb_p)(j_det, indices2index(t, p)) -= 2 * coef_i * integrals.get_2b(t, s, q, r) * perm_fac;
+      }
+    }
+    for (unsigned t = p + 1; t < n_orbs; t++) {
+      if (indices2index(p, t) >= 0) {
+#pragma omp atomic
+        (*hessian_ci_orb_p)(j_det, indices2index(p, t)) += 2 * coef_i * integrals.get_2b(t, s, q, r) * perm_fac;
+      }
+    }
+  }
 }
 
-double RDM::one_rdm_elem(unsigned p, unsigned q) const { return one_rdm(p, q); }
+void RDM::MPI_Allreduce_2rdm() {
+  // MPI_Allreduce after computing on mutiple nodes
+  if (Parallel::get_n_procs() > 1) {
+    std::vector<double> global_two_rdm(two_rdm.size());
 
-double RDM::two_rdm_elem(unsigned p, unsigned q, unsigned r, unsigned s) const {
+    double* src_ptr = two_rdm.data();
+    double* dest_ptr = global_two_rdm.data();
+
+    const size_t CHUNK_SIZE = 1 << 27;
+    unsigned n_elems_left = two_rdm.size();
+
+    while (n_elems_left > CHUNK_SIZE) {
+      //MPI_Reduce(src_ptr, dest_ptr, CHUNK_SIZE, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+      MPI_Allreduce(src_ptr, dest_ptr, CHUNK_SIZE, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      n_elems_left -= CHUNK_SIZE;
+      src_ptr += CHUNK_SIZE;
+      dest_ptr += CHUNK_SIZE;
+    }
+    //MPI_Reduce(src_ptr, dest_ptr, n_elems_left, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+    MPI_Allreduce(src_ptr, dest_ptr, n_elems_left, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    two_rdm = global_two_rdm;
+  }
+}
+
+void RDM::prepare_for_writing_in_hessian_ci_orb(
+    const std::vector<index_t>& parameter_indices,
+    Matrix<float, Dynamic, Dynamic, RowMajor>* const hessian_ci_orb_p_) {
+  hessian_ci_orb_p = hessian_ci_orb_p_;
+  indices2index = MatrixXi::Constant(n_orbs, n_orbs, -1);
+  for (size_t i = 0; i < parameter_indices.size(); i++) {
+    indices2index(parameter_indices[i].first, parameter_indices[i].second) = static_cast<int>(i);
+  }
+}
+
+double RDM::one_rdm_elem(const unsigned p, const unsigned q) const { return one_rdm(p, q); }
+
+double RDM::two_rdm_elem(const unsigned p, const unsigned q, const unsigned r, const unsigned s) const {
   return two_rdm[combine4_2rdm(p, q, r, s)];
 }
 
 void RDM::get_1rdm_from_2rdm() {
-  // construct 1rdm from 2rdm //move to chem_system.cc
+  // construct 1rdm from 2rdm
   one_rdm = MatrixXd::Zero(n_orbs, n_orbs);
   for (unsigned p = 0; p < n_orbs; p++) {
     for (unsigned s = 0; s < n_orbs; s++) {
@@ -996,7 +974,7 @@ void RDM::compute_energy_from_rdm() const {
 
   for (unsigned p = 0; p < n_orbs; p++) {
     for (unsigned q = 0; q < n_orbs; q++) {
-      onebody += tmp_1rdm(p, q) * integrals_p->get_1b(p, q);
+      onebody += tmp_1rdm(p, q) * integrals.get_1b(p, q);
     }
   }
 
@@ -1004,7 +982,7 @@ void RDM::compute_energy_from_rdm() const {
     for (unsigned q = 0; q < n_orbs; q++) {
       for (unsigned r = 0; r < n_orbs; r++) {
         for (unsigned s = 0; s < n_orbs; s++) {
-          twobody += 0.5 * two_rdm_elem(p, q, r, s) * integrals_p->get_2b(p, s, q, r);
+          twobody += 0.5 * two_rdm_elem(p, q, r, s) * integrals.get_2b(p, s, q, r);
         }
       }
     }
@@ -1012,8 +990,8 @@ void RDM::compute_energy_from_rdm() const {
 
   std::printf(
       "Energy:\ncore: %.10f\none-body: %.10f\ntwo-body: %.10f\ntotal: %.10f\n",
-      integrals_p->energy_core,
+      integrals.energy_core,
       onebody,
       twobody,
-      onebody + twobody + integrals_p->energy_core);
+      onebody + twobody + integrals.energy_core);
 }

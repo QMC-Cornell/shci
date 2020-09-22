@@ -212,7 +212,8 @@ void Solver<S>::optimization_run() {
 
     prev_energy_var = system.energy_var[0];
 
-    system.post_variation_optimization(nullptr, "natorb");
+    SparseMatrix place_holder;
+    system.post_variation_optimization(place_holder, "natorb");
 
     eps_tried_prev.clear();
     var_dets.clear_and_shrink();
@@ -244,8 +245,8 @@ void Solver<S>::optimization_run() {
     Timer::end();
 
     run_all_variations();
-    connections = hamiltonian.matrix.get_connections();
-    hamiltonian.clear();
+    
+    //hamiltonian.clear();
 
     diff_energy_var = system.energy_var[0] - prev_energy_var;
     if (Parallel::is_master()) {
@@ -288,8 +289,9 @@ void Solver<S>::optimization_run() {
 
     prev_energy_var = system.energy_var[0];
 
-    system.post_variation_optimization(&connections, method);
+    system.post_variation_optimization(hamiltonian.matrix, method);
 
+    hamiltonian.clear();
     connections.clear();
     connections.shrink_to_fit();
 
