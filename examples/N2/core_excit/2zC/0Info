@@ -1,0 +1,7 @@
+The orbital optimization is done in subdirectory opt_orb using a large value
+of eps_var and then the longer run to converge the energy is done here.
+To see the variational energy:
+grep 'Final it.*eps' out7
+To see the total energy:
+grep '^Total e' out7
+The summary is in the file "energy".

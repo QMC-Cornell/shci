@@ -12,6 +12,7 @@ void HegSystem::setup(const bool) {
   n_dn = Config::get<unsigned>("n_dn");
   n_elecs = n_up + n_dn;
   Result::put("n_elecs", n_elecs);
+  n_states = Config::get<unsigned>("n_states", 1);
 
   r_s = Config::get<double>("heg/r_s");
   r_cut = Config::get<double>("heg/r_cut");
@@ -133,21 +134,26 @@ void HegSystem::setup_hf() {
   }
 
   dets.push_back(det_hf);
-  coefs.push_back(1.0);
+  coefs.resize(n_states);
+  coefs[0].push_back(1.0);
+  for (unsigned i_state = 1; i_state < n_states; i_state++) {
+    coefs[i_state].push_back(1e-16);
+  }
 }
 
-void HegSystem::find_connected_dets(
+double HegSystem::find_connected_dets(
     const Det& det,
     const double eps_max,
     const double eps_min,
-    const std::function<void(const Det&, const int n_excite)>& handler) const {
-  if (eps_max < eps_min) return;
+    const std::function<void(const Det&, const int n_excite)>& handler,
+    const bool) const {
+  if (eps_max < eps_min) return eps_min;
 
   const auto& occ_orbs_up = det.up.get_occupied_orbs();
   const auto& occ_orbs_dn = det.dn.get_occupied_orbs();
 
   // Add double excitations.
-  if (eps_min > max_abs_H) return;
+  if (eps_min > max_abs_H) return eps_min;
   for (unsigned p_id = 0; p_id < n_elecs; p_id++) {
     for (unsigned q_id = p_id + 1; q_id < n_elecs; q_id++) {
       const unsigned p = p_id < n_up ? occ_orbs_up[p_id] : occ_orbs_dn[p_id - n_up] + n_orbs;
@@ -199,6 +205,7 @@ void HegSystem::find_connected_dets(
       }
     }
   }
+  return eps_min;
 }
 
 double HegSystem::get_hamiltonian_elem(

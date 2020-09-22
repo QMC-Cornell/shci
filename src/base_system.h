@@ -22,6 +22,8 @@ class BaseSystem {
 
   unsigned n_elecs = 0;
 
+  unsigned n_states = 1;
+
   bool time_sym = false;
 
   bool has_single_excitation = true;
@@ -30,13 +32,19 @@ class BaseSystem {
 
   double energy_hf = 0.0;
 
-  double energy_var = 0.0;
+  std::vector<double> energy_var = std::vector<double>(n_states, 0.0);
 
   size_t helper_size = 0;
 
+  double energy_hf_1b = 0.0; // used in second rejection
+
+  double second_rejection_factor = 0.2;
+  
   std::vector<Det> dets;
 
-  std::vector<double> coefs;
+  //std::vector<double> coefs;
+
+  std::vector<std::vector<double>> coefs;
 
   fgpl::HashMap<HalfDet, double, HalfDetHasher> diag_helper;
 
@@ -44,11 +52,14 @@ class BaseSystem {
 
   virtual void setup(const bool){};
 
-  virtual void find_connected_dets(
+  virtual double get_e_hf_1b() const { return 0.; }
+
+  virtual double find_connected_dets(
       const Det& det,
       const double eps_max,
       const double eps_min,
-      const std::function<void(const Det&, const int n_excite)>& handler) const = 0;
+      const std::function<void(const Det&, const int n_excite)>& handler,
+      const bool second_rejection) const = 0;
 
   virtual double get_hamiltonian_elem(
       const Det& det_i, const Det& det_j, const int n_excite) const = 0;
@@ -88,10 +99,12 @@ class BaseSystem {
       if (det.up < det.dn) {
         Det det_rev = det;
         det_rev.reverse_spin();
-        const double coef_new = coefs[i] * Util::SQRT2_INV;
-        coefs[i] = coef_new;
+	for (auto& state_coefs: coefs) {
+          const double coef_new = state_coefs[i] * Util::SQRT2_INV;
+          state_coefs[i] = coef_new;
+          state_coefs.push_back(coef_new);
+	}
         dets.push_back(det_rev);
-        coefs.push_back(coef_new);
       }
     }
   }

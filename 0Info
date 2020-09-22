@@ -1,5 +1,6 @@
 To get the code:
 git clone --recursive https://github.com/QMC-Cornell/shci
+old location: git clone https://github.com/jl2922/shci
 
 
 To contribute:
