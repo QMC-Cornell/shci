@@ -43,12 +43,12 @@ public:
   Optimization(Integrals& integrals_, 
 		SparseMatrix& hamiltonian_matrix_,
 		const std::vector<Det>& dets_,
-		const std::vector<double>& wf_coefs_): 
+		const std::vector<std::vector<double>>& wf_coefs_): 
 	integrals(integrals_),
 	hamiltonian_matrix(hamiltonian_matrix_),
-        rdm(integrals),
         dets(dets_),
         wf_coefs(wf_coefs_),
+        rdm(integrals, dets, wf_coefs),
         n_orbs(integrals_.n_orbs)
   {
     rot = MatrixXd::Zero(n_orbs, n_orbs);
@@ -66,8 +66,6 @@ public:
 
   void generate_optorb_integrals_from_bfgs();
 
-  void get_optorb_rotation_matrix_from_full_optimization(const double e_var);
-
   void rotate_and_rewrite_integrals();
 
   MatrixXd rotation_matrix() const { return rot; };
@@ -76,12 +74,12 @@ private:
   Integrals& integrals;
   
   SparseMatrix& hamiltonian_matrix;
-
-  RDM rdm;
-
+  
   const std::vector<Det>& dets;
 
-  const std::vector<double>& wf_coefs;
+  const std::vector<std::vector<double>>& wf_coefs;
+
+  RDM rdm;
 
   const unsigned n_orbs;
 

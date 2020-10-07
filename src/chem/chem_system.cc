@@ -602,14 +602,14 @@ double ChemSystem::get_two_body_double(const DiffResult& diff_up, const DiffResu
 
 void ChemSystem::post_variation(std::vector<std::vector<size_t>>& connections) {
   if (Config::get<bool>("get_1rdm_csv", false)) {
-    RDM rdm(integrals);
-    rdm.get_1rdm(dets, coefs[0]);
+    RDM rdm(integrals, dets, coefs);
+    rdm.get_1rdm();
     rdm.dump_1rdm();
   }
 
   if (Config::get<bool>("2rdm", false) || Config::get<bool>("get_2rdm_csv", false)) {
-    RDM rdm(integrals);
-    rdm.get_2rdm(dets, coefs[0], connections);
+    RDM rdm(integrals, dets, coefs);
+    rdm.get_2rdm(connections);
     connections.clear();
     rdm.dump_2rdm(Config::get<bool>("get_2rdm_csv", false));
   }
@@ -624,16 +624,6 @@ void ChemSystem::post_variation(std::vector<std::vector<size_t>>& connections) {
     const double s2 = get_s2(coefs[0]);
     Result::put("s2", s2);
   }
-
-  if (Config::get<bool>("2rdm_slow", false)) {
-    if (time_sym && !unpacked) {
-      unpack_time_sym();
-      unpacked = true;
-    }
-    RDM rdm(integrals);
-    rdm.get_2rdm_slow(dets, coefs[0]);
-    rdm.dump_2rdm(Config::get<bool>("get_2rdm_csv", false));
-  }
 }
 
 void ChemSystem::post_variation_optimization(
@@ -642,7 +632,7 @@ void ChemSystem::post_variation_optimization(
 
   if (method == "natorb") {  // natorb optimization
     hamiltonian_matrix.clear();
-    Optimization natorb_optimizer(integrals, hamiltonian_matrix, dets, coefs[0]);
+    Optimization natorb_optimizer(integrals, hamiltonian_matrix, dets, coefs);
 
     Timer::start("Natorb optimization");
     natorb_optimizer.get_natorb_rotation_matrix();
@@ -654,7 +644,7 @@ void ChemSystem::post_variation_optimization(
     natorb_optimizer.rotate_and_rewrite_integrals();
 
   } else {  // optorb optimization
-    Optimization optorb_optimizer(integrals, hamiltonian_matrix, dets, coefs[0]);
+    Optimization optorb_optimizer(integrals, hamiltonian_matrix, dets, coefs);
 
     if (Util::str_equals_ci("newton", method)) {
       Timer::start("Newton optimization");
@@ -668,9 +658,6 @@ void ChemSystem::post_variation_optimization(
     } else if (Util::str_equals_ci("bfgs", method)) {
       Timer::start("BFGS optimization");
       optorb_optimizer.generate_optorb_integrals_from_bfgs();
-    } else if (Util::str_equals_ci("full_optimization", method)) {
-      Timer::start("Full optimization");
-      optorb_optimizer.get_optorb_rotation_matrix_from_full_optimization(energy_var[0]);
     } else {
       Timer::start("Approximate Newton optimization");
       optorb_optimizer.get_optorb_rotation_matrix_from_approximate_newton();

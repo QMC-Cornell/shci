@@ -17,8 +17,7 @@ void Optimization::get_natorb_rotation_matrix() {
   // Created: Y. Yao, June 2018
   //======================================================
 
-  RDM rdm(integrals);
-  rdm.get_1rdm(dets, wf_coefs);
+  rdm.get_1rdm();
 
   std::vector<unsigned int> orb_sym = integrals.orb_sym;
 
@@ -245,7 +244,7 @@ void Optimization::rewrite_integrals() {
 }
 
 void Optimization::get_optorb_rotation_matrix_from_newton() {
-  rdm.get_2rdm(dets, wf_coefs, hamiltonian_matrix);
+  rdm.get_2rdm(hamiltonian_matrix);
   rdm.get_1rdm_from_2rdm();
   std::vector<index_t> param_indices = parameter_indices();
   VectorXd grad = gradient(param_indices);
@@ -306,7 +305,7 @@ void Optimization::get_optorb_rotation_matrix_from_newton() {
 }
 
 void Optimization::get_optorb_rotation_matrix_from_approximate_newton() {
-  rdm.get_2rdm(dets, wf_coefs, hamiltonian_matrix);
+  rdm.get_2rdm(hamiltonian_matrix);
   rdm.get_1rdm_from_2rdm();
   std::vector<index_t> param_indices = parameter_indices();
   VectorXd grad = gradient(param_indices);
@@ -370,7 +369,7 @@ void Optimization::get_optorb_rotation_matrix_from_approximate_newton() {
 }
 
 void Optimization::get_optorb_rotation_matrix_from_grad_descent() {
-  rdm.get_2rdm(dets, wf_coefs, hamiltonian_matrix);
+  rdm.get_2rdm(hamiltonian_matrix);
   rdm.get_1rdm_from_2rdm();
   std::vector<index_t> param_indices = parameter_indices();
 
@@ -382,7 +381,7 @@ void Optimization::get_optorb_rotation_matrix_from_grad_descent() {
 }
 
 void Optimization::get_optorb_rotation_matrix_from_amsgrad() {
-  rdm.get_2rdm(dets, wf_coefs, hamiltonian_matrix);
+  rdm.get_2rdm(hamiltonian_matrix);
   rdm.get_1rdm_from_2rdm();
   std::vector<index_t> param_indices = parameter_indices();
   unsigned dim = param_indices.size();
@@ -420,7 +419,7 @@ void Optimization::get_optorb_rotation_matrix_from_amsgrad() {
 }
 
 void Optimization::generate_optorb_integrals_from_bfgs() {
-  rdm.get_2rdm(dets, wf_coefs, hamiltonian_matrix);
+  rdm.get_2rdm(hamiltonian_matrix);
   rdm.get_1rdm_from_2rdm();
   std::vector<index_t> param_indices = parameter_indices();
   unsigned dim = param_indices.size();
@@ -454,109 +453,6 @@ void Optimization::generate_optorb_integrals_from_bfgs() {
 
   fill_rot_matrix_with_parameters(new_param, param_indices);
   rotate_integrals();
-}
-
-void Optimization::get_optorb_rotation_matrix_from_full_optimization(
-	const double e_var) {
-  std::vector<index_t> param_indices = parameter_indices();
-  size_t n_param = param_indices.size();
-  size_t n_dets = hamiltonian_matrix.count_n_rows();
-  size_t mem_avail = Util::get_mem_avail();
-  if (Parallel::is_master()) printf("Mem available for optimization: %.1f GB", mem_avail * 1e-9);
-  double param_proportion = std::min((mem_avail * 0.8) / (n_dets * n_param * 4), Config::get<double>("optimization/param_proportion", 1.01));
-  VectorXd grad;
-  MatrixXdR hess;
-  if (param_proportion < 1.) {
-    rdm.get_1rdm(dets, wf_coefs);
-    rdm.get_2rdm(dets, wf_coefs, hamiltonian_matrix);
-    grad = gradient(param_indices);
-    VectorXd hess_diagonal = hessian_diagonal(param_indices);
-    param_indices = get_most_important_parameter_indices(grad, hess_diagonal, param_indices, param_proportion);
-    n_param = param_indices.size();
-  }
-  MatrixXfR hess_ci_orb = MatrixXf::Zero(n_dets, n_param);
-  rdm.prepare_for_writing_in_hessian_ci_orb(param_indices, &hess_ci_orb);
-  rdm.get_1rdm(dets, wf_coefs);
-  rdm.get_2rdm(dets, wf_coefs, hamiltonian_matrix);
-  grad = gradient(param_indices);
-  hess = hessian(param_indices);
-  //hess = hessian_diagonal(param_indices).asDiagonal();
-  rdm.clear();
-
-  // one more contribution to hessian_co in addition to rdm elements
-#pragma omp parallel for
-  for (size_t i = 0; i < n_dets; i++) {
-    for (size_t j = 0; j < n_param; j++) hess_ci_orb(i,j) -= 2. * wf_coefs[i] * grad(j);
-  }
-
-  if (Config::get<bool>("time_sym", false)) {
-#pragma omp parallel for
-    for (size_t i = 0; i < n_dets; i++) {
-      if (dets[i].up != dets[i].dn) hess_ci_orb.row(i) *= Util::SQRT2_INV;
-    }
-  }
-
-// estimate if lowest eigenval is negative using pert theory
-double correction = 0.;
-for (size_t i = 0; i < n_param; i++) {
-  if (abs(hess(i, i)) < 1e-12) continue;
-  double correction_i = 0.;
-  for (size_t j = 0; j < n_dets; j++) {
-    correction_i += hess_ci_orb(j, i) * wf_coefs[j];
-  }
-  correction += correction_i * correction_i / (- hess(i, i));
-}
-//VectorXd pt_param = VectorXd::Zero(n_param);
-//for (size_t i = 0; i < n_param; i++) {
-//  double correction_i = 0.;
-//  for (size_t j = 0; j < n_dets; j++) {
-//    correction_i += hess_ci_orb(j, i) * wf_coefs[j];
-//  }
-//  for (size_t j = 0; j < i; j++) {
-//    correction_i += hess(j, i) * pt_param(j);
-//  }
-//  double denominator = correction - hess(i, i);
-//  correction += correction_i * correction_i / denominator;
-//  pt_param(i) = correction_i / denominator;
-//}
-std::cout<<"\npert theory estimate of Hessian lowest eigenval: "<<correction<<std::endl;
-
-  SelfAdjointEigenSolver<MatrixXd> es(hess);
-  double Hoo_lowest = es.eigenvalues().minCoeff();
-  Hoo_lowest = Hoo_lowest < 0 ? Hoo_lowest : 0.;
-  std::cout<<"Hoo_lowest "<<Hoo_lowest<<std::endl;
-
-  // n_dets-1 ci parameters; remove first one.
-  hamiltonian_matrix.zero_out_row(0); 
-
-  std::vector<double> new_param_; 
-  if (Config::get<bool>("optimization/cg", false)) { // conjugate gradient
-    for (size_t j = 0; j < n_param; j++) hess_ci_orb(0, j) = 0.;
-    CGSolver cg(hamiltonian_matrix, hess_ci_orb, hess, e_var, grad);
-    //const double diagonal_shift =  Config::get<double>("optimization/cg_diagonal_shift", 0.);
-    const double diagonal_shift =  Config::get<double>("optimization/cg_diagonal_shift", -10 * Hoo_lowest - 100 * correction);
-    cg.set_diagonal_shift(diagonal_shift);
-    new_param_ = cg.solve(wf_coefs);
-  } else { // augmented hessian
-    const double lambda = Config::get<double>("optimization/ah_lambda", 1.);
-    for (size_t j = 0; j < n_param; j++) hess_ci_orb(0, j) = lambda * grad(j);
-    DavidsonSolver davidson(hamiltonian_matrix, hess_ci_orb, hess, e_var);
-    new_param_ = davidson.solve(wf_coefs);
-    for (auto val: new_param_) val *= lambda;
-  }
-  Map<VectorXd> new_param(new_param_.data(), n_param);
-  
-  if (Parallel::is_master())
-    printf("norm of orbital gradient: %.5f, norm of orbital update: %.5f.\n", grad.norm(),
-           new_param.norm());
-
-  grad.resize(0);
-  hess.resize(0, 0);
-  hess_ci_orb.resize(0, 0);
-  generalized_Fock_matrix.resize(0, 0);
-  hamiltonian_matrix.clear();
-
-  fill_rot_matrix_with_parameters(new_param, param_indices);
 }
 
 std::vector<Optimization::index_t> Optimization::parameter_indices() const {
@@ -619,16 +515,16 @@ void Optimization::fill_rot_matrix_with_parameters(
   Tau2 = es.eigenvalues().transpose(); // Tau^2
   W_matrix = es.eigenvectors();
 
-  double tau, cos_tau, sinc_tau;
 #pragma omp parallel for
   for (unsigned i = 0; i < n_orbs; i++) {
     for (unsigned j = 0; j < n_orbs; j++) {
       for (unsigned k = 0; k < n_orbs; k++) {
+  	double cos_tau, sinc_tau;
         if (std::abs(Tau2(k)) < 1e-10) {
           cos_tau = 1;
           sinc_tau = 1;
         } else {
-          tau = std::sqrt(-Tau2(k));
+          double tau = std::sqrt(-Tau2(k));
           cos_tau = std::cos(tau);
           sinc_tau = std::sin(tau) / tau;
         }
