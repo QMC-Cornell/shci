@@ -447,7 +447,7 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
           for (unsigned i_state = 0; i_state < system.n_states; i_state++) {
             if (n_dets == 1 && i_state > 0)
               system.coefs[i_state].push_back(1.0);
-            else
+            else 
               system.coefs[i_state].push_back(1e-16);
           }
         });

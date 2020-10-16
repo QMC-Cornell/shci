@@ -11,7 +11,7 @@ void Davidson::diagonalize(
     const double target_error,
     const bool verbose) {
   const double TOLERANCE = target_error;
-  const size_t N_ITERATIONS_STORE = 5;
+  const size_t N_ITERATIONS_STORE = 5; // storage per state.
 
   const size_t dim = initial_vectors[0].size();
   const unsigned n_states = std::min(dim, initial_vectors.size());
@@ -63,6 +63,7 @@ void Davidson::diagonalize(
   Eigen::MatrixXd eigenvector_krylov =
       Eigen::MatrixXd::Zero(n_states * n_iterations_store, n_states * n_iterations_store);
   converged = false;
+  size_t n_converged = 0;
 
   for (unsigned i_state = 0; i_state < n_states; i_state++) {
     Hv[i_state] = matrix.mul(v[i_state]);
@@ -79,9 +80,10 @@ void Davidson::diagonalize(
   lowest_eigenvalues_prev = lowest_eigenvalues;
 
   size_t it_real = 1;
+  size_t i_state_precond = 0; // state preconditioning on
   for (size_t it = n_states; it < n_iterations_store * n_states * 3; it++) {
     size_t it_circ = it % (n_states * n_iterations_store);
-    if (it >= n_iterations_store) {
+    if (it >= n_states * n_iterations_store) {
       if (it_circ < n_states - 1) continue;
       if (it_circ == n_states - 1) {
         for (unsigned i_state = 0; i_state < n_states; i_state++) {
@@ -101,16 +103,13 @@ void Davidson::diagonalize(
       }
     }
 
-    size_t i = it_circ % n_states;
 #pragma omp parallel for
     for (size_t j = 0; j < dim; j++) {
-      const double diff_to_diag = lowest_eigenvalues[i] - matrix.get_diag(j);  // diag_elems[j];
+      const double diff_to_diag = lowest_eigenvalues[i_state_precond] - matrix.get_diag(j);  // diag_elems[j];
       if (std::abs(diff_to_diag) < 1.0e-8) {
-        //v[it_circ][j] = (Hw[i][j] - lowest_eigenvalues[i] * w[i][j]) / -1.0e-12;
         v[it_circ][j] = 0.;
       } else {
-        //v[it_circ][j] = (Hw[i][j] - lowest_eigenvalues[i] * w[i][j]) / diff_to_diag;
-        v[it_circ][j] = (Hw[i][j] - lowest_eigenvalues[i] * w[i][j]) / diff_to_diag;
+        v[it_circ][j] = (Hw[i_state_precond][j] - lowest_eigenvalues[i_state_precond] * w[i_state_precond][j]) / diff_to_diag;
       }
     }
 
@@ -123,7 +122,7 @@ void Davidson::diagonalize(
       }
     }
     double norm = sqrt(Util::dot_omp(v[it_circ], v[it_circ]));
-    if (norm<1e-12) {
+    if (norm<1e-12) { // corner case: norm gets small before eigenvalues converge
       converged = true;
       break;
     }
@@ -142,7 +141,7 @@ void Davidson::diagonalize(
     }
 
     // Diagonalize subspace matrix.
-    if ((it_circ + 1) % n_states == 0) {
+    if (i_state_precond + 1 == n_states) {
       Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> eigenSolver(
           h_krylov.leftCols(it_circ + 1).topRows(it_circ + 1));
       const auto& eigenvals = eigenSolver.eigenvalues();  // in ascending order
@@ -172,16 +171,26 @@ void Davidson::diagonalize(
         printf("\n");
       }
       it_real++;
-      for (unsigned i_state = 0; i_state < n_states; i_state++) {
+      for (unsigned i_state = n_converged; i_state < n_states; i_state++) {
         if (std::abs(lowest_eigenvalues[i_state] - lowest_eigenvalues_prev[i_state]) > TOLERANCE) {
           break;
-	}
-        if (i_state == n_states - 1) converged = true;
+        } else {
+          n_converged++;
+        }
       }
+      if (n_converged == n_states) converged = true;
+
       if (!converged) lowest_eigenvalues_prev = lowest_eigenvalues;
 
       if (converged) break;
     }
+    i_state_precond++;
+    if (i_state_precond >= n_states) i_state_precond = n_converged;
   }
   lowest_eigenvectors = w;
+  if (n_states < initial_vectors.size()) { // Corner case for excited states
+    lowest_eigenvectors.resize(initial_vectors.size());
+    for (unsigned i = n_states; i < initial_vectors.size(); i++) 
+      lowest_eigenvectors[i] = initial_vectors[i];
+  }
 }
