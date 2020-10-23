@@ -692,10 +692,15 @@ void ChemSystem::variation_cleanup() {
 void ChemSystem::dump_integrals(const char* filename) {
   integrals.dump_integrals(filename);
   if (Config::get<bool>("optimization/rotation_matrix", false)) {
-    std::ofstream pFile;
-    pFile.open("rotation_matrix");
-    pFile << rotation_matrix;
-    pFile.close();
+    FILE *fp;
+    fp = fopen("rotation_matrix", "w");
+    for (int i = 0; i < rotation_matrix.rows(); i++) {
+      for (int j = 0; j < rotation_matrix.cols(); j++) {
+        fprintf(fp, "%.10f ", rotation_matrix(i, j));
+      }
+      fprintf(fp, "\n");
+    }
+    fclose(fp);
   }
 }
 
