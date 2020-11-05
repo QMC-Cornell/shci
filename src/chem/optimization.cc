@@ -454,16 +454,16 @@ void Optimization::fill_rot_matrix_with_parameters(
   Tau2 = es.eigenvalues().transpose(); // Tau^2
   W_matrix = es.eigenvectors();
 
-  double tau, cos_tau, sinc_tau;
 #pragma omp parallel for
   for (unsigned i = 0; i < n_orbs; i++) {
     for (unsigned j = 0; j < n_orbs; j++) {
       for (unsigned k = 0; k < n_orbs; k++) {
+        double cos_tau, sinc_tau;
         if (std::abs(Tau2(k)) < 1e-10) {
           cos_tau = 1;
           sinc_tau = 1;
         } else {
-          tau = std::sqrt(-Tau2(k));
+          double tau = std::sqrt(-Tau2(k));
           cos_tau = std::cos(tau);
           sinc_tau = std::sin(tau) / tau;
         }
