@@ -38,7 +38,9 @@ class RDM {
 
   void get_1rdm_from_2rdm();
 
-  void dump_2rdm(const bool dump_csv = false) const;
+  void dump_2rdm(const bool dump_csv = false, const char* filename = "two_rdm") const;
+  
+  void dump_1rdm(const char* filename = "one_rdm") const;
 
   double one_rdm_elem(unsigned, unsigned) const;
 

@@ -594,13 +594,15 @@ double ChemSystem::get_two_body_double(const DiffResult& diff_up, const DiffResu
   return energy;
 }
 
-void ChemSystem::post_variation(std::vector<std::vector<size_t>>& connections) {
+void ChemSystem::post_variation(std::vector<std::vector<size_t>>& connections, double eps_var) {
   if (Config::get<bool>("2rdm", false) || Config::get<bool>("get_2rdm_csv", false)) {
     RDM rdm(&integrals);
     Timer::start("get 2rdm");
     rdm.get_2rdm(dets, coefs, connections);
     connections.clear();
-    rdm.dump_2rdm(Config::get<bool>("get_2rdm_csv", false));
+    rdm.dump_2rdm(Config::get<bool>("get_2rdm_csv", false), Util::str_printf("two_rdm_%#.2e", eps_var).c_str());
+    rdm.get_1rdm_from_2rdm();
+    rdm.dump_1rdm(Util::str_printf("one_rdm_%#.2e", eps_var).c_str());
     Timer::end();
   }
 
@@ -733,10 +735,15 @@ void ChemSystem::variation_cleanup() {
 void ChemSystem::dump_integrals(const char* filename) {
   integrals.dump_integrals(filename);
   if (Config::get<bool>("optimization/rotation_matrix", false)) {
-    std::ofstream pFile;
-    pFile.open("rotation_matrix");
-    pFile << rotation_matrix;
-    pFile.close();
+    FILE *fp;
+    fp = fopen("rotation_matrix", "w");
+    for (int i = 0; i < rotation_matrix.rows(); i++) {
+      for (int j = 0; j < rotation_matrix.cols(); j++) {
+        fprintf(fp, "%.10E ", rotation_matrix(i, j));
+      }
+      fprintf(fp, "\n");
+    }
+    fclose(fp);
   }
 }
 

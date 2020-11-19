@@ -62,7 +62,7 @@ class BaseSystem {
 
   virtual void update_diag_helper() = 0;
 
-  virtual void post_variation(std::vector<std::vector<size_t>>&){};
+  virtual void post_variation(std::vector<std::vector<size_t>>&, double eps_var = 0.0){};
 
   virtual void post_variation_optimization(
       std::vector<std::vector<size_t>>*, const std::string&) {};

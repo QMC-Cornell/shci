@@ -27,7 +27,7 @@ class ChemSystem : public BaseSystem {
 
   void update_diag_helper() override;
 
-  void post_variation(std::vector<std::vector<size_t>>& connections) override;
+  void post_variation(std::vector<std::vector<size_t>>& connections, double eps_var = 0.0) override;
 
   void post_variation_optimization(
       std::vector<std::vector<size_t>>* connections_ptr,

@@ -85,25 +85,61 @@ void RDM::get_1rdm(
 
   if (Parallel::is_master()) {
     if (dump_csv) {
-      FILE* pFile;
-      pFile = fopen("1rdm.csv", "w");
-      fprintf(pFile, "p,r,1rdm\n");
+
+      MatrixXd one_rdm_print = MatrixXd::Zero(n_orbs, n_orbs);
       for (unsigned p = 0; p < n_orbs; p++) {
-        for (unsigned r = p; r < n_orbs; r++) {
+        for (unsigned r = 0; r < n_orbs; r++) {
           const double rdm_pr = one_rdm(p, r);
-          if (std::abs(rdm_pr) < 1e-9) continue;
+          const unsigned P = integrals_p->orb_order[p];
+          const unsigned R = integrals_p->orb_order[r];
+          one_rdm_print(P, R) = rdm_pr;
+          one_rdm_print(R, P) = rdm_pr;
+        }
+      }
+     
+      FILE* pFile;
+      pFile = fopen("one_rdm", "w");
+      for (unsigned p = 0; p < n_orbs; p++) {
+        for (unsigned r = 0; r < n_orbs; r++) {
           fprintf(
               pFile,
-              "%d,%d,%#.15g\n",
-              integrals_p->orb_order[p],
-              integrals_p->orb_order[r],
-              rdm_pr);
+              "%#.15g  ",
+              one_rdm_print(p,r));
         }
+        fprintf(pFile, "\n");
       }
       fclose(pFile);
     }
   }
   Timer::checkpoint("computing 1RDM");
+}
+
+void RDM::dump_1rdm(const char* filename) const {
+  if (Parallel::is_master()) {
+    MatrixXd one_rdm_print = MatrixXd::Zero(n_orbs, n_orbs);
+    for (unsigned p = 0; p < n_orbs; p++) {
+      for (unsigned r = 0; r < n_orbs; r++) {
+        const double rdm_pr = one_rdm(p, r);
+        const unsigned P = integrals_p->orb_order[p];
+        const unsigned R = integrals_p->orb_order[r];
+        one_rdm_print(P, R) = rdm_pr;
+        one_rdm_print(R, P) = rdm_pr;
+      }
+    }
+    
+    FILE* pFile;
+    pFile = fopen(filename, "w");
+    for (unsigned p = 0; p < n_orbs; p++) {
+      for (unsigned r = 0; r < n_orbs; r++) {
+        fprintf(
+            pFile,
+            "%#.15g  ",
+            one_rdm_print(p,r));
+      }
+      fprintf(pFile, "\n");
+    }
+    fclose(pFile);
+  }
 }
 
 /*
@@ -552,7 +588,7 @@ int RDM::permfac_ccaa(HalfDet halfket, unsigned p, unsigned q, unsigned r, unsig
     return -1;
 }
 
-void RDM::dump_2rdm(const bool dump_csv) const {
+void RDM::dump_2rdm(const bool dump_csv, const char* filename) const {
   auto orb_order = integrals_p->orb_order;
   auto orb_order_inv = integrals_p->orb_order_inv;
 
@@ -560,22 +596,20 @@ void RDM::dump_2rdm(const bool dump_csv) const {
     std::cout << "writing out 2RDM\n";
 
     if (dump_csv) {  // .csv format
-      FILE* pFile = fopen("2rdm.csv", "w");
-      fprintf(pFile, "p,q,r,s,2rdm\n");
-      for (unsigned p = 0; p < n_orbs; p++) {
-        for (unsigned q = p; q < n_orbs; q++) {
-          for (unsigned s = 0; s < n_orbs; s++) {
-            for (unsigned r = 0; r < n_orbs; r++) {
-              if (p == q && s > r) continue;
+      FILE* pFile = fopen(filename, "w");
+      for (unsigned r = 0; r < n_orbs; r++) {
+        for (unsigned s = 0; s < n_orbs; s++) {
+          for (unsigned q = 0; q < n_orbs; q++) {
+            for (unsigned p = 0; p < n_orbs; p++) {
               const double rdm_pqrs = two_rdm_elem(p, q, r, s);
-              if (std::abs(rdm_pqrs) < 1.0e-9) continue;
+              if (std::abs(rdm_pqrs) < 1.0e-10) continue;
               fprintf(
                   pFile,
-                  "%d,%d,%d,%d,%#.15g\n",
-                  orb_order[p],
-                  orb_order[q],
-                  orb_order[r],
-                  orb_order[s],
+                  "%d %d %d %d %#.15g\n",
+                  orb_order[p]+1,
+                  orb_order[q]+1,
+                  orb_order[s]+1, // in qp2 convention, last two indices switched
+                  orb_order[r]+1,
                   rdm_pqrs);
             }
           }

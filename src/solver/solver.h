@@ -108,10 +108,10 @@ void Solver<S>::run() {
     Timer::start("variation");
     run_all_variations();
 
-    if (Config::get<bool>("2rdm", false) || Config::get<bool>("get_2rdm_csv", false) ||
-        Config::get<bool>("optorb", false)) {
-      connections = hamiltonian.matrix.get_connections();
-    }
+    //if (Config::get<bool>("2rdm", false) || Config::get<bool>("get_2rdm_csv", false) ||
+    //    Config::get<bool>("optorb", false)) {
+    //  connections = hamiltonian.matrix.get_connections();
+    //}
 
     hamiltonian.clear();
     Timer::end();
@@ -137,7 +137,7 @@ void Solver<S>::run() {
     Timer::end();
   }
 
-  system.post_variation(connections);
+  //system.post_variation(connections);
   connections.clear();
   connections.shrink_to_fit();
   hamiltonian.clear();
@@ -329,6 +329,11 @@ void Solver<S>::run_all_variations() {
       Result::put<double>(Util::str_printf("energy_var/%#.2e", eps_var), system.energy_var);
       Timer::end();
       save_variation_result(filename);
+
+// for qp2: calculate rdms for each eps_var
+auto connections = hamiltonian.matrix.get_connections();
+system.post_variation(connections, eps_var);
+
     } else {
       eps_tried_prev.clear();
       var_dets.clear();
