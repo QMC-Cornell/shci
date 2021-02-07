@@ -79,67 +79,32 @@ void Optimization::generate_natorb_integrals() {
 }
 
 void Optimization::rotate_integrals() {
-  new_integrals.resize(n_orbs);
-  Integrals_array tmp_integrals(n_orbs);
-
-#pragma omp parallel for
-  for (unsigned i = 0; i < n_orbs; i++) {
-    new_integrals[i].resize(n_orbs);
-    tmp_integrals[i].resize(n_orbs);
-    for (unsigned j = 0; j < n_orbs; j++) {
-      new_integrals[i][j].resize(n_orbs + 1);
-      tmp_integrals[i][j].resize(n_orbs + 1);
-
-      for (unsigned k = 0; k < n_orbs + 1; k++) {
-        new_integrals[i][j][k].resize(n_orbs + 1);
-        tmp_integrals[i][j][k].resize(n_orbs + 1);
-        std::fill(new_integrals[i][j][k].begin(), new_integrals[i][j][k].end(),
-                  0.);
-        std::fill(tmp_integrals[i][j][k].begin(), tmp_integrals[i][j][k].end(),
-                  0.);
-      }
-    }
-  }
+  new_integrals.allocate(n_orbs);
+  IntegralsArray tmp_integrals;
+  tmp_integrals.allocate(n_orbs);
 
 // Two-body integrals
-#pragma omp parallel for
+#pragma omp parallel for collapse(2)
   for (unsigned p = 0; p < n_orbs; p++) {
     for (unsigned q = 0; q < n_orbs; q++) {
       for (unsigned r = 0; r < n_orbs; r++) {
         for (unsigned s = 0; s < n_orbs; s++) {
-          tmp_integrals[p][q][r][s] = integrals_p->get_2b(p, q, r, s);
+          tmp_integrals.get_2b(p, q, r, s) = integrals_p->get_2b(p, q, r, s);
         } // s
       }   // r
     }     // q
   }       // p
 
-#pragma omp parallel for
+#pragma omp parallel for collapse(2)
   for (unsigned p = 0; p < n_orbs; p++) {
     for (unsigned q = 0; q < n_orbs; q++) {
       for (unsigned r = 0; r < n_orbs; r++) {
         for (unsigned s = 0; s < n_orbs; s++) {
           double new_val = 0.;
           for (unsigned i = 0; i < n_orbs; i++) {
-            new_val += rot(i, p) * tmp_integrals[i][q][r][s];
+            new_val += rot(i, p) * tmp_integrals.get_2b(i, q, r, s);
           }
-          new_integrals[p][q][r][s] = new_val;
-        } // s
-      }   // r
-    }     // q
-  }       // p
-
-  tmp_integrals = new_integrals;
-
-#pragma omp parallel for
-  for (unsigned p = 0; p < n_orbs; p++) {
-    for (unsigned q = 0; q < n_orbs; q++) {
-      for (unsigned r = 0; r < n_orbs; r++) {
-        for (unsigned s = 0; s < n_orbs; s++) {
-          double new_val = 0.;
-          for (unsigned i = 0; i < n_orbs; i++) {
-            new_val += rot(i, q) * tmp_integrals[p][i][r][s];
-          }
-          new_integrals[p][q][r][s] = new_val;
+          new_integrals.get_2b(p, q, r, s) = new_val;
         } // s
       }   // r
     }     // q
@@ -147,16 +112,16 @@ void Optimization::rotate_integrals() {
 
   tmp_integrals = new_integrals;
 
-#pragma omp parallel for
+#pragma omp parallel for collapse(2)
   for (unsigned p = 0; p < n_orbs; p++) {
     for (unsigned q = 0; q < n_orbs; q++) {
       for (unsigned r = 0; r < n_orbs; r++) {
         for (unsigned s = 0; s < n_orbs; s++) {
           double new_val = 0.;
           for (unsigned i = 0; i < n_orbs; i++) {
-            new_val += rot(i, r) * tmp_integrals[p][q][i][s];
+            new_val += rot(i, q) * tmp_integrals.get_2b(p, i, r, s);
           }
-          new_integrals[p][q][r][s] = new_val;
+          new_integrals.get_2b(p, q, r, s) = new_val;
         } // s
       }   // r
     }     // q
@@ -164,50 +129,67 @@ void Optimization::rotate_integrals() {
 
   tmp_integrals = new_integrals;
 
-#pragma omp parallel for
+#pragma omp parallel for collapse(2)
   for (unsigned p = 0; p < n_orbs; p++) {
     for (unsigned q = 0; q < n_orbs; q++) {
       for (unsigned r = 0; r < n_orbs; r++) {
         for (unsigned s = 0; s < n_orbs; s++) {
           double new_val = 0.;
           for (unsigned i = 0; i < n_orbs; i++) {
-            new_val += rot(i, s) * tmp_integrals[p][q][r][i];
+            new_val += rot(i, r) * tmp_integrals.get_2b(p, q, i, s);
           }
-          new_integrals[p][q][r][s] = new_val;
+          new_integrals.get_2b(p, q, r, s) = new_val;
+        } // s
+      }   // r
+    }     // q
+  }       // p
+
+  tmp_integrals = new_integrals;
+
+#pragma omp parallel for collapse(2)
+  for (unsigned p = 0; p < n_orbs; p++) {
+    for (unsigned q = 0; q < n_orbs; q++) {
+      for (unsigned r = 0; r < n_orbs; r++) {
+        for (unsigned s = 0; s < n_orbs; s++) {
+          double new_val = 0.;
+          for (unsigned i = 0; i < n_orbs; i++) {
+            new_val += rot(i, s) * tmp_integrals.get_2b(p, q, r, i);
+          }
+          new_integrals.get_2b(p, q, r, s) = new_val;
         } // s
       }   // r
     }     // q
   }       // p
 
 // One-body integrals
-#pragma omp parallel for
+#pragma omp parallel for collapse(2)
   for (unsigned p = 0; p < n_orbs; p++) {
     for (unsigned q = 0; q < n_orbs; q++) {
-      tmp_integrals[p][q][n_orbs][n_orbs] = integrals_p->get_1b(p, q);
+      tmp_integrals.get_1b(p, q) = integrals_p->get_1b(p, q);
     }
   }
 
-#pragma omp parallel for
+#pragma omp parallel for collapse(2)
   for (unsigned p = 0; p < n_orbs; p++) {
     for (unsigned q = 0; q < n_orbs; q++) {
       double new_val = 0.;
       for (unsigned i = 0; i < n_orbs; i++) {
-        new_val += rot(i, p) * tmp_integrals[i][q][n_orbs][n_orbs];
+        new_val += rot(i, p) * tmp_integrals.get_1b(i, q);
       }
-      new_integrals[p][q][n_orbs][n_orbs] = new_val;
+      new_integrals.get_1b(p, q) = new_val;
     }
   }
 
   tmp_integrals = new_integrals;
 
-#pragma omp parallel for
+#pragma omp parallel for collapse(2)
   for (unsigned p = 0; p < n_orbs; p++) {
     for (unsigned q = 0; q < n_orbs; q++) {
       double new_val = 0.;
       for (unsigned i = 0; i < n_orbs; i++) {
-        new_val += rot(i, q) * tmp_integrals[p][i][n_orbs][n_orbs];
+        new_val += rot(i, q) * tmp_integrals.get_1b(p, i);
       }
-      new_integrals[p][q][n_orbs][n_orbs] = new_val;
+      new_integrals.get_1b(p, q) = new_val;
     }
   }
   Timer::checkpoint("rotate integrals");
@@ -219,30 +201,31 @@ void Optimization::rewrite_integrals() {
   integrals_p->integrals_1b.clear();
 
   unsigned p, q, r, s;
-  double value;
+  const double* integrals_ptr = new_integrals.data_2b();
   for (p = 0; p < n_orbs; p++) {
     for (q = 0; q < n_orbs; q++) {
       for (r = 0; r < n_orbs; r++) {
         for (s = 0; s < n_orbs; s++) {
-          value = new_integrals[p][q][r][s];
-          integrals_p->integrals_2b.set(Integrals::combine4(p, q, r, s), value,
+          integrals_p->integrals_2b.set(Integrals::combine4(p, q, r, s), *integrals_ptr,
                                         [&](double &a, const double &b) {
                                           if (std::abs(a) < std::abs(b))
                                             a = b;
                                         });
+          integrals_ptr++;
         }
       }
     }
   }
 
+  integrals_ptr = new_integrals.data_1b();
   for (p = 0; p < n_orbs; p++) {
     for (q = 0; q < n_orbs; q++) {
-      value = new_integrals[p][q][n_orbs][n_orbs];
-      integrals_p->integrals_1b.set(Integrals::combine2(p, q), value,
+      integrals_p->integrals_1b.set(Integrals::combine2(p, q), *integrals_ptr,
                                     [&](double &a, const double &b) {
                                       if (std::abs(a) < std::abs(b))
                                         a = b;
                                     });
+      integrals_ptr++;
     }
   }
 }
