@@ -519,7 +519,7 @@ void Optimization::fill_rot_matrix_with_parameters(
   for (unsigned i = 0; i < n_orbs; i++) {
     for (unsigned j = 0; j < n_orbs; j++) {
       for (unsigned k = 0; k < n_orbs; k++) {
-  	double cos_tau, sinc_tau;
+        double cos_tau, sinc_tau;
         if (std::abs(Tau2(k)) < 1e-10) {
           cos_tau = 1;
           sinc_tau = 1;
