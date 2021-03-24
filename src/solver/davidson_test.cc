@@ -26,7 +26,7 @@ class HilbertSystem {
 TEST(DavidsonTest, HilbertSystem) {
   const int N = 1000;
   HilbertSystem hilbert_system(N);
-  Davidson davidson;
+  Davidson davidson(1);
 
   const std::vector<double> expected_eigenvalues(
       {-1.00956719, -0.3518051, -0.23097854, -0.17336724, -0.13218651});
@@ -38,13 +38,14 @@ TEST(DavidsonTest, HilbertSystem) {
        {0.01203533, 0.04023094, 0.09953056, -0.90203616, -0.06584302}});
 
   // Check eigenvalue and eigenvector with reference values from exact diagonalization.
-  std::vector<double> initial_vector(N, 0.0);
-  initial_vector[0] = 1.0;
+  std::vector<std::vector<double>> initial_vector(1);
+  initial_vector[0].resize(N, 0.0);
+  initial_vector[0][0] = 1.0;
   davidson.diagonalize(hilbert_system.matrix, initial_vector, 1.0e-6, true);
-  const double lowest_eigenvalue = davidson.get_lowest_eigenvalue();
-  EXPECT_NEAR(lowest_eigenvalue, expected_eigenvalues[0], 1.0e-6);
-  const std::vector<double> lowest_eigenvector = davidson.get_lowest_eigenvector();
+  const std::vector<double> lowest_eigenvalues = davidson.get_lowest_eigenvalues();
+  EXPECT_NEAR(lowest_eigenvalues[0], expected_eigenvalues[0], 1.0e-6);
+  const std::vector<std::vector<double>> lowest_eigenvectors = davidson.get_lowest_eigenvectors();
   for (int i = 0; i < 5; i++) {
-    EXPECT_NEAR(lowest_eigenvector[i], expected_eigenvectors[0][i], 1.0e-4);
+    EXPECT_NEAR(lowest_eigenvectors[0][i], expected_eigenvectors[0][i], 1.0e-4);
   }
 }
