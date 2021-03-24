@@ -12,12 +12,16 @@ class SparseMatrix {
  public:
   double get_diag(const size_t i) const { return diag[i]; }
 
+  std::vector<double> get_diag() const { return diag; }
+
   void cache_diag();
 
   size_t count_n_elems() const;
+ 
+  size_t count_n_rows() const { return rows.size(); }
 
   std::vector<double> mul(const std::vector<double>& vec) const;
-
+ 
   std::vector<std::complex<double>> mul(const std::vector<std::complex<double>>& vec) const;
 
   void mul(
@@ -34,7 +38,11 @@ class SparseMatrix {
 
   void sort_row(const size_t i);
 
-  void print_row(const size_t i) { rows[i].print(); }
+  void print_row(const size_t i) const { rows[i].print(); }
+
+  const SparseVector& get_row(const size_t i) const { return rows[i]; }
+
+  void zero_out_row(size_t i) { rows[i].zero_out_vector(); };
 
   std::vector<std::vector<size_t>> get_connections() const;
 
