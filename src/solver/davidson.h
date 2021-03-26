@@ -5,20 +5,25 @@
 
 class Davidson {
  public:
+  Davidson(const unsigned n_states) {
+    lowest_eigenvalues.resize(n_states);
+    lowest_eigenvectors.resize(n_states);
+  }
+
   void diagonalize(
       const SparseMatrix& matrix,
-      const std::vector<double>& initial_vector,
+      const std::vector<std::vector<double>>& initial_vectors,
       const double target_error,
       const bool verbose = false);
 
-  double get_lowest_eigenvalue() const { return lowest_eigenvalue; }
+  std::vector<double> get_lowest_eigenvalues() const { return lowest_eigenvalues; }
 
-  std::vector<double> get_lowest_eigenvector() const { return lowest_eigenvector; }
+  std::vector<std::vector<double>> get_lowest_eigenvectors() const { return lowest_eigenvectors; }
 
   bool converged;
 
  private:
-  double lowest_eigenvalue;
+  std::vector<double> lowest_eigenvalues;
 
-  std::vector<double> lowest_eigenvector;
+  std::vector<std::vector<double>> lowest_eigenvectors;
 };

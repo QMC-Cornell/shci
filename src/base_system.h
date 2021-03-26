@@ -22,6 +22,8 @@ class BaseSystem {
 
   unsigned n_elecs = 0;
 
+  unsigned n_states = 1;
+
   bool time_sym = false;
 
   bool has_single_excitation = true;
@@ -29,8 +31,8 @@ class BaseSystem {
   bool has_double_excitation = true;
 
   double energy_hf = 0.0;
-  
-  double energy_var = 0.0;
+
+  std::vector<double> energy_var = std::vector<double>(n_states, 0.0);
 
   size_t helper_size = 0;
 
@@ -40,7 +42,9 @@ class BaseSystem {
   
   std::vector<Det> dets;
 
-  std::vector<double> coefs;
+  //std::vector<double> coefs;
+
+  std::vector<std::vector<double>> coefs;
 
   fgpl::HashMap<HalfDet, double, HalfDetHasher> diag_helper;
 
@@ -65,7 +69,7 @@ class BaseSystem {
   virtual void post_variation(std::vector<std::vector<size_t>>&){};
 
   virtual void post_variation_optimization(
-      std::vector<std::vector<size_t>>*, const std::string&) {};
+      SparseMatrix&, const std::string&) {};
 
   virtual void dump_integrals(const char*){};
 
@@ -95,10 +99,12 @@ class BaseSystem {
       if (det.up < det.dn) {
         Det det_rev = det;
         det_rev.reverse_spin();
-        const double coef_new = coefs[i] * Util::SQRT2_INV;
-        coefs[i] = coef_new;
+	for (auto& state_coefs: coefs) {
+          const double coef_new = state_coefs[i] * Util::SQRT2_INV;
+          state_coefs[i] = coef_new;
+          state_coefs.push_back(coef_new);
+	}
         dets.push_back(det_rev);
-        coefs.push_back(coef_new);
       }
     }
   }

@@ -15,12 +15,13 @@
 #include <fstream>
 
 void ChemSystem::setup(const bool load_integrals_from_file) {
-  if (load_integrals_from_file) {
+  if (load_integrals_from_file) { // during optimization, no need to reload
     type = SystemType::Chemistry;
     n_up = Config::get<unsigned>("n_up");
     n_dn = Config::get<unsigned>("n_dn");
     n_elecs = n_up + n_dn;
     Result::put("n_elecs", n_elecs);
+    n_states = Config::get<unsigned>("n_states", 1);
   
     point_group = get_point_group(Config::get<std::string>("chem/point_group"));
     product_table.set_point_group(point_group);
@@ -47,7 +48,12 @@ void ChemSystem::setup(const bool load_integrals_from_file) {
   Timer::end();
 
   dets.push_back(integrals.det_hf);
-  coefs.push_back(1.0);
+
+  coefs.resize(n_states);
+  coefs[0].push_back(1.0);
+  for (unsigned i_state = 1; i_state < n_states; i_state++)  {
+    coefs[i_state].push_back(1e-16);
+  }
   energy_hf = get_hamiltonian_elem(integrals.det_hf, integrals.det_hf, 0);
   if (Parallel::is_master()) {
     printf("HF energy: " ENERGY_FORMAT "\n", energy_hf);
@@ -595,13 +601,17 @@ double ChemSystem::get_two_body_double(const DiffResult& diff_up, const DiffResu
 }
 
 void ChemSystem::post_variation(std::vector<std::vector<size_t>>& connections) {
+  if (Config::get<bool>("get_1rdm_csv", false)) {
+    RDM rdm(integrals, dets, coefs);
+    rdm.get_1rdm();
+    rdm.dump_1rdm();
+  }
+
   if (Config::get<bool>("2rdm", false) || Config::get<bool>("get_2rdm_csv", false)) {
-    RDM rdm(&integrals);
-    Timer::start("get 2rdm");
-    rdm.get_2rdm(dets, coefs, connections);
+    RDM rdm(integrals, dets, coefs);
+    rdm.get_2rdm(connections);
     connections.clear();
     rdm.dump_2rdm(Config::get<bool>("get_2rdm_csv", false));
-    Timer::end();
   }
 
   bool unpacked = false;
@@ -611,120 +621,69 @@ void ChemSystem::post_variation(std::vector<std::vector<size_t>>& connections) {
       unpack_time_sym();
       unpacked = true;
     }
-    const double s2 = get_s2();
+    const double s2 = get_s2(coefs[0]);
     Result::put("s2", s2);
-  }
-
-  /*
-  if (Config::get<bool>("natorb", false)) {
-    if (time_sym && !unpacked) {
-      unpack_time_sym();
-      unpacked = true;
-    }
-    RDM rdm(&integrals);
-    rdm.get_1rdm(dets, coefs);
-    Timer::checkpoint("get 1rdm");
-
-    Optimization natorb_optimizer(&rdm, &integrals);
-    natorb_optimizer.generate_natorb_integrals();
-    natorb_optimizer.dump_integrals("FCIDUMP_natorb");
-    Timer::checkpoint("generate natorb integrals");
-
-    std::exit(0);
-  }
-  */
-
-  if (Config::get<bool>("2rdm_slow", false)) {
-    if (time_sym && !unpacked) {
-      unpack_time_sym();
-      unpacked = true;
-    }
-    RDM rdm(&integrals);
-    Timer::start("get 2rdm (slow)");
-    rdm.get_2rdm_slow(dets, coefs);
-    rdm.dump_2rdm(Config::get<bool>("get_2rdm_csv", false));
-    Timer::end();
-  }
-
-  if (Config::get<bool>("get_1rdm_csv", false)) {
-    if (time_sym && !unpacked) {
-      unpack_time_sym();
-      unpacked = true;
-    }
-    RDM rdm(&integrals);
-    Timer::start("get_1rdm");
-    rdm.get_1rdm(dets, coefs, true);
-    Timer::end();
   }
 }
 
 void ChemSystem::post_variation_optimization(
-    std::vector<std::vector<size_t>>* connections_ptr,
+    SparseMatrix& hamiltonian_matrix,
     const std::string& method) {
 
   if (method == "natorb") {  // natorb optimization
-    if (time_sym) unpack_time_sym();
-    
-    Timer::start("create RDMs");
-    RDM rdm(&integrals);
-    rdm.get_1rdm(dets, coefs);
-    Timer::end();
-
-    variation_cleanup();
-    Optimization natorb_optimizer(&rdm, &integrals);
+    hamiltonian_matrix.clear();
+    Optimization natorb_optimizer(integrals, hamiltonian_matrix, dets, coefs);
 
     Timer::start("Natorb optimization");
-    natorb_optimizer.generate_natorb_integrals();
-    Timer::end();
-
-    rotation_matrix *= natorb_optimizer.get_rotation_matrix();
-    Timer::start("rewrite integrals");
-    natorb_optimizer.rewrite_integrals();
-    Timer::end();
-
-  } else {  // optorb optimization
-    Timer::start("create RDMs");
-
-    RDM rdm(&integrals);
-    rdm.get_2rdm(dets, coefs, *connections_ptr);
-    connections_ptr->clear();
-    rdm.get_1rdm_from_2rdm();
+    natorb_optimizer.get_natorb_rotation_matrix();
     Timer::end();
 
     variation_cleanup();
-    Optimization optorb_optimizer(&rdm, &integrals);
+
+    rotation_matrix *= natorb_optimizer.rotation_matrix();
+    natorb_optimizer.rotate_and_rewrite_integrals();
+
+  } else {  // optorb optimization
+    Optimization optorb_optimizer(integrals, hamiltonian_matrix, dets, coefs);
 
     if (Util::str_equals_ci("newton", method)) {
       Timer::start("Newton optimization");
-      optorb_optimizer.generate_optorb_integrals_from_newton();
+      optorb_optimizer.get_optorb_rotation_matrix_from_newton();
     } else if (Util::str_equals_ci("grad_descent", method)) {
       Timer::start("Gradient descent optimization");
-      optorb_optimizer.generate_optorb_integrals_from_grad_descent();
+      optorb_optimizer.get_optorb_rotation_matrix_from_grad_descent();
     } else if (Util::str_equals_ci("amsgrad", method)) {
       Timer::start("AMSGrad optimization");
-      optorb_optimizer.generate_optorb_integrals_from_amsgrad();
+      optorb_optimizer.get_optorb_rotation_matrix_from_amsgrad();
+    } else if (Util::str_equals_ci("bfgs", method)) {
+      Timer::start("BFGS optimization");
+      optorb_optimizer.generate_optorb_integrals_from_bfgs();
     } else {
       Timer::start("Approximate Newton optimization");
-      optorb_optimizer.generate_optorb_integrals_from_approximate_newton();
+      optorb_optimizer.get_optorb_rotation_matrix_from_approximate_newton();
     }
     Timer::end();
+   
+    hamiltonian_matrix.clear(); 
+    variation_cleanup();
 
-    rotation_matrix *= optorb_optimizer.get_rotation_matrix();
-    Timer::start("rewrite integrals");
-    optorb_optimizer.rewrite_integrals();
-    Timer::end();
+    rotation_matrix *= optorb_optimizer.rotation_matrix();
+    optorb_optimizer.rotate_and_rewrite_integrals();
   }
 }
 
 void ChemSystem::variation_cleanup() {
   energy_hf = 0.;
-  energy_var = 0.;
+  energy_var = std::vector<double>(n_states, 0.);
   helper_size = 0;
   dets.clear();
   dets.shrink_to_fit();
-  coefs.clear();
-  coefs.shrink_to_fit();
+  for (auto& state: coefs) {
+    state.clear();
+    state.shrink_to_fit();
+  }
   max_hci_queue_elem = 0.;
+  max_singles_queue_elem = 0.;
   hci_queue.clear();
   singles_queue.clear();
   sym_orbs.clear();
@@ -733,15 +692,20 @@ void ChemSystem::variation_cleanup() {
 void ChemSystem::dump_integrals(const char* filename) {
   integrals.dump_integrals(filename);
   if (Config::get<bool>("optimization/rotation_matrix", false)) {
-    std::ofstream pFile;
-    pFile.open("rotation_matrix");
-    pFile << rotation_matrix;
-    pFile.close();
+    FILE *fp;
+    fp = fopen("rotation_matrix", "w");
+    for (int i = 0; i < rotation_matrix.rows(); i++) {
+      for (int j = 0; j < rotation_matrix.cols(); j++) {
+        fprintf(fp, "%.10f ", rotation_matrix(i, j));
+      }
+      fprintf(fp, "\n");
+    }
+    fclose(fp);
   }
 }
 
 //======================================================
-double ChemSystem::get_s2() const {
+double ChemSystem::get_s2(std::vector<double> state_coefs) const {
   // Calculates <S^2> of the variation wf.
   // s^2 = n_up -n_doub - 1/2*(n_up-n_dn) + 1/4*(n_up - n_dn)^2
   //  - sum_{p != q} c_{q,dn}^{+} c_{p,dn} c_{p,up}^{+} c_{q,up}
@@ -753,7 +717,7 @@ double ChemSystem::get_s2() const {
   // Create hash table; used for looking up the coef of a det
   std::unordered_map<Det, double, DetHasher> det2coef;
   for (size_t i = 0; i < dets.size(); i++) {
-    det2coef[dets[i]] = coefs[i];
+    det2coef[dets[i]] = state_coefs[i];
   }
 
 #pragma omp parallel for reduction(+ : s2)
@@ -769,7 +733,7 @@ double ChemSystem::get_s2() const {
     // diagonal terms
     double diag = 0.5 * n_up - num_db_occ + 0.5 * n_dn;
     diag += 0.25 * (pow(n_up, 2) + pow(n_dn, 2)) - 0.5 * n_up * n_dn;
-    diag *= pow(coefs[i_det], 2);
+    diag *= pow(state_coefs[i_det], 2);
     s2 += diag;
 
     // double excitations
@@ -796,7 +760,7 @@ double ChemSystem::get_s2() const {
 
         const double perm_up = this_det.up.diff(new_det.up).permutation_factor;
         const double perm_dn = this_det.dn.diff(new_det.dn).permutation_factor;
-        double off_diag = -2 * coef * coefs[i_det] * perm_up * perm_dn;
+        double off_diag = -2 * coef * state_coefs[i_det] * perm_up * perm_dn;
         s2 += off_diag;
       }  // j_orb
     }  // i_orb

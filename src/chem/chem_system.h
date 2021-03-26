@@ -30,7 +30,7 @@ class ChemSystem : public BaseSystem {
   void post_variation(std::vector<std::vector<size_t>>& connections) override;
 
   void post_variation_optimization(
-      std::vector<std::vector<size_t>>* connections_ptr,
+      SparseMatrix& hamiltonian_matrix,
       const std::string& method) override;
 
   void variation_cleanup() override;
@@ -92,5 +92,5 @@ class ChemSystem : public BaseSystem {
 
   double get_two_body_double(const DiffResult& diff_up, const DiffResult& diff_dn) const;
 
-  double get_s2() const;
+  double get_s2(std::vector<double>) const;
 };
