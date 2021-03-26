@@ -852,12 +852,13 @@ UncertResult Solver<S>::get_energy_pt_sto(
   //const unsigned random_seed = Config::get<unsigned>("random_seed", time(nullptr));
   const unsigned random_seed = Config::get<unsigned>("random_seed", 347634253);
   if (Parallel::is_master()) printf("\nrandom_seed= %d\n", random_seed);
-  srand(random_seed);
+  std::default_random_engine generator(random_seed);
+  std::uniform_real_distribution<double> unif_real_distr(0., 1.);
 
   // Estimate best n_dets_in_sample.
   if (n_dets_in_sample == 0) {
     for (size_t i = 0; i < 1000; i++) {
-      const double rand_01 = (static_cast<double>(rand()) / (RAND_MAX));
+      const double rand_01 = unif_real_distr(generator);
       const size_t sample_det_id =
           std::lower_bound(cum_probs.begin(), cum_probs.end(), rand_01) - cum_probs.begin();
       if (sample_dets_sto.count(sample_det_id) == 0) sample_dets_list.push_back(sample_det_id);
@@ -866,6 +867,7 @@ UncertResult Solver<S>::get_energy_pt_sto(
     fgpl::broadcast(sample_dets_sto);
     fgpl::broadcast(sample_dets_list);
     size_t n_unique_dets_in_sample = sample_dets_list.size();
+std::cout<<"\nn_unique_dets_in_sample "<<n_unique_dets_in_sample;
     fgpl::DistRange<size_t>(0, n_unique_dets_in_sample).for_each([&](const size_t sample_id) {
       const size_t i = sample_dets_list[sample_id];
       const Det& det = system.dets[i];
@@ -903,7 +905,8 @@ UncertResult Solver<S>::get_energy_pt_sto(
     n_dets_in_sample = 0;
     n_unique_dets_in_sample = 0;
     while (n_unique_dets_in_sample < n_unique_target) {
-      const double rand_01 = (static_cast<double>(rand()) / (RAND_MAX));
+      //const double rand_01 = (static_cast<double>(rand()) / (RAND_MAX));
+      const double rand_01 = unif_real_distr(generator);
       const int sample_det_id =
           std::lower_bound(cum_probs.begin(), cum_probs.end(), rand_01) - cum_probs.begin();
       if (sample_dets_sto.count(sample_det_id) == 0) {
@@ -950,16 +953,15 @@ UncertResult Solver<S>::get_energy_pt_sto(
   std::vector<size_t> aliases;
   Util::setup_alias_arrays(probs, alias_probs, aliases);
 
-  std::default_random_engine generator;
-  std::uniform_int_distribution<size_t> unif_int_distr(0, n_var_dets - 1);
-  std::uniform_real_distribution<double> unif_real_distr(0., 1.);
+  std::uniform_int_distribution<size_t> unif_int_distr_n_var_dets(0, n_var_dets - 1);
+  std::uniform_int_distribution<size_t> unif_int_distr_n_batches(0, n_batches - 1);
 
   while (iteration < max_pt_iterations) {
     Timer::start(Util::str_printf("#%zu", iteration + 1));
 
     // Generate random sample
     for (size_t i = 0; i < n_dets_in_sample - n_dtm_dets; i++) {
-      const size_t rand_01 = unif_int_distr(generator);  // rand int in [0, n_var_dets - 1]
+      const size_t rand_01 = unif_int_distr_n_var_dets(generator);  // rand int in [0, n_var_dets - 1]
       const double rand_02 = unif_real_distr(generator);  // rand real in [0., 1.)
       size_t sample_det_id;
       if (rand_02 < alias_probs[rand_01])
@@ -978,7 +980,7 @@ UncertResult Solver<S>::get_energy_pt_sto(
     }
 
     // Select random batch.
-    size_t batch_id = rand() % n_batches;
+    size_t batch_id = unif_int_distr_n_batches(generator);
     fgpl::broadcast(batch_id);
     const size_t n_unique_dets_in_sample = sample_dets_list.size();
     if (Parallel::is_master()) printf("Batch id: %zu / %zu\n", batch_id, n_batches);
