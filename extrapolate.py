@@ -21,6 +21,7 @@ parser.add_argument('--preprint', type=bool, default=False)
 parser.add_argument('--n_points', type=int, default=0)
 parser.add_argument('--no_first_order', type=bool, default=False)
 parser.add_argument('--pair_contrib', type=bool, default=False)
+parser.add_argument('--state', type=int, default=0)
 args = parser.parse_args()
 
 # Read JSON
@@ -31,14 +32,18 @@ if args.preprint is True:
     plt.figure(figsize=(5.5, 4.0))
 
 # Construct x and y
+if args.state > 0:
+    state_suffix = '_' + str(args.state)
+else:
+    state_suffix = ''
 x = []
 y = []
 e = []
-energy_vars = result['energy_var']
+energy_vars = result['energy_var' + state_suffix]
 for eps_var, energy_var in energy_vars.items():
-    if result['energy_total'].get(eps_var) is None:
+    if result['energy_total' + state_suffix].get(eps_var) is None:
         continue
-    energy_totals = result['energy_total'][eps_var]
+    energy_totals = result['energy_total' + state_suffix][eps_var]
     eps_pt = 1.0
     for eps_pt_iter, energy_total_iter in energy_totals.items():
         eps_pt_iter = float(eps_pt_iter)
@@ -157,7 +162,7 @@ if args.exponential:
 print('(%.2f Conf.) Extrapolated Energy: %.10f +- %.10f' % ((1.0 - alpha, energy, uncert)))
 if np.isnan(uncert):
     uncert = 9999
-result['energy_total']['extrapolated'] = {
+result['energy_total' + state_suffix]['extrapolated'] = {
     'value': energy,
     'uncert': uncert
 }
