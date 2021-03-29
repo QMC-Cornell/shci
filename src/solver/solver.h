@@ -918,7 +918,6 @@ UncertResult Solver<S>::get_energy_pt_sto(
     fgpl::broadcast(sample_dets_sto);
     fgpl::broadcast(sample_dets_list);
     size_t n_unique_dets_in_sample = sample_dets_list.size();
-std::cout<<"\nn_unique_dets_in_sample "<<n_unique_dets_in_sample;
     fgpl::DistRange<size_t>(0, n_unique_dets_in_sample).for_each([&](const size_t sample_id) {
       const size_t i = sample_dets_list[sample_id];
       const Det& det = system.dets[i];
