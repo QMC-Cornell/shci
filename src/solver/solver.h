@@ -1131,7 +1131,7 @@ std::array<double, 2> Solver<S>::mapreduce_sum(
     res_sq_thread[thread_id] += mapped * mapped;
   });
   std::array<double, 2> res_local = {0.0, 0.0};
-  std::array<double, 2> res;
+  std::array<double, 2> res = {0.0, 0.0};
   for (int i = 0; i < n_threads; i++) {
     res_local[0] += res_thread[i];
     res_local[1] += res_sq_thread[i];
