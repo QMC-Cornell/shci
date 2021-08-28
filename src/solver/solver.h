@@ -443,12 +443,14 @@ void Solver<S>::run_variation(const double eps_var, const bool until_converged) 
         dist_new_dets.for_each_serial([&](const Det& connected_det, const size_t) {
           var_dets.set(connected_det);
           system.dets.push_back(connected_det);
-	  // initialize with 1.0 first time adding dets, later with 0.0
+	  // initialize as unit vectors 
           for (unsigned i_state = 0; i_state < system.n_states; i_state++) {
-            if (n_dets == 1 && i_state > 0)
-              system.coefs[i_state].push_back(1.0);
-            else 
+            if (i_state == 0 || n_dets > 50) {
               system.coefs[i_state].push_back(1e-16);
+            } else {
+              const double elem = (system.coefs[i_state].size() == i_state) ? 1.0: 1e-16;
+              system.coefs[i_state].push_back(elem);
+	    }
           }
         });
         dist_new_dets.clear();
