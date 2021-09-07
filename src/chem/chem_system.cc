@@ -672,6 +672,33 @@ void ChemSystem::post_variation_optimization(
   }
 }
 
+void ChemSystem::optimization_microiteration(
+    SparseMatrix& hamiltonian_matrix,
+    const std::string& method) {
+  Optimization optorb_optimizer(integrals, hamiltonian_matrix, dets, coefs);
+
+  if (Util::str_equals_ci("newton", method)) {
+    Timer::start("Newton microiteration");
+    optorb_optimizer.get_optorb_rotation_matrix_from_newton();
+  } else if (Util::str_equals_ci("grad_descent", method)) {
+    Timer::start("Gradient descent microiteration");
+    optorb_optimizer.get_optorb_rotation_matrix_from_grad_descent();
+  } else if (Util::str_equals_ci("amsgrad", method)) {
+    Timer::start("AMSGrad microiteration");
+    optorb_optimizer.get_optorb_rotation_matrix_from_amsgrad();
+  } else if (Util::str_equals_ci("bfgs", method)) {
+    Timer::start("BFGS microiteration");
+    optorb_optimizer.generate_optorb_integrals_from_bfgs();
+  } else {
+    Timer::start("Approximate Newton microiteration");
+    optorb_optimizer.get_optorb_rotation_matrix_from_approximate_newton();
+  }
+  Timer::end();
+
+  rotation_matrix *= optorb_optimizer.rotation_matrix();
+  optorb_optimizer.rotate_and_rewrite_integrals();
+}
+
 void ChemSystem::variation_cleanup() {
   energy_hf = 0.;
   energy_var = std::vector<double>(n_states, 0.);
@@ -696,7 +723,7 @@ void ChemSystem::dump_integrals(const char* filename) {
     fp = fopen("rotation_matrix", "w");
     for (int i = 0; i < rotation_matrix.rows(); i++) {
       for (int j = 0; j < rotation_matrix.cols(); j++) {
-        fprintf(fp, "%.10f ", rotation_matrix(i, j));
+        fprintf(fp, "%.10E ", rotation_matrix(i, j));
       }
       fprintf(fp, "\n");
     }

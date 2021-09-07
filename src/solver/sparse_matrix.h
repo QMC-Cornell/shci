@@ -3,6 +3,7 @@
 #include <climits>
 #include <complex>
 #include <vector>
+#include <functional>
 #include "../parallel.h"
 #include "../timer.h"
 #include "../util.h"
@@ -45,6 +46,8 @@ class SparseMatrix {
   void zero_out_row(size_t i) { rows[i].zero_out_vector(); };
 
   std::vector<std::vector<size_t>> get_connections() const;
+
+  void update_existing_elems(std::function<double(const size_t, const size_t, const int)>);
 
  private:
   std::vector<SparseVector> rows;

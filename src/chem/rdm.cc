@@ -354,7 +354,8 @@ void RDM::get_2rdm(const std::vector<std::vector<size_t>>& connections) {
   // Modified: Y. Yao, October 2018: MPI compatibility
   //=====================================================
   Timer::start("get 2rdm");
-  const size_t size_two_rdm = n_orbs * n_orbs * (n_orbs * n_orbs + 1) / 2;
+  const size_t n_orbs_ll = n_orbs;
+  const size_t size_two_rdm = n_orbs_ll * n_orbs_ll * (n_orbs_ll * n_orbs_ll + 1) / 2;
   two_rdm.resize(size_two_rdm, 0.);
 
 #pragma omp parallel for schedule(dynamic, 10)
@@ -376,7 +377,8 @@ void RDM::get_2rdm(const std::vector<std::vector<size_t>>& connections) {
 void RDM::get_2rdm(const SparseMatrix& hamiltonian_matrix) {
   // This overloaded version takes SparseMatrix as connections type.
   Timer::start("get 2rdm");
-  const size_t size_two_rdm = n_orbs * n_orbs * (n_orbs * n_orbs + 1) / 2;
+  const size_t n_orbs_ll = n_orbs;
+  const size_t size_two_rdm = n_orbs_ll * n_orbs_ll * (n_orbs_ll * n_orbs_ll + 1) / 2;
   two_rdm.resize(size_two_rdm, 0.);
 
 #pragma omp parallel for schedule(dynamic, 10)

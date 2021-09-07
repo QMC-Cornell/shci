@@ -1,6 +1,7 @@
 #include "sparse_matrix.h"
 
 #include <iostream>
+#include <fgpl/src/dist_range.h>
 
 #include "../util.h"
 
@@ -125,4 +126,16 @@ std::vector<std::vector<size_t>> SparseMatrix::get_connections() const {
     connections.push_back(row.get_connections());
   }
   return connections;
+}
+
+void SparseMatrix::update_existing_elems(std::function<double(size_t, size_t, int)> get_hamiltonian_elem) {
+  for (size_t k = 0; k < 5; k++) {
+    fgpl::DistRange<size_t>(k, rows.size(), 5).for_each([&](const size_t i) {
+      for (size_t j=0; j < rows[i].size(); j++) {
+        rows[i].set_value(j, get_hamiltonian_elem(i, rows[i].get_index(j), -1));
+      }
+    });
+    if (Parallel::is_master()) printf("%zu%% ", (k + 1) * 20);
+  }
+  if (Parallel::is_master()) printf("\n");
 }

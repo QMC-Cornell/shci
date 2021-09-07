@@ -18,6 +18,8 @@ class SparseVector {
 
   double get_value(const size_t i) const { return values.at(i); }
 
+  void set_value(const size_t i, double value) { values[i] = value; }
+
   void sort() {
     Util::sort_by_first<size_t, double>(indices, values);
     for (size_t i = 1; i < size(); i++) assert(indices[i] > indices[i - 1]);

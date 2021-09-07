@@ -33,6 +33,10 @@ class ChemSystem : public BaseSystem {
       SparseMatrix& hamiltonian_matrix,
       const std::string& method) override;
 
+  void optimization_microiteration(
+      SparseMatrix& hamiltonian_matrix,
+      const std::string& method) override;
+
   void variation_cleanup() override;
 
   void dump_integrals(const char* filename) override;

@@ -229,7 +229,8 @@ void Solver<S>::optimization_run() {
   double min_energy_var = prev_energy_var;
   unsigned iters_bt_dumps = 1;
 
-  std::string method = Config::get<std::string>("optimization/method", "app_newton");
+  const std::string method = Config::get<std::string>("optimization/method", "app_newton");
+  const unsigned n_micro = Config::get<unsigned>("optimization/micro_iter", 0);
 
   while (i_iter < natorb_iter + optorb_iter) {
     if (Parallel::is_master())
@@ -288,6 +289,36 @@ void Solver<S>::optimization_run() {
     }
 
     prev_energy_var = energy_var;
+
+    for (unsigned i_micro = 0; i_micro < n_micro; i_micro++) {
+      system.optimization_microiteration(hamiltonian.matrix, method);
+
+      hamiltonian.update_existing_elems(system);
+
+      Timer::checkpoint("update Hamiltonian elements");
+
+      Davidson davidson(system.n_states);
+      while (!davidson.converged) {
+        davidson.diagonalize(hamiltonian.matrix, system.coefs, 1e-8, Parallel::is_master());
+        system.coefs = davidson.get_lowest_eigenvectors();
+      }
+      system.energy_var = davidson.get_lowest_eigenvalues();
+      system.coefs = davidson.get_lowest_eigenvectors();
+    
+      energy_var = std::accumulate(system.energy_var.begin(), system.energy_var.end(), 0.) / system.n_states;
+      diff_energy_var = energy_var - prev_energy_var;
+
+      if (Parallel::is_master()) {
+        std::printf(
+            "\nMicro-iteration %d: E: %.8f ndet: %'zu dE: %.8f\n",
+            i_micro,
+            energy_var,
+            system.dets.size(),
+            diff_energy_var);
+      }
+      prev_energy_var = energy_var;
+    }
+
 
     system.post_variation_optimization(hamiltonian.matrix, method);
 
@@ -957,7 +988,6 @@ UncertResult Solver<S>::get_energy_pt_sto(
     n_dets_in_sample = 0;
     n_unique_dets_in_sample = 0;
     while (n_unique_dets_in_sample < n_unique_target) {
-      //const double rand_01 = (static_cast<double>(rand()) / (RAND_MAX));
       const double rand_01 = unif_real_distr(generator);
       const int sample_det_id =
           std::lower_bound(cum_probs.begin(), cum_probs.end(), rand_01) - cum_probs.begin();

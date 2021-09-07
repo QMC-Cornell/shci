@@ -64,11 +64,19 @@ class BaseSystem {
   virtual double get_hamiltonian_elem(
       const Det& det_i, const Det& det_j, const int n_excite) const = 0;
 
+  virtual double get_hamiltonian_elem(
+      const size_t i, const size_t j, const int n_excite) const {
+    return get_hamiltonian_elem(dets[i], dets[j], n_excite);
+  };
+
   virtual void update_diag_helper() = 0;
 
   virtual void post_variation(std::vector<std::vector<size_t>>&){};
 
   virtual void post_variation_optimization(
+      SparseMatrix&, const std::string&) {};
+
+  virtual void optimization_microiteration(
       SparseMatrix&, const std::string&) {};
 
   virtual void dump_integrals(const char*){};
@@ -90,6 +98,11 @@ class BaseSystem {
       }
     }
     return h;
+  }
+
+  double get_hamiltonian_elem_time_sym(
+      const size_t i, const size_t j, const int n_excite) const {
+    return get_hamiltonian_elem_time_sym(dets[i], dets[j], n_excite);
   }
 
   void unpack_time_sym() {

@@ -101,12 +101,6 @@ private:
 
   std::vector<index_t> parameter_indices() const;
   
-  std::vector<index_t> get_most_important_parameter_indices(
-        const VectorXd& gradient,
-        const VectorXd& hessian_diagonal,
-	const std::vector<index_t>& parameter_indices,
-        const double parameter_proportion) const;
-
   void fill_rot_matrix_with_parameters(
       const VectorXd &parameters,
       const std::vector<index_t> &parameter_indices);

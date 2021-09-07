@@ -20,6 +20,8 @@ class Hamiltonian {
 
   void update(const S& system);
 
+  void update_existing_elems(const S& system);
+
   void clear();
 
  private:
@@ -107,6 +109,20 @@ void Hamiltonian<S>::update(const S& system) {
   beta_id_to_single_ids.clear();
   beta_id_to_single_ids.shrink_to_fit();
   Timer::checkpoint("generate sparse hamiltonian");
+}
+
+template <class S>
+void Hamiltonian<S>::update_existing_elems(const S& system) {
+  using namespace std::placeholders;
+  if (system.time_sym) {
+    auto pf = static_cast<double (BaseSystem::*) (const size_t, const size_t, const int) const>
+    	(&BaseSystem::get_hamiltonian_elem_time_sym);
+    matrix.update_existing_elems(std::bind(pf, &system, _1, _2, _3));
+  } else {
+    auto pf = static_cast<double (BaseSystem::*) (const size_t, const size_t, const int) const>
+    	(&BaseSystem::get_hamiltonian_elem);
+    matrix.update_existing_elems(std::bind(pf, &system, _1, _2, _3));
+  }
 }
 
 template <class S>

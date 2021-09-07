@@ -2,10 +2,6 @@
 
 #include "../parallel.h"
 #include "../timer.h"
-#include "cg_solver.h"
-#include "davidson_solver.h"
-#include "lanczos_solver.h"
-#include <queue>
 
 void Optimization::get_natorb_rotation_matrix() {
   //======================================================
@@ -252,6 +248,18 @@ void Optimization::get_optorb_rotation_matrix_from_newton() {
   rdm.clear();
   size_t dim = param_indices.size();
 
+  SelfAdjointEigenSolver<MatrixXd> es(hess);
+  double Hoo_lowest = es.eigenvalues().minCoeff();
+  if (Parallel::is_master())
+    printf("Lowest eigenvalue of Hoo: %.3E\n", Hoo_lowest);
+
+  if (Hoo_lowest < 0.) {
+    const double diag_shift = - 1.5 * Hoo_lowest;
+    hess += diag_shift * MatrixXd::Identity(dim, dim);
+    if (Parallel::is_master())
+      printf("Diagonal shift: %.3E.\n", diag_shift);
+  }
+  
   // rotation matrix
   // VectorXd new_param = hess.fullPivLu().solve(-1 * grad);
   VectorXd new_param = hess.householderQr().solve(-1 * grad);
@@ -315,8 +323,7 @@ void Optimization::get_optorb_rotation_matrix_from_approximate_newton() {
 
   VectorXd new_param(dim);
   for (size_t i = 0; i < dim; i++) {
-    hess_diag(i) = (hess_diag(i) > 0 ? std::max(hess_diag(i), 1e-5)
-                                     : std::min(hess_diag(i), -1e-5));
+    hess_diag(i) = std::max(hess_diag(i), 1e-5);
     new_param(i) = -grad(i) / hess_diag(i);
   }
 
@@ -354,7 +361,10 @@ void Optimization::get_optorb_rotation_matrix_from_approximate_newton() {
           printf("eps for Newton step enhancement changes to %.3f.\n", eps);
       }
       new_update *= step_size;
-      old_update = new_update;
+      double momentum_proportion = Config::get<double>("optimization/momentum_proportion", 0.0);
+      //old_update += new_update;
+      old_update = momentum_proportion * (old_update / old_norm) 
+      		   + (1.0 - momentum_proportion) * (new_update / step_size / new_norm);
       if (Parallel::is_master())
         printf("cosine: %.5f, step size: %.5f.\n", cos, step_size);
     }
@@ -427,32 +437,64 @@ void Optimization::generate_optorb_integrals_from_bfgs() {
   static bool restart = true;
   static VectorXd grad_prev, update_prev;
   static MatrixXd hess;
+  static double initial_update_norm;
 
   VectorXd grad = gradient(param_indices);
 
   if (restart) {
-    hess = hessian(param_indices);
-    rdm.clear();
+    VectorXd hess_diag = hessian_diagonal(param_indices);
+    for (size_t i = 0; i < dim; i++) hess_diag[i] = std::max(hess_diag[i] / 4., 1e-5);
+    hess = hess_diag.asDiagonal();
     grad_prev = VectorXd::Zero(dim);
     update_prev = VectorXd::Zero(dim);
-    restart = false;
   }
   rdm.clear();
-  VectorXd y = grad - grad_prev;
-  VectorXd hs = hess * update_prev;
+  const VectorXd y = grad - grad_prev;
+  const VectorXd hs = hess * update_prev;
   const double ys = y.dot(update_prev);
   const double shs = hs.dot(update_prev);
-  if (ys > 1e-5 && shs > 1e-5) {
+  if (Parallel::is_master()) printf("ys, shs = %.5f, %.5f\n", ys, shs);
+  const bool update_hessian = ys > 1e-6 && abs(shs) > 1e-6;
+  if (update_hessian) {
     hess += y * y.transpose() / ys - hs * hs.transpose() / shs;
   } else {
-    std::cout<<"skip updating Hessian"<<std::endl;
+    if (Parallel::is_master()) printf("Skip updating Hessian\n");
   }
-  VectorXd new_param = hess.householderQr().solve(-1 * grad);
+
+  /*
+  Timer::start("Eigen diagonalization of Hoo");
+  SelfAdjointEigenSolver<MatrixXd> es(hess);
+  double Hoo_lowest = es.eigenvalues().minCoeff();
+  std::cout<<"Hoo_lowest "<<Hoo_lowest<<std::endl;
+  Timer::end();
+  */
+
+  Timer::start("Eigen linsolve of Hoo");
+  VectorXd new_param = (hess + 1e-3 * MatrixXd::Identity(dim, dim)).householderQr().solve(-grad);
+  Timer::end();
+
+  double update_norm = new_param.norm();
+  static double step_size_factor = 5.;
+  if (restart) {
+    initial_update_norm = new_param.norm();
+    restart = false;
+  } else {
+    if (update_norm > step_size_factor * initial_update_norm) {
+      if (Parallel::is_master()) printf("Applying step size control.\n");
+      const double new_update_norm = step_size_factor * initial_update_norm;
+      new_param /= update_norm / new_update_norm;
+      update_norm = new_update_norm;
+    }
+    step_size_factor = std::max(0.25, step_size_factor * 0.97); // shrink max step size every iter
+  }
+  if (Parallel::is_master())
+    printf("norm of orbital gradient: %.5f, norm of orbital update: %.5f.\n", grad.norm(),
+           update_norm);
+ 
   grad_prev = grad;
   update_prev = new_param;
 
   fill_rot_matrix_with_parameters(new_param, param_indices);
-  rotate_integrals();
 }
 
 std::vector<Optimization::index_t> Optimization::parameter_indices() const {
@@ -471,30 +513,6 @@ std::vector<Optimization::index_t> Optimization::parameter_indices() const {
               << std::endl;
   }
   return indices;
-}
-
-std::vector<Optimization::index_t> Optimization::get_most_important_parameter_indices(
-        const VectorXd& gradient,
-        const VectorXd& hessian_diagonal,
-	const std::vector<index_t>& parameter_indices,
-        const double parameter_proportion) const {
-  // Find the parameters that have the largest g^2/H value
-  std::priority_queue<std::pair<double, size_t>> q;
-  for (size_t i=0; i< parameter_indices.size(); i++) {
-    double val = std::abs(std::pow(gradient(i),2) / hessian_diagonal(i));
-    q.push(std::pair<double, size_t>(val, i));
-  }
-  size_t n_param_new = parameter_indices.size() * parameter_proportion;
-  if (Parallel::is_master()) {
-    std::cout << "Reduced number of optimization parameters: " << n_param_new
-              << std::endl;
-  }
-  std::vector<index_t> new_parameter_indices(n_param_new);
-  for (size_t i=0; i<n_param_new; i++) {
-    new_parameter_indices[i] = parameter_indices[q.top().second];
-    q.pop();
-  }
-  return new_parameter_indices;
 }
 
 void Optimization::fill_rot_matrix_with_parameters(
@@ -594,11 +612,16 @@ VectorXd Optimization::hessian_diagonal(
 }
 
 void Optimization::get_generalized_Fock() {
+  // A properly resized generalized_Fock_matrix indicates it's been computed
   generalized_Fock_matrix.resize(n_orbs, n_orbs);
-#pragma omp parallel for
+
+#pragma omp parallel for collapse(2) schedule(dynamic)
   for (unsigned i = 0; i < n_orbs; i++) {
     for (unsigned j = 0; j < n_orbs; j++) {
-      generalized_Fock_matrix(i, j) = generalized_Fock_element(i, j);
+      if (integrals.orb_sym[i] == integrals.orb_sym[j])
+        generalized_Fock_matrix(i, j) = generalized_Fock_element(i, j);
+      else
+        generalized_Fock_matrix(i, j) = 0.;
     }
   }
 }

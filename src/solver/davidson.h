@@ -20,7 +20,7 @@ class Davidson {
 
   std::vector<std::vector<double>> get_lowest_eigenvectors() const { return lowest_eigenvectors; }
 
-  bool converged;
+  bool converged = false;
 
  private:
   std::vector<double> lowest_eigenvalues;
