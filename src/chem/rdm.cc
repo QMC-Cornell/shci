@@ -126,9 +126,6 @@ void RDM::get_1rdm() {
 
   if (time_sym) { // dn electrons part
     one_rdm *= 2.;
-//    if (hessian_ci_orb_p) {// Important: this assumes 1rdm construction precedes 2rdm
-//      (*hessian_ci_orb_p) *= 2.;
-//    }
   }
   Timer::end();
 }
