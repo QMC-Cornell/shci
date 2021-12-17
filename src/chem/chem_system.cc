@@ -728,9 +728,12 @@ void ChemSystem::dump_integrals(const char* filename) {
   if (Config::get<bool>("optimization/rotation_matrix", false)) {
     FILE *fp;
     fp = fopen("rotation_matrix", "w");
-    for (int i = 0; i < rotation_matrix.rows(); i++) {
-      for (int j = 0; j < rotation_matrix.cols(); j++) {
-        fprintf(fp, "%.10E ", rotation_matrix(i, j));
+    const size_t n_rotation_params = rotation_matrix.rows();
+    for (int i = 0; i < n_rotation_params; i++) {
+      for (int j = 0; j < n_rotation_params; j++) {
+        const int I = integrals.orb_order[i];
+        const int J = integrals.orb_order[j];
+        fprintf(fp, "%.10E ", rotation_matrix(I, J));
       }
       fprintf(fp, "\n");
     }
