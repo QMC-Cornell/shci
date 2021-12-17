@@ -499,11 +499,17 @@ void Optimization::generate_optorb_integrals_from_bfgs() {
 
 std::vector<Optimization::index_t> Optimization::parameter_indices() const {
   // return vector of (row,col) indices of optimization parameters
-  std::vector<unsigned> orb_sym = integrals.orb_sym;
+  const std::vector<unsigned>& orb_sym = integrals.orb_sym;
+  const std::vector<unsigned>& highest_occ_orb_in_irrep = integrals.highest_occ_orb_in_irrep;
   std::vector<index_t> indices;
+  const bool enforce_active_space = Config::get<bool>("chem/active_space", false);
   for (unsigned i = 0; i < n_orbs; i++) {
     for (unsigned j = i + 1; j < n_orbs; j++) {
       if (orb_sym[i] == orb_sym[j]) {
+        if (enforce_active_space 
+		&& highest_occ_orb_in_irrep[orb_sym[i] - 1] < i 
+		&& highest_occ_orb_in_irrep[orb_sym[j] - 1] < j)
+          continue; // virtual-virtual rotations are redundant
         indices.push_back(std::make_pair(i, j));
       }
     }

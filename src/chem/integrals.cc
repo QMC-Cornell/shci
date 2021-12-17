@@ -281,7 +281,48 @@ void Integrals::reorder_orbs(const std::vector<double>& orb_energies) {
     const unsigned ori_id = orb_order[i];
     const double orb_energy = orb_energies[ori_id];
     if (Parallel::is_master()) {
-      printf("#%3u: E = %16.12f, E_1b = %16.12f, sym = %2u, origin #%3u\n", i, orb_energy, get_1b(ori_id, ori_id), orb_sym[i], ori_id);
+      printf(
+          "#%3u: E = %16.12f, E_1b = %16.12f, sym = %2u, origin #%3u\n", 
+          i, 
+	  orb_energy, 
+	  get_1b(ori_id, ori_id), 
+	  orb_sym[i], 
+	  ori_id
+      );
+    }
+  }
+
+  // Identify active orbitals (the lowest energy orbs in each irrep)
+  if (Config::get<bool>("chem/active_space", false)) {
+    if (Config::get<bool>("reorder_orbs", true))
+      throw std::invalid_argument("Set reorder_orbs to false for active space calculations");
+    // irrep_active_space: number of active orbs in each irrep.
+    std::vector<unsigned> irrep_active_space = 
+        Config::get<std::vector<unsigned>>("chem/irrep_active_space", std::vector<unsigned>());
+    const unsigned n_irreps = *std::max_element(orb_sym.begin(), orb_sym.end()); 
+    if (irrep_active_space.size() == 0) 
+      throw std::invalid_argument("Active space specification is missing or incorrect.");
+    std::vector<std::vector<unsigned>> irrep_active_orbs(n_irreps); // record act orbs in each irrep
+    for (unsigned i = 0; i < n_orbs; i++) {
+      const unsigned i_sym = orb_sym[i] - 1;
+      if (irrep_active_orbs[i_sym].size() < irrep_active_space[i_sym]) {
+        irrep_active_orbs[i_sym].push_back(i);
+      }
+    }
+    highest_occ_orb_in_irrep.resize(n_irreps);
+    for (unsigned i_sym = 0; i_sym < n_irreps; i_sym++) {
+      highest_occ_orb_in_irrep[i_sym] = irrep_active_orbs[i_sym].back();
+    }
+    if (Parallel::is_master()) {
+      printf("Active space orbitals:");
+      for (unsigned i_sym = 0; i_sym < n_irreps; i_sym++) {
+        printf("\nsym = %2u\n", i_sym + 1);
+        for (unsigned j_orb = 0; j_orb < irrep_active_orbs[i_sym].size(); j_orb++) {
+          printf("%5u", irrep_active_orbs[i_sym][j_orb]);
+	  if (j_orb%10 == 9) printf("\n");
+	}
+      }
+      printf("\n\n");
     }
   }
 

@@ -27,6 +27,8 @@ class Integrals {
 
   std::vector<unsigned> orb_order_inv;
 
+  std::vector<unsigned> highest_occ_orb_in_irrep; // for enforcing active space
+
   Det det_hf;
 
   IntegralsContainer integrals_1b;

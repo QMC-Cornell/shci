@@ -66,6 +66,8 @@ class ChemSystem : public BaseSystem {
 
   Eigen::MatrixXd rotation_matrix;
 
+  bool enforce_active_space;
+
   // setup sym orbs
   void setup_sym_orbs();
 

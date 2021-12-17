@@ -27,6 +27,7 @@ void ChemSystem::setup(const bool load_integrals_from_file) {
     product_table.set_point_group(point_group);
     time_sym = Config::get<bool>("time_sym", false);
     has_double_excitation = Config::get<bool>("has_double_excitation", true);
+    enforce_active_space = Config::get<bool>("chem/active_space", false);
 
     Timer::start("load integrals");
     integrals.load();
@@ -35,9 +36,8 @@ void ChemSystem::setup(const bool load_integrals_from_file) {
     orb_sym = integrals.orb_sym;
     check_group_elements();
     Timer::end();
+    setup_sym_orbs();
   }
-
-  setup_sym_orbs();
 
   Timer::start("setup hci queue");
   setup_hci_queue();
@@ -324,6 +324,9 @@ double ChemSystem::find_connected_dets(
             continue;
           }
         }
+	if (enforce_active_space) {
+          if (r > integrals.highest_occ_orb_in_irrep[orb_sym[r] - 1]) continue;
+	}
         Det connected_det(det);
         if (p_id < n_up) {
           if (det.up.has(r)) continue;
@@ -377,6 +380,11 @@ double ChemSystem::find_connected_dets(
             continue;
           }
         }
+	if (enforce_active_space) {
+          const unsigned rr = r%n_orbs, ss = s%n_orbs;
+          if (rr > integrals.highest_occ_orb_in_irrep[orb_sym[rr] - 1]) continue;
+          if (ss > integrals.highest_occ_orb_in_irrep[orb_sym[ss] - 1]) continue;
+	}
         const bool occ_r = r < n_orbs ? det.up.has(r) : det.dn.has(r - n_orbs);
         if (occ_r) continue;
         const bool occ_s = s < n_orbs ? det.up.has(s) : det.dn.has(s - n_orbs);
@@ -713,7 +721,6 @@ void ChemSystem::variation_cleanup() {
   max_singles_queue_elem = 0.;
   hci_queue.clear();
   singles_queue.clear();
-  sym_orbs.clear();
 }
 
 void ChemSystem::dump_integrals(const char* filename) {
