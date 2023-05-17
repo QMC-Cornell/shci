@@ -124,12 +124,12 @@ class BaseSystem {
 
   template <class B>
   void serialize(B& buf) const {
-    buf << n_up << n_dn << dets << coefs << energy_hf << energy_var;
+    buf << n_up << n_dn << dets << coefs << energy_hf << energy_var << time_sym;
   }
 
   template <class B>
   void parse(B& buf) {
-    buf >> n_up >> n_dn >> dets >> coefs >> energy_hf >> energy_var;
+    buf >> n_up >> n_dn >> dets >> coefs >> energy_hf >> energy_var >> time_sym;
   }
 
   virtual void variation_cleanup(){};
